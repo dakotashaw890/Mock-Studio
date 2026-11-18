@@ -837,6 +837,60 @@
   "view": "front"
  },
  {
+  "id": "f01l",
+  "name": "F01 Waterfront – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f01l.jpg",
+  "quad": [
+   {
+    "x": 0.5431,
+    "y": 0.2995
+   },
+   {
+    "x": 0.6494,
+    "y": 0.2995
+   },
+   {
+    "x": 0.6494,
+    "y": 0.3845
+   },
+   {
+    "x": 0.5431,
+    "y": 0.3845
+   }
+  ]
+ },
+ {
+  "id": "f01r",
+  "name": "F01 Waterfront – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f01r.jpg",
+  "quad": [
+   {
+    "x": 0.3619,
+    "y": 0.3075
+   },
+   {
+    "x": 0.4681,
+    "y": 0.3075
+   },
+   {
+    "x": 0.4681,
+    "y": 0.3925
+   },
+   {
+    "x": 0.3619,
+    "y": 0.3925
+   }
+  ]
+ },
+ {
   "id": "f02",
   "name": "F02 Brownstone sidewalk",
   "group": "women",
@@ -862,6 +916,60 @@
    }
   ],
   "view": "front"
+ },
+ {
+  "id": "f02l",
+  "name": "F02 Brownstone sidewalk – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f02l.jpg",
+  "quad": [
+   {
+    "x": 0.5656,
+    "y": 0.3175
+   },
+   {
+    "x": 0.6719,
+    "y": 0.3175
+   },
+   {
+    "x": 0.6719,
+    "y": 0.4025
+   },
+   {
+    "x": 0.5656,
+    "y": 0.4025
+   }
+  ]
+ },
+ {
+  "id": "f02r",
+  "name": "F02 Brownstone sidewalk – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f02r.jpg",
+  "quad": [
+   {
+    "x": 0.3656,
+    "y": 0.3575
+   },
+   {
+    "x": 0.4719,
+    "y": 0.3575
+   },
+   {
+    "x": 0.4719,
+    "y": 0.4425
+   },
+   {
+    "x": 0.3656,
+    "y": 0.4425
+   }
+  ]
  },
  {
   "id": "f03",
@@ -891,6 +999,60 @@
   "view": "front"
  },
  {
+  "id": "f03l",
+  "name": "F03 Skyline patio – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f03l.jpg",
+  "quad": [
+   {
+    "x": 0.5369,
+    "y": 0.3375
+   },
+   {
+    "x": 0.6431,
+    "y": 0.3375
+   },
+   {
+    "x": 0.6431,
+    "y": 0.4225
+   },
+   {
+    "x": 0.5369,
+    "y": 0.4225
+   }
+  ]
+ },
+ {
+  "id": "f03r",
+  "name": "F03 Skyline patio – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f03r.jpg",
+  "quad": [
+   {
+    "x": 0.375,
+    "y": 0.347
+   },
+   {
+    "x": 0.4875,
+    "y": 0.347
+   },
+   {
+    "x": 0.4875,
+    "y": 0.437
+   },
+   {
+    "x": 0.375,
+    "y": 0.437
+   }
+  ]
+ },
+ {
   "id": "f04",
   "name": "F04 Art gallery",
   "group": "women",
@@ -916,6 +1078,60 @@
    }
   ],
   "view": "front"
+ },
+ {
+  "id": "f04l",
+  "name": "F04 Art gallery – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f04l.jpg",
+  "quad": [
+   {
+    "x": 0.55,
+    "y": 0.325
+   },
+   {
+    "x": 0.65,
+    "y": 0.325
+   },
+   {
+    "x": 0.65,
+    "y": 0.405
+   },
+   {
+    "x": 0.55,
+    "y": 0.405
+   }
+  ]
+ },
+ {
+  "id": "f04r",
+  "name": "F04 Art gallery – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f04r.jpg",
+  "quad": [
+   {
+    "x": 0.3431,
+    "y": 0.3725
+   },
+   {
+    "x": 0.4494,
+    "y": 0.3725
+   },
+   {
+    "x": 0.4494,
+    "y": 0.4575
+   },
+   {
+    "x": 0.3431,
+    "y": 0.4575
+   }
+  ]
  },
  {
   "id": "f05",
@@ -945,6 +1161,60 @@
   "view": "front"
  },
  {
+  "id": "f05l",
+  "name": "F05 Concrete steps – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f05l.jpg",
+  "quad": [
+   {
+    "x": 0.5306,
+    "y": 0.2745
+   },
+   {
+    "x": 0.6244,
+    "y": 0.2745
+   },
+   {
+    "x": 0.6244,
+    "y": 0.3495
+   },
+   {
+    "x": 0.5306,
+    "y": 0.3495
+   }
+  ]
+ },
+ {
+  "id": "f05r",
+  "name": "F05 Concrete steps – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f05r.jpg",
+  "quad": [
+   {
+    "x": 0.4931,
+    "y": 0.2805
+   },
+   {
+    "x": 0.5869,
+    "y": 0.2805
+   },
+   {
+    "x": 0.5869,
+    "y": 0.3555
+   },
+   {
+    "x": 0.4931,
+    "y": 0.3555
+   }
+  ]
+ },
+ {
   "id": "f06",
   "name": "F06 Courtyard",
   "group": "women",
@@ -970,6 +1240,60 @@
    }
   ],
   "view": "front"
+ },
+ {
+  "id": "f06l",
+  "name": "F06 Courtyard – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f06l.jpg",
+  "quad": [
+   {
+    "x": 0.5181,
+    "y": 0.2725
+   },
+   {
+    "x": 0.6244,
+    "y": 0.2725
+   },
+   {
+    "x": 0.6244,
+    "y": 0.3575
+   },
+   {
+    "x": 0.5181,
+    "y": 0.3575
+   }
+  ]
+ },
+ {
+  "id": "f06r",
+  "name": "F06 Courtyard – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f06r.jpg",
+  "quad": [
+   {
+    "x": 0.4031,
+    "y": 0.2855
+   },
+   {
+    "x": 0.5094,
+    "y": 0.2855
+   },
+   {
+    "x": 0.5094,
+    "y": 0.3705
+   },
+   {
+    "x": 0.4031,
+    "y": 0.3705
+   }
+  ]
  },
  {
   "id": "f07",
@@ -999,6 +1323,60 @@
   "view": "front"
  },
  {
+  "id": "f07l",
+  "name": "F07 Stone alley – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f07l.jpg",
+  "quad": [
+   {
+    "x": 0.3525,
+    "y": 0.295
+   },
+   {
+    "x": 0.4525,
+    "y": 0.295
+   },
+   {
+    "x": 0.4525,
+    "y": 0.375
+   },
+   {
+    "x": 0.3525,
+    "y": 0.375
+   }
+  ]
+ },
+ {
+  "id": "f07r",
+  "name": "F07 Stone alley – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f07r.jpg",
+  "quad": [
+   {
+    "x": 0.3056,
+    "y": 0.2975
+   },
+   {
+    "x": 0.4119,
+    "y": 0.2975
+   },
+   {
+    "x": 0.4119,
+    "y": 0.3825
+   },
+   {
+    "x": 0.3056,
+    "y": 0.3825
+   }
+  ]
+ },
+ {
   "id": "f08",
   "name": "F08 Greenhouse",
   "group": "women",
@@ -1024,6 +1402,60 @@
    }
   ],
   "view": "front"
+ },
+ {
+  "id": "f08l",
+  "name": "F08 Greenhouse – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f08l.jpg",
+  "quad": [
+   {
+    "x": 0.4938,
+    "y": 0.36
+   },
+   {
+    "x": 0.6062,
+    "y": 0.36
+   },
+   {
+    "x": 0.6062,
+    "y": 0.45
+   },
+   {
+    "x": 0.4938,
+    "y": 0.45
+   }
+  ]
+ },
+ {
+  "id": "f08r",
+  "name": "F08 Greenhouse – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f08r.jpg",
+  "quad": [
+   {
+    "x": 0.3625,
+    "y": 0.352
+   },
+   {
+    "x": 0.475,
+    "y": 0.352
+   },
+   {
+    "x": 0.475,
+    "y": 0.442
+   },
+   {
+    "x": 0.3625,
+    "y": 0.442
+   }
+  ]
  },
  {
   "id": "f09",
@@ -1053,6 +1485,60 @@
   "view": "front"
  },
  {
+  "id": "f09l",
+  "name": "F09 Market hall – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f09l.jpg",
+  "quad": [
+   {
+    "x": 0.5656,
+    "y": 0.3395
+   },
+   {
+    "x": 0.6719,
+    "y": 0.3395
+   },
+   {
+    "x": 0.6719,
+    "y": 0.4245
+   },
+   {
+    "x": 0.5656,
+    "y": 0.4245
+   }
+  ]
+ },
+ {
+  "id": "f09r",
+  "name": "F09 Market hall – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f09r.jpg",
+  "quad": [
+   {
+    "x": 0.365,
+    "y": 0.347
+   },
+   {
+    "x": 0.4775,
+    "y": 0.347
+   },
+   {
+    "x": 0.4775,
+    "y": 0.437
+   },
+   {
+    "x": 0.365,
+    "y": 0.437
+   }
+  ]
+ },
+ {
   "id": "f10",
   "name": "F10 Cobblestone plaza",
   "group": "women",
@@ -1078,5 +1564,59 @@
    }
   ],
   "view": "front"
+ },
+ {
+  "id": "f10l",
+  "name": "F10 Cobblestone plaza – left sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "left",
+  "file": "models/f10l.jpg",
+  "quad": [
+   {
+    "x": 0.5,
+    "y": 0.29
+   },
+   {
+    "x": 0.6,
+    "y": 0.29
+   },
+   {
+    "x": 0.6,
+    "y": 0.37
+   },
+   {
+    "x": 0.5,
+    "y": 0.37
+   }
+  ]
+ },
+ {
+  "id": "f10r",
+  "name": "F10 Cobblestone plaza – right sleeve",
+  "group": "women",
+  "kind": "tee",
+  "color": "black",
+  "view": "right",
+  "file": "models/f10r.jpg",
+  "quad": [
+   {
+    "x": 0.3812,
+    "y": 0.29
+   },
+   {
+    "x": 0.4813,
+    "y": 0.29
+   },
+   {
+    "x": 0.4813,
+    "y": 0.37
+   },
+   {
+    "x": 0.3812,
+    "y": 0.37
+   }
+  ]
  }
 ]
