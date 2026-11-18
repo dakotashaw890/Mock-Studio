@@ -47,6 +47,12 @@ label.file strong{font-size:14px}
 .stage .hint{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.7);color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;pointer-events:none}
 .stage .busy{position:absolute;right:10px;top:10px;background:rgba(0,0,0,.7);color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;display:none}
 .thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.gtile{position:relative;border:2px solid transparent;border-radius:10px;overflow:hidden;background:var(--soft);cursor:pointer}
+.gtile.on{border-color:var(--accent)}.gtile.off canvas{opacity:.35}
+.gtile canvas{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}
+.gtile label{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;border-radius:7px;padding:3px 6px;font-size:12px;display:flex;gap:4px;align-items:center}
+.gtile span{display:block;font-size:11px;color:var(--muted);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .thumb{flex:0 0 auto;width:74px;border:2px solid transparent;border-radius:10px;padding:0;background:none;cursor:pointer;display:block}
 .thumb img{width:100%;height:92px;object-fit:cover;border-radius:8px;display:block;background:var(--soft)}
 .thumb span{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px}
@@ -131,7 +137,12 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <button class="pill" data-kind="mine">My photos</button>
           </div>
         </div>
+        <div class="row" style="justify-content:space-between;margin-bottom:8px">
+          <div class="row"><button class="pill on" id="v-strip">Strip</button><button class="pill" id="v-grid">Grid preview</button></div>
+          <div class="row small" id="sel-ctl" style="display:none"><button class="pill" id="sel-all">Select all</button><button class="pill" id="sel-none">Select none</button></div>
+        </div>
         <div class="thumbs" id="thumbs"></div>
+        <div class="grid" id="grid" style="display:none"></div>
       </div>
     </div>
     <div>
@@ -171,10 +182,17 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       </div>
       <div class="card">
         <h2>4. Export</h2>
-        <p class="small muted" style="margin:0 0 10px">Full resolution JPG, up to 2000 px on the long side.</p>
+        <div class="ctl"><div class="lab">Size</div>
+          <select id="out-size">
+            <option value="orig">Original photo (4:5, up to 2000 px)</option>
+            <option value="sq">Etsy square · 2000 × 2000</option>
+            <option value="p45">Portrait 4:5 · 1600 × 2000</option>
+            <option value="story">TikTok / Reels 9:16 · 1080 × 1920</option>
+          </select></div>
+        <p class="small muted" style="margin:0 0 10px">Crops keep the print centered in frame.</p>
         <div class="row">
           <button class="primary" id="btn-dl">Download this one</button>
-          <button id="btn-dl-all">Download all shown (.zip)</button>
+          <button id="btn-dl-all">Download selected (.zip)</button>
         </div>
         
       </div>
@@ -490,6 +508,7 @@ function drawHandles(quad,pack){
   vctx.restore();
 }
 function renderThumbs(){
+  if(typeof updateDlCount==='function')try{updateDlCount();}catch(e){}
   const box=$('#thumbs');box.textContent='';
   for(const t of shown()){
     const b=document.createElement('button');b.className='thumb'+(t.id===curId?' on':'');
@@ -552,7 +571,7 @@ const endDrag=()=>{drag=null;};
 view.addEventListener('pointerup',endDrag);view.addEventListener('pointercancel',endDrag);
 $('#btn-edit').onclick=startEdit;
 $('#btn-cancel-area').onclick=cancelEdit;
-$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;try{await saveQuad(t,q);endEdit();toast('Print area saved.');}catch(e){toast('Couldn\'t save the print area.');}};
+$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;try{await saveQuad(t,q);endEdit();toast('Print area saved.');scheduleGrid();}catch(e){toast('Couldn\'t save the print area.');}};
 
 /* ---------- design input ---------- */
 function analyzeOpaque(c){
@@ -571,7 +590,7 @@ function rebuildDesign(){
     x.putImageData(id,0,0);design.src=c;
   }
   design.ver=++verSeq;designCache.key='';
-  drawThumb();scheduleRender();
+  drawThumb();scheduleRender();scheduleGrid();updateDlCount();
 }
 $('#design-file').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
@@ -579,6 +598,7 @@ $('#design-file').onchange=async e=>{
     const img=await fileToImage(f);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,3000);const c=drawScaled(img,w,h);
     const a=analyzeOpaque(c);
     designs[slot]={orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30};
+    if(loadPlacement(slot))toast('Restored your last placement for '+f.name+'.');
     setSlot(slot);
     if(Math.max(img.naturalWidth,img.naturalHeight)<1200&&slot==='front')toast('Low-res design. Exports may look soft.',3500);
     rebuildDesign();
@@ -597,15 +617,63 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
 const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['px','x',v=>v/100,v=>(v>0?'+':'')+v],['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%'],['wrap','wrap',v=>v/100,v=>v+'%']];
 const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
-for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();};
+for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+
+/* ---------- remembered placement ---------- */
+function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
+let saveT;
+function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
+function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
+  for(const kk of ['size','y','x','wrap'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
+
+/* ---------- grid preview ---------- */
+const excluded=new Set(LS.get('excluded',[]));
+let gridOn=false, gridJob=0, gridT;
+const smallPacks=new Map();
+async function smallPack(t){if(smallPacks.has(t.id))return smallPacks.get(t.id);const p=makePack(await tplImage(t),360);smallPacks.set(t.id,p);return p;}
+function updateDlCount(){const n=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id)).length;$('#btn-dl-all').textContent='Download selected ('+n+') .zip';}
+function scheduleGrid(){if(!gridOn)return;clearTimeout(gridT);gridT=setTimeout(renderGrid,350);}
+async function renderGrid(){
+  const job=++gridJob, box=$('#grid'); box.textContent='';
+  const list=shown(); const tiles=[];
+  for(const t of list){
+    const d=document.createElement('div');d.className='gtile'+(t.id===curId?' on':'')+(excluded.has(t.id)?' off':'');
+    const c=document.createElement('canvas');const lab=document.createElement('label');const cb=document.createElement('input');cb.type='checkbox';cb.checked=!excluded.has(t.id);
+    lab.append(cb,'Export');lab.onclick=e=>e.stopPropagation();
+    cb.onchange=()=>{cb.checked?excluded.delete(t.id):excluded.add(t.id);LS.set('excluded',[...excluded]);d.classList.toggle('off',!cb.checked);updateDlCount();};
+    const sp=document.createElement('span');sp.textContent=t.name;
+    d.append(c,lab,sp);d.onclick=()=>{if(editMode)cancelEdit();curId=t.id;$$('#grid .gtile').forEach(x=>x.classList.remove('on'));d.classList.add('on');renderThumbs();scheduleRender();window.scrollTo({top:0,behavior:'smooth'});};
+    box.append(d);tiles.push([t,c]);
+  }
+  updateDlCount();
+  for(const [t,c] of tiles){
+    if(job!==gridJob)return;
+    try{const p=await smallPack(t);c.width=p.w;c.height=p.h;withSlot(viewOf(t),()=>composite(p,t.quad,c.getContext('2d'),t.arc));}catch(e){}
+    await new Promise(r=>setTimeout(r,0));
+  }
+}
+function setGrid(on){gridOn=on;$('#v-grid').classList.toggle('on',on);$('#v-strip').classList.toggle('on',!on);$('#grid').style.display=on?'grid':'none';$('#thumbs').style.display=on?'none':'flex';$('#sel-ctl').style.display=on?'flex':'none';if(on)renderGrid();}
+$('#v-grid').onclick=()=>setGrid(true);$('#v-strip').onclick=()=>setGrid(false);
+$('#sel-all').onclick=()=>{shown().forEach(t=>excluded.delete(t.id));LS.set('excluded',[...excluded]);renderGrid();};
+$('#sel-none').onclick=()=>{shown().forEach(t=>excluded.add(t.id));LS.set('excluded',[...excluded]);renderGrid();};
 
 /* ---------- export ---------- */
+const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
 async function renderFull(t){
   const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;withSlot(viewOf(t),()=>composite(pack,t.quad,c.getContext('2d'),t.arc));
-  return canvasBlob(c,'image/jpeg',.92);
+  const sz=SIZES[$('#out-size').value];
+  if(!sz)return canvasBlob(c,'image/jpeg',.92);
+  const [W,H]=sz,A=W/H,w=pack.w,h=pack.h;
+  let cw,ch; if(w/h>A){ch=h;cw=h*A;}else{cw=w;ch=w/A;}
+  const cx=t.quad.reduce((a,p)=>a+p.x,0)/4*w, cy=t.quad.reduce((a,p)=>a+p.y,0)/4*h;
+  const sx=Math.min(w-cw,Math.max(0,cx-cw/2)), sy=Math.min(h-ch,Math.max(0,cy-ch*0.45));
+  const o=document.createElement('canvas');o.width=W;o.height=H;const x=o.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(c,sx,sy,cw,ch,0,0,W,H);
+  return canvasBlob(o,'image/jpeg',.92);
 }
+function sizeTag(){const v=$('#out-size').value;return v==='orig'?'':'-'+v;}
 function baseName(){const d=designs.front||designs.left||designs.right;return d?d.name.replace(/\.[^.]+$/,''):'mockup';}
 function outName(t){return safeName(baseName()+'-'+t.name);}
 async function saveFile(filename,data){
@@ -616,15 +684,15 @@ const busy=on=>{$('#busy').style.display=on?'block':'none';$('#btn-dl').disabled
 $('#btn-dl').onclick=async()=>{
   const t=curT();if(!t)return;if(!designs[viewOf(t)]){toast('Upload a '+SLOT_NAMES[viewOf(t)].toLowerCase()+' design first.');return;}
   if(editMode){toast('Save or cancel the print area first.');return;}
-  busy(true);try{const b=await renderFull(t);await saveFile(outName(t)+'.jpg',b);}catch(e){toast('Export failed.');}finally{busy(false);}
+  busy(true);try{const b=await renderFull(t);await saveFile(outName(t)+sizeTag()+'.jpg',b);}catch(e){toast('Export failed.');}finally{busy(false);}
 };
 $('#btn-dl-all').onclick=async()=>{
-  const list=shown().filter(t=>designs[viewOf(t)]);if(!list.length){toast('Upload a design for the photos shown first.');return;}
+  const list=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id));if(!list.length){toast('Nothing selected that has a design yet.');return;}
   if(editMode){toast('Save or cancel the print area first.');return;}
   if(!window.JSZip){toast('Zip tool didn\'t load. Download one at a time.');return;}
   busy(true);
   try{const zip=new JSZip();let n=0;
-    for(const t of list){$('#busy').textContent='Rendering '+(++n)+' of '+list.length+'…';const b=await renderFull(t);zip.file(outName(t)+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
+    for(const t of list){$('#busy').textContent='Rendering '+(++n)+' of '+list.length+'…';const b=await renderFull(t);zip.file(outName(t)+sizeTag()+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
     $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});
     await saveFile(safeName(baseName())+'-mockups.zip',z);
   }catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
@@ -670,7 +738,7 @@ $('#g-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#g-out
 function go(tab){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+tab));if(tab==='studio')scheduleRender();}
 $$('nav button').forEach(b=>b.onclick=()=>{if(editMode&&b.dataset.tab!=='studio')cancelEdit();go(b.dataset.tab);});
 $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-$$('#kind-filter button').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();});
+$$('#kind-filter button').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();if(gridOn)renderGrid();});
 window.addEventListener('resize',()=>{if(editMode)scheduleRender();});
 
 setSlot('front');buildPrompt();renderAll();initStore();
