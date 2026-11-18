@@ -57,6 +57,7 @@ label.file strong{font-size:14px}
 .ctl .lab span{color:var(--muted);font-weight:500}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .design-prev{display:flex;gap:10px;align-items:center}
+.slots{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}.slots button{padding:7px 12px;font-size:13px}.slots button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}.slots .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:none}.slots .has .dot{display:inline-block}
 .design-prev canvas{width:64px;height:64px;border-radius:8px;background:repeating-conic-gradient(#ccc 0 25%,#fff 0 50%) 50%/12px 12px;object-fit:contain}
 .note{font-size:13px;padding:9px 11px;border-radius:10px;background:var(--soft);border:1px solid var(--line);margin-top:8px}
 .note.warn{border-color:#f59e0b55;background:#f59e0b14}
@@ -126,7 +127,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <button class="pill on" data-kind="all">All</button>
             <button class="pill" data-kind="men">Men</button>
             <button class="pill" data-kind="women">Women</button>
-            <button class="pill" data-kind="hoodie">Hoodies</button>
+            <button class="pill" data-kind="sleeves">Sleeves</button>
             <button class="pill" data-kind="mine">My photos</button>
           </div>
         </div>
@@ -135,10 +136,15 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     </div>
     <div>
       <div class="card">
-        <h2>1. Your design</h2>
+        <h2>1. Your designs</h2>
+        <div class="slots" id="slots">
+          <button data-slot="front" class="on"><span class="dot"></span>Front</button>
+          <button data-slot="left"><span class="dot"></span>Left sleeve</button>
+          <button data-slot="right"><span class="dot"></span>Right sleeve</button>
+        </div>
         <label class="file" id="design-drop">
           <input type="file" id="design-file" accept="image/png,image/webp,image/jpeg">
-          <strong>Upload design file</strong>
+          <strong id="design-up-label">Upload front design</strong>
           <span class="small muted">Transparent PNG works best</span>
         </label>
         <div class="design-prev" id="design-info" style="display:none;margin-top:10px">
@@ -152,7 +158,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         </div>
       </div>
       <div class="card">
-        <h2>2. Placement</h2>
+        <h2>2. Placement <span class="muted small" id="pl-slot" style="font-weight:500">· Front</span></h2>
         <div class="ctl"><div class="lab">Size <span id="v-size"></span></div><input type="range" id="size" min="20" max="100" value="85"></div>
         <div class="ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
         <div class="ctl"><div class="lab">Left / right <span id="v-x"></span></div><input type="range" id="px" min="-100" max="100" value="0"></div>
@@ -188,6 +194,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <div style="display:grid;gap:8px;align-content:start">
         <input type="text" id="tpl-name" placeholder="Name, e.g. Man – heather gray tee" maxlength="60">
         <select id="tpl-kind"><option value="tee">T-shirt</option><option value="hoodie">Hoodie</option></select>
+        <select id="tpl-view"><option value="front">Front view</option><option value="left">Side view – left sleeve</option><option value="right">Side view – right sleeve</option></select>
         <button class="primary" id="tpl-add" disabled>Add and set print area</button>
       </div>
     </div>
@@ -258,7 +265,26 @@ const DEFAULTS = {size:.85, y:.04, x:0, fold:.45, shade:.75, opacity:.94};
 let memoryMode=false;
 let templates=[]; let curId=null; let kindFilter='all';
 const imgCache=new Map(), packCache=new Map(), localImgs=new Map();
-let design=null; // {orig: canvas, src: canvas, w,h, name, opaque}
+let design=null; // active slot's design
+const designs={front:null,left:null,right:null};
+const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
+const PL={front:{size:.85,y:.04,x:0},left:{size:.8,y:.15,x:0},right:{size:.8,y:.15,x:0}};
+let slot='front', verSeq=0;
+const viewOf=t=>t&&t.view||'front';
+function bindSlot(v){slot=v;design=designs[v];Object.assign(P,PL[v]);}
+function withSlot(v,fn){const ps=slot;bindSlot(v);try{return fn();}finally{bindSlot(ps);}}
+function setSlot(v){
+  bindSlot(v);
+  $$('#slots button').forEach(b=>{b.classList.toggle('on',b.dataset.slot===v);b.classList.toggle('has',!!designs[b.dataset.slot]);});
+  $('#design-up-label').textContent=design?'Replace '+SLOT_NAMES[v].toLowerCase()+' design':'Upload '+SLOT_NAMES[v].toLowerCase()+' design';
+  $('#pl-slot').textContent='· '+SLOT_NAMES[v];
+  $('#design-info').style.display=design?'flex':'none';
+  if(design){$('#design-name').textContent=design.name;$('#design-dim').textContent=design.dim;drawThumb();}
+  $('#bg-note').style.display=design&&design.opaque?'block':'none';$('#bg-ctl').style.display=design&&design.opaque?'block':'none';
+  $('#rm-bg').checked=!!(design&&design.removeBg);$('#tol-ctl').style.display=design&&design.removeBg?'block':'none';
+  if(design){$('#tol').value=design.tol;}
+  syncSliders();
+}
 const P={...DEFAULTS, removeBg:false, tol:30};
 let editMode=false, editQuad=null, drag=null;
 const designCache={key:'',data:null};
@@ -380,7 +406,7 @@ function defaultQuad(kind){
   return [{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
 }
 const curT=()=>templates.find(t=>t.id===curId)||null;
-function shown(){return templates.filter(t=>kindFilter==='all'||(kindFilter==='mine'?!t.builtin:kindFilter==='hoodie'?t.kind==='hoodie':t.group===kindFilter));}
+function shown(){return templates.filter(t=>kindFilter==='all'||(kindFilter==='mine'?!t.builtin:kindFilter==='sleeves'?viewOf(t)!=='front':kindFilter==='hoodie'?t.kind==='hoodie':t.group===kindFilter));}
 function setStoreStatus(msg){$('#store-status').textContent=msg;}
 let builtins=[];
 async function initStore(){
@@ -396,18 +422,18 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({id:m.id,name:m.name,kind:m.kind,group:'mine',quad:m.quad,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
   renderAll();
 }
-async function addTemplate(file,name,kind){
+async function addTemplate(file,name,kind,view){
   const img=await fileToImage(file);
   const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,UPLOAD_MAX);
   const c=drawScaled(img,w,h);const blob=await canvasBlob(c,'image/jpeg',.92);
   const id='u'+Date.now();
-  const rec={id,name:name||file.name.replace(/\.[^.]+$/,''),kind,quad:defaultQuad(kind),createdAt:Date.now()};
+  const rec={id,name:name||file.name.replace(/\.[^.]+$/,''),kind,view:view||'front',quad:view&&view!=='front'?[{x:.4,y:.35},{x:.55,y:.35},{x:.55,y:.47},{x:.4,y:.47}]:defaultQuad(kind),createdAt:Date.now()};
   localImgs.set(id,URL.createObjectURL(blob));
   if(memoryMode)memMine.push({...rec,group:'mine'});
   else await idbTx('readwrite',st=>st.put({...rec,blob}));
@@ -445,9 +471,10 @@ async function renderView(){
   let pack; try{pack=await previewPack(t);}catch(e){toast('Couldn\'t load that photo.');return;}
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
   const quad=editMode?editQuad:t.quad;
+  if(viewOf(t)!==slot)setSlot(viewOf(t));
   composite(pack,quad,vctx);
   if(editMode)drawHandles(quad,pack);
-  $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee');
+  $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
 }
 function drawHandles(quad,pack){
   const pts=quad.map(p=>[p.x*pack.w,p.y*pack.h]);
@@ -529,69 +556,73 @@ function analyzeOpaque(c){
   let opaque=0;const cols=[];for(const [px,py] of pts){const d=x.getImageData(px,py,1,1).data;if(d[3]>250)opaque++;cols.push(d);}
   return {opaque:opaque>=3,bg:[0,1,2].map(k=>Math.round(cols.reduce((s,c)=>s+c[k],0)/cols.length))};
 }
+function drawThumb(){const th=$('#design-thumb'),tx=th.getContext('2d');tx.clearRect(0,0,64,64);if(!design)return;const k=Math.min(64/design.w,64/design.h);tx.drawImage(design.src,(64-design.w*k)/2,(64-design.h*k)/2,design.w*k,design.h*k);}
 function rebuildDesign(){
   if(!design)return;
-  if(!P.removeBg){design.src=design.orig;}
+  if(!design.removeBg){design.src=design.orig;}
   else{
     const c=document.createElement('canvas');c.width=design.orig.width;c.height=design.orig.height;const x=c.getContext('2d');x.drawImage(design.orig,0,0);
-    const id=x.getImageData(0,0,c.width,c.height),d=id.data,[br,bg,bb]=design.bgColor,tol=P.tol;
+    const id=x.getImageData(0,0,c.width,c.height),d=id.data,[br,bg,bb]=design.bgColor,tol=design.tol;
     for(let i=0;i<d.length;i+=4){const dd=Math.sqrt((d[i]-br)**2+(d[i+1]-bg)**2+(d[i+2]-bb)**2);if(dd<tol)d[i+3]=0;else if(dd<tol*2)d[i+3]=d[i+3]*(dd-tol)/tol;}
     x.putImageData(id,0,0);design.src=c;
   }
-  design.ver++;designCache.key='';
-  const th=$('#design-thumb'),tx=th.getContext('2d');tx.clearRect(0,0,64,64);const s=Math.min(64/design.w,64/design.h);tx.drawImage(design.src,(64-design.w*s)/2,(64-design.h*s)/2,design.w*s,design.h*s);
-  scheduleRender();
+  design.ver=++verSeq;designCache.key='';
+  drawThumb();scheduleRender();
 }
 $('#design-file').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   try{
     const img=await fileToImage(f);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,3000);const c=drawScaled(img,w,h);
     const a=analyzeOpaque(c);
-    design={orig:c,src:c,w,h,name:f.name,ver:0,bgColor:a.bg};
-    $('#design-info').style.display='flex';$('#design-name').textContent=f.name;$('#design-dim').textContent=img.naturalWidth+' × '+img.naturalHeight+' px';
-    $('#bg-note').style.display=a.opaque?'block':'none';$('#bg-ctl').style.display=a.opaque?'block':'none';
-    P.removeBg=false;$('#rm-bg').checked=false;$('#tol-ctl').style.display='none';
-    if(Math.max(img.naturalWidth,img.naturalHeight)<1200)toast('Low-res design. Exports may look soft.',3500);
+    designs[slot]={orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30};
+    setSlot(slot);
+    if(Math.max(img.naturalWidth,img.naturalHeight)<1200&&slot==='front')toast('Low-res design. Exports may look soft.',3500);
     rebuildDesign();
   }catch(err){toast('Couldn\'t read that file.');}
   e.target.value='';
 };
-$('#rm-bg').onchange=e=>{P.removeBg=e.target.checked;$('#tol-ctl').style.display=P.removeBg?'block':'none';rebuildDesign();};
-let tolT;$('#tol').oninput=e=>{P.tol=+e.target.value;$('#v-tol').textContent=P.tol;clearTimeout(tolT);tolT=setTimeout(rebuildDesign,120);};
+$('#rm-bg').onchange=e=>{if(!design)return;design.removeBg=e.target.checked;$('#tol-ctl').style.display=design.removeBg?'block':'none';rebuildDesign();};
+let tolT;$('#tol').oninput=e=>{if(!design)return;design.tol=+e.target.value;$('#v-tol').textContent=design.tol;clearTimeout(tolT);tolT=setTimeout(rebuildDesign,120);};
+$$('#slots button').forEach(b=>b.onclick=()=>{
+  const v=b.dataset.slot;if(editMode)cancelEdit();setSlot(v);
+  const t=curT();if(viewOf(t)!==v){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
+  scheduleRender();
+});
 
 /* ---------- sliders ---------- */
 const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['px','x',v=>v/100,v=>(v>0?'+':'')+v],['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%']];
 const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op'};
-function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=P.tol;}
-for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();});}
-$('#btn-reset').onclick=()=>{Object.assign(P,DEFAULTS);syncSliders();scheduleRender();};
+function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
+for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();});}
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0}:{size:.8,y:.15,x:0};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();};
 
 /* ---------- export ---------- */
 async function renderFull(t){
   const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
-  const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;composite(pack,t.quad,c.getContext('2d'));
+  const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;withSlot(viewOf(t),()=>composite(pack,t.quad,c.getContext('2d')));
   return canvasBlob(c,'image/jpeg',.92);
 }
-function outName(t){return safeName((design?design.name.replace(/\.[^.]+$/,''):'mockup')+'-'+t.name);}
+function baseName(){const d=designs.front||designs.left||designs.right;return d?d.name.replace(/\.[^.]+$/,''):'mockup';}
+function outName(t){return safeName(baseName()+'-'+t.name);}
 async function saveFile(filename,data){
   try{const u=URL.createObjectURL(data);const l=document.createElement('a');l.href=u;l.download=filename;document.body.append(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);}
   catch(e){toast('Couldn\'t save the file.');}
 }
 const busy=on=>{$('#busy').style.display=on?'block':'none';$('#btn-dl').disabled=$('#btn-dl-all').disabled=on;};
 $('#btn-dl').onclick=async()=>{
-  const t=curT();if(!t)return;if(!design){toast('Upload your design first.');return;}
+  const t=curT();if(!t)return;if(!designs[viewOf(t)]){toast('Upload a '+SLOT_NAMES[viewOf(t)].toLowerCase()+' design first.');return;}
   if(editMode){toast('Save or cancel the print area first.');return;}
   busy(true);try{const b=await renderFull(t);await saveFile(outName(t)+'.jpg',b);}catch(e){toast('Export failed.');}finally{busy(false);}
 };
 $('#btn-dl-all').onclick=async()=>{
-  const list=shown();if(!list.length)return;if(!design){toast('Upload your design first.');return;}
+  const list=shown().filter(t=>designs[viewOf(t)]);if(!list.length){toast('Upload a design for the photos shown first.');return;}
   if(editMode){toast('Save or cancel the print area first.');return;}
   if(!window.JSZip){toast('Zip tool didn\'t load. Download one at a time.');return;}
   busy(true);
   try{const zip=new JSZip();let n=0;
     for(const t of list){$('#busy').textContent='Rendering '+(++n)+' of '+list.length+'…';const b=await renderFull(t);zip.file(outName(t)+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
     $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});
-    await saveFile(safeName(design.name.replace(/\.[^.]+$/,''))+'-mockups.zip',z);
+    await saveFile(safeName(baseName())+'-mockups.zip',z);
   }catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
 };
 
@@ -601,7 +632,7 @@ $('#tpl-file').onchange=e=>{tplFile=e.target.files[0]||null;$('#tpl-file-label')
 $('#btn-restore').onclick=()=>restoreHidden();
 $('#tpl-add').onclick=async()=>{
   if(!tplFile)return;const btn=$('#tpl-add');btn.disabled=true;btn.textContent='Adding…';
-  try{await addTemplate(tplFile,$('#tpl-name').value.trim(),$('#tpl-kind').value);
+  try{await addTemplate(tplFile,$('#tpl-name').value.trim(),$('#tpl-kind').value,$('#tpl-view').value);
     tplFile=null;$('#tpl-file').value='';$('#tpl-file-label').textContent='Choose photo';$('#tpl-name').value='';
     go('studio');toast('Drag the corners onto the chest, then Save area.',4000);
   }catch(e){toast('Couldn\'t add that photo.');}
@@ -638,7 +669,7 @@ $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
 $$('#kind-filter button').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();});
 window.addEventListener('resize',()=>{if(editMode)scheduleRender();});
 
-syncSliders();buildPrompt();renderAll();initStore();
+setSlot('front');buildPrompt();renderAll();initStore();
 })();
 </script>
 </body>
