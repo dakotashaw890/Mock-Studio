@@ -163,6 +163,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
         <div class="ctl"><div class="lab">Left / right <span id="v-x"></span></div><input type="range" id="px" min="-100" max="100" value="0"></div>
         <h2 style="margin-top:16px">3. Realism</h2>
+        <div class="ctl"><div class="lab">Wrap around body <span id="v-wrap"></span></div><input type="range" id="wrap" min="0" max="100" value="35"></div>
         <div class="ctl"><div class="lab">Follow folds <span id="v-fold"></span></div><input type="range" id="fold" min="0" max="100" value="45"></div>
         <div class="ctl"><div class="lab">Fabric shading <span id="v-shade"></span></div><input type="range" id="shade" min="0" max="100" value="75"></div>
         <div class="ctl"><div class="lab">Ink opacity <span id="v-op"></span></div><input type="range" id="op" min="40" max="100" value="94"></div>
@@ -268,7 +269,8 @@ const imgCache=new Map(), packCache=new Map(), localImgs=new Map();
 let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
 const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
-const PL={front:{size:.85,y:.04,x:0},left:{size:.8,y:.15,x:0},right:{size:.8,y:.15,x:0}};
+const PL={front:{size:.85,y:.04,x:0,wrap:.35},left:{size:.95,y:.5,x:0,wrap:.7},right:{size:.95,y:.5,x:0,wrap:.7}};
+let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
 function bindSlot(v){slot=v;design=designs[v];Object.assign(P,PL[v]);}
@@ -343,7 +345,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-function composite(pack,quadN,ctx){
+function composite(pack,quadN,ctx,arcIn){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const out=new ImageData(new Uint8ClampedArray(data),w,h);
   if(!design){ctx.putImageData(out,0,0);return;}
@@ -365,6 +367,7 @@ function composite(pack,quadN,ctx){
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
   const od=out.data, op=P.opacity, sh=P.shade;
+  const wth=(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
   const m0=Mi[0],m1=Mi[1],m2=Mi[2],m3=Mi[3],m4=Mi[4],m5=Mi[5],m6=Mi[6],m7=Mi[7],m8=Mi[8];
   for(let y=minY;y<=maxY;y++){
     for(let x=minX;x<=maxX;x++){
@@ -372,7 +375,8 @@ function composite(pack,quadN,ctx){
       const disp=(Lb[i]-mean)*amt;
       const sx=x+.5+disp*.35, sy=y+.5+disp;
       const z=m6*sx+m7*sy+m8; const u=(m0*sx+m1*sy+m2)/z, v=(m3*sx+m4*sy+m5)/z;
-      const du=(u-u0)/fw, dv=(v-v0)/fh;
+      let uu=u; if(wth>0.01){const sx2=(2*u-1)*sinW; if(sx2<=-1||sx2>=1)continue; uu=(Math.asin(sx2)/wth+1)/2;}
+      const du=(uu-u0)/fw, dv=(v+arc*(1-(2*u-1)*(2*u-1))-v0)/fh;
       if(du<=-.01||dv<=-.01||du>=1.01||dv>=1.01)continue;
       const fx=du*dw-.5, fy=dv*dh-.5; const ix=Math.floor(fx), iy=Math.floor(fy); const tx=fx-ix, ty=fy-iy;
       let r=0,g=0,b=0,a=0;
@@ -422,7 +426,7 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -472,7 +476,7 @@ async function renderView(){
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
   const quad=editMode?editQuad:t.quad;
   if(viewOf(t)!==slot)setSlot(viewOf(t));
-  composite(pack,quad,vctx);
+  composite(pack,quad,vctx,t.arc);
   if(editMode)drawHandles(quad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
 }
@@ -590,16 +594,16 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
 });
 
 /* ---------- sliders ---------- */
-const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['px','x',v=>v/100,v=>(v>0?'+':'')+v],['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%']];
-const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op'};
+const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['px','x',v=>v/100,v=>(v>0?'+':'')+v],['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%'],['wrap','wrap',v=>v/100,v=>v+'%']];
+const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0}:{size:.8,y:.15,x:0};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();};
 
 /* ---------- export ---------- */
 async function renderFull(t){
   const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
-  const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;withSlot(viewOf(t),()=>composite(pack,t.quad,c.getContext('2d')));
+  const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;withSlot(viewOf(t),()=>composite(pack,t.quad,c.getContext('2d'),t.arc));
   return canvasBlob(c,'image/jpeg',.92);
 }
 function baseName(){const d=designs.front||designs.left||designs.right;return d?d.name.replace(/\.[^.]+$/,''):'mockup';}
