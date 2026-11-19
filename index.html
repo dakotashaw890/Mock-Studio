@@ -711,7 +711,7 @@ function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
   const [lab,col]=dpi>=300?['Great for print','var(--ok)']:dpi>=200?['Good','var(--ok)']:dpi>=150?['Fair, may print slightly soft','var(--warn)']:['Too low, will print blurry','#b91c1c'];
   el.style.color=col;el.textContent='≈ '+dpi+' DPI at '+(TS.units==='px'?Math.round(inch*300)+' px ('+(+inch.toFixed(2))+'")':(+inch.toFixed(2))+'"')+' wide · '+lab;}
 $('#ts-on').onchange=e=>{TS.on=e.target.checked;LS.set('ts',TS);tsUI();scheduleRender();scheduleGrid();};
-$('#ts-units').onchange=e=>{TS.units=e.target.value;LS.set('ts',TS);tsUI();};
+$('#ts-units').onchange=e=>{TS.units=e.target.value;LS.set('ts',TS);$('#ts-in').value=toU(PL[slot].inches);$('#ts-collar').value=toU(PL.front.top);tsUI();};
 $('#ts-collar').oninput=e=>{const v=fromU(parseFloat(e.target.value));if(v>=0&&v<20){PL.front.top=v;if(slot==='front')P.top=v;savePlacement();scheduleRender();scheduleGrid();}};
 $('#ts-in').oninput=e=>{const v=fromU(parseFloat(e.target.value));if(v>0&&v<30){PL[slot].inches=v;P.inches=v;dpiUI();savePlacement();scheduleRender();scheduleGrid();}};
 
