@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
 :root{
   --bg:#f4f2ee; --panel:#ffffff; --ink:#1b1b1d; --muted:#6c6a66; --line:#e2ded7;
@@ -97,6 +98,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
   <button class="pill on" data-tab="studio">Studio</button>
   <button class="pill" data-tab="templates">Model photos</button>
   <button class="pill" data-tab="blanks">Make blank models</button>
+  <button class="pill" data-tab="printify">Printify</button>
 </nav>
 <main>
 
@@ -205,6 +207,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <button class="primary" id="btn-dl">Download this one</button>
           <button id="btn-dl-all">Download selected (.zip)</button>
         </div>
+        <div class="note" id="pf-linked" style="display:none"><div class="small"><strong>Linked to Printify:</strong> <span id="pf-linked-name"></span></div><div class="row" style="margin-top:6px"><button class="small primary" id="pf-push">Push placement to Printify</button><button class="small" id="pf-unlink">Unlink</button></div></div>
         <div class="row" style="margin-top:8px"><button id="btn-set">Etsy listing set (10 images)</button></div>
         <p class="small muted" style="margin:6px 0 0">Built around the photo open in the editor: hero, close-ups, both sides, more models from your selection, and a 9:16.</p>
       </div>
@@ -262,6 +265,44 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="tlist" id="tlist"></div>
     <p class="muted small" id="tlist-empty">None yet.</p>
     <p class="small" style="margin:12px 0 0"><button id="btn-restore">Show hidden built-in models</button></p>
+  </div>
+</section>
+
+<!-- PRINTIFY -->
+<section class="tab" id="tab-printify">
+  <div class="card" id="pf-auth">
+    <h2>Sign in</h2>
+    <p class="small muted" style="margin:0 0 10px">An account keeps your Printify connection private to you.</p>
+    <form id="pf-login" class="grid2" style="align-items:end">
+      <input type="email" id="pf-email" placeholder="Email" autocomplete="email" required style="font:14px Inter,sans-serif;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink)">
+      <input type="password" id="pf-pass" placeholder="Password (8+ characters)" autocomplete="current-password" minlength="8" required style="font:14px Inter,sans-serif;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink)">
+      <div class="row"><button class="primary" type="submit" id="pf-signin">Sign in</button><button type="button" id="pf-signup">Create account</button></div>
+    </form>
+    <p class="status" id="pf-auth-msg" style="margin:8px 0 0"></p>
+  </div>
+  <div id="pf-app" style="display:none">
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Printify</h2><div class="row small"><span class="muted" id="pf-who"></span><button id="pf-signout" class="small">Sign out</button></div></div>
+      <div id="pf-connect" style="display:none;margin-top:10px">
+        <p class="small" style="margin:0 0 8px"><strong>Connect your Printify account</strong></p>
+        <ol class="small" style="margin:0 0 10px;padding-left:18px">
+          <li>In Printify, open <a href="https://printify.com/app/account/api" target="_blank" rel="noopener">My Profile → Connections</a> and generate a personal access token.</li>
+          <li>Give it the scopes <strong>shops.read</strong>, <strong>products.read</strong> and <strong>uploads.read</strong>. Add <strong>products.write</strong> if you want to push placement back. Leave orders off.</li>
+          <li>Paste it below. It's stored encrypted on the server and never shown again.</li>
+        </ol>
+        <div class="row"><input type="password" id="pf-token" placeholder="Paste Printify token" autocomplete="off" style="max-width:420px"><button class="primary" id="pf-connect-btn">Connect</button></div>
+      </div>
+      <div id="pf-connected" style="display:none;margin-top:10px">
+        <div class="row"><select id="pf-shop" style="max-width:320px"></select><button id="pf-refresh" class="small">Refresh</button><button id="pf-disconnect" class="small danger">Disconnect Printify</button></div>
+      </div>
+      <p class="status" id="pf-msg" style="margin:8px 0 0"></p>
+    </div>
+    <div class="card" id="pf-products-card" style="display:none">
+      <h2>Products</h2>
+      <p class="small muted" style="margin:0 0 10px">Load a product to pull its artwork, print-area size and exact placement into the studio.</p>
+      <div class="tlist" id="pf-products"></div>
+      <div class="row" style="margin-top:10px;justify-content:center"><button id="pf-prev" class="small">Previous</button><span class="small muted" id="pf-page"></span><button id="pf-next" class="small">Next</button></div>
+    </div>
   </div>
 </section>
 
@@ -329,7 +370,7 @@ const PL={front:{size:.85,y:.1,x:0,wrap:.35,inches:10,top:1.25},left:{size:.95,y
 let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
-function bindSlot(v){slot=v;design=designs[v];Object.assign(P,PL[v]);}
+function bindSlot(v){slot=v;design=designs[v];delete P.cx;delete P.top;Object.assign(P,PL[v]);}
 function withSlot(v,fn){const ps=slot;bindSlot(v);try{return fn();}finally{bindSlot(ps);}}
 function setSlot(v){
   bindSlot(v);
@@ -411,7 +452,8 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
   const A=(topW+botW)/(lH+rH), D=design.w/design.h, s=P.size;
   let fw,fh; if(D>A){fw=s;fh=s*A/D;}else{fh=s;fw=s*D/A;}
   if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}
-  const u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
+  let u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
+  if(TS.on&&areaIn&&typeof P.cx==='number')u0=0.5+P.cx/areaIn-fw/2;
   if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=Math.min(1-fh,Math.max(0,(P.top*ppi)/ah));}
   const tw=Math.max(2,Math.round((topW+botW)/2*fw*1.2)), th=Math.max(2,Math.round((lH+rH)/2*fh*1.2));
   const ds=designSampled(tw,th), pm=ds.pm, dw=ds.w, dh=ds.h;
@@ -697,7 +739,7 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
 const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['px','x',v=>v/100,v=>(v>0?'+':'')+v],['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%'],['wrap','wrap',v=>v/100,v=>v+'%']];
 const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
-for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
+for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key==='x'){delete PL[slot].cx;delete P.cx;}if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
 $('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
@@ -720,7 +762,7 @@ function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap','inches','top'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches','top','cx'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
@@ -903,6 +945,108 @@ $('#btn-vid').onclick=async()=>{
   }catch(e){note.textContent='Video failed: '+(e&&e.message||e);}
   finally{busy(false);$('#btn-vid').disabled=false;}
 };
+
+/* ---------- Printify connection ---------- */
+const SB_URL='https://wxzinlczpohjqlnhshhh.supabase.co', SB_KEY='sb_publishable_hjua7l4qyu_dDs4u2ZoGjg_tCTzn5xy';
+const sb=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SB_URL,SB_KEY):null;
+const PF={shops:[],shop:null,page:1,last:1,linked:null};
+const POS2SLOT={front:'front',left_sleeve:'left',right_sleeve:'right'};
+function pfMsg(t,el='#pf-msg'){$(el).textContent=t||'';}
+async function pfCall(action,extra={}){
+  if(!sb)throw new Error('Sign-in service didn\'t load. Check your connection and reload.');
+  const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Please sign in.');
+  const r=await fetch(SB_URL+'/functions/v1/printify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SB_KEY},body:JSON.stringify({action,...extra})});
+  const j=await r.json().catch(()=>({error:'Unexpected response ('+r.status+').'}));
+  if(!r.ok)throw Object.assign(new Error(j.error||('Error '+r.status)),{status:r.status});return j;
+}
+async function pfRefreshAuth(){
+  if(!sb){$('#pf-auth-msg').textContent='Sign-in service didn\'t load. Check your connection and reload.';return;}
+  const {data:{session}}=await sb.auth.getSession();
+  $('#pf-auth').style.display=session?'none':'block';$('#pf-app').style.display=session?'block':'none';
+  if(!session)return;
+  $('#pf-who').textContent=session.user.email;
+  const {data,error}=await sb.from('printify_connections').select('shops').maybeSingle();
+  const connected=!error&&!!data;
+  $('#pf-connect').style.display=connected?'none':'block';$('#pf-connected').style.display=connected?'block':'none';$('#pf-products-card').style.display=connected?'block':'none';
+  if(connected){PF.shops=data.shops||[];const sel=$('#pf-shop');sel.textContent='';for(const s of PF.shops){const o=document.createElement('option');o.value=s.id;o.textContent=s.title+(s.channel?' · '+s.channel:'');sel.append(o);}
+    PF.shop=PF.shops[0]?PF.shops[0].id:null;if(PF.shop){PF.page=1;pfLoadProducts();}else pfMsg('No shops found on this Printify account.');}
+}
+async function pfLoadProducts(){
+  const box=$('#pf-products');box.textContent='';pfMsg('Loading products…');
+  try{const r=await pfCall('products',{shop_id:PF.shop,page:PF.page});PF.last=r.last_page||1;pfMsg('');
+    $('#pf-page').textContent='Page '+PF.page+' of '+PF.last;$('#pf-prev').disabled=PF.page<=1;$('#pf-next').disabled=PF.page>=PF.last;
+    if(!r.products.length){pfMsg('No products in this shop yet.');return;}
+    for(const p of r.products){
+      const d=document.createElement('div');d.className='titem';
+      const im=document.createElement('img');im.alt='';im.loading='lazy';if(p.image)im.src=p.image;
+      const b=document.createElement('div');b.className='b';
+      const t=document.createElement('div');t.className='small';t.style.fontWeight='600';t.textContent=p.title;
+      const pos=document.createElement('div');pos.className='small muted';pos.textContent=p.positions.map(x=>x.replace('_',' ')).join(', ')||'No artwork';
+      const btn=document.createElement('button');btn.className='small primary';btn.textContent='Load into studio';btn.onclick=()=>pfLoadProduct(p.id,btn);
+      b.append(t,pos,btn);d.append(im,b);box.append(d);
+    }
+  }catch(e){pfMsg(e.message);}
+}
+function b64Blob(b64,type){const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type});}
+async function pfLoadProduct(id,btn){
+  btn.disabled=true;const old=btn.textContent;btn.textContent='Loading…';
+  try{
+    const p=await pfCall('product',{shop_id:PF.shop,product_id:id});
+    const usable=p.placements.filter(x=>POS2SLOT[x.position]&&x.images.length&&x.area);
+    if(!usable.length){toast('This product has no front or sleeve artwork the studio can use.',4000);return;}
+    const linked={shop_id:PF.shop,product_id:p.id,title:p.title,parts:[]};
+    for(const pl of usable){
+      const im=pl.images[0],slotName=POS2SLOT[pl.position];
+      btn.textContent='Loading '+pl.position.replace('_',' ')+'…';
+      const art=await pfCall('image',{shop_id:PF.shop,image_id:im.id});
+      const file=new File([b64Blob(art.data,art.type)],art.name||'printify-art.png',{type:art.type});
+      const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;
+      designs[slotName]=d;
+      const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
+      PL[slotName].inches=wPx/300;
+      if(slotName==='front'){PL.front.top=(im.y*pl.area.height-hPx/2)/300;PL.front.cx=(im.x-0.5)*pl.area.width/300;}
+      linked.parts.push({position:pl.position,slot:slotName,image_id:im.id,area:pl.area,imgW,imgH});
+    }
+    TS.on=true;LS.set('ts',TS);PF.linked=linked;pfLinkedUI();
+    setSlot(usable.some(x=>x.position==='front')?'front':POS2SLOT[usable[0].position]);designCache.key='';
+    go('studio');scheduleRender();scheduleGrid();updateDlCount();
+    const skipped=p.placements.filter(x=>!POS2SLOT[x.position]).map(x=>x.position.replace('_',' '));
+    toast('Loaded “'+p.title+'” with Printify placement.'+(skipped.length?' Not shown: '+skipped.join(', ')+'.':''),4500);
+  }catch(e){toast(e.message,5000);}
+  finally{btn.disabled=false;btn.textContent=old;}
+}
+function pfLinkedUI(){$('#pf-linked').style.display=PF.linked?'block':'none';if(PF.linked)$('#pf-linked-name').textContent=PF.linked.title;}
+$('#pf-push').onclick=async()=>{
+  const L=PF.linked;if(!L)return;
+  if(!TS.on){toast('Turn on True-to-size first, so the size and position are in real units.');return;}
+  if(!await confirmDlg('Update “'+L.title+'” in Printify?','This changes the design size and position on the live Printify product to match the studio. Needs the products.write scope on your token.','Update Printify'))return;
+  const changes=L.parts.map(pt=>{const pl=PL[pt.slot],scale=pl.inches*300/pt.area.width,c={position:pt.position,image_id:pt.image_id,scale};
+    if(pt.slot==='front'){const hPx=pl.inches*300*pt.imgH/pt.imgW;c.x=0.5+(pl.cx||0)*300/pt.area.width;c.y=((pl.top||0)*300+hPx/2)/pt.area.height;}return c;});
+  try{await pfCall('update_placement',{shop_id:L.shop_id,product_id:L.product_id,changes});toast('Printify product updated.');}
+  catch(e){toast(e.status===502&&/403|scope/i.test(e.message)?'Printify refused the update. Your token needs the products.write scope.':e.message,6000);}
+};
+$('#pf-unlink').onclick=()=>{PF.linked=null;pfLinkedUI();};
+const authBusy=on=>{$('#pf-signin').disabled=$('#pf-signup').disabled=on;};
+$('#pf-login').onsubmit=async e=>{e.preventDefault();if(!sb)return;authBusy(true);pfMsg('','#pf-auth-msg');
+  const {error}=await sb.auth.signInWithPassword({email:$('#pf-email').value.trim(),password:$('#pf-pass').value});
+  authBusy(false);if(error){pfMsg(error.message,'#pf-auth-msg');return;}$('#pf-pass').value='';pfRefreshAuth();};
+$('#pf-signup').onclick=async()=>{if(!sb)return;const email=$('#pf-email').value.trim(),password=$('#pf-pass').value;
+  if(!email||password.length<8){pfMsg('Enter an email and a password of 8+ characters.','#pf-auth-msg');return;}
+  authBusy(true);const {data,error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});authBusy(false);
+  if(error){pfMsg(error.message,'#pf-auth-msg');return;}
+  if(!data.session)pfMsg('Check your email for a confirmation link, then sign in here.','#pf-auth-msg');else{$('#pf-pass').value='';pfRefreshAuth();}};
+$('#pf-signout').onclick=async()=>{if(sb)await sb.auth.signOut();PF.linked=null;pfLinkedUI();pfRefreshAuth();};
+$('#pf-connect-btn').onclick=async()=>{const t=$('#pf-token').value.trim();if(!t){pfMsg('Paste your token first.');return;}
+  $('#pf-connect-btn').disabled=true;pfMsg('Checking token with Printify…');
+  try{await pfCall('connect',{token:t});$('#pf-token').value='';pfMsg('Connected.');pfRefreshAuth();}catch(e){pfMsg(e.message);}finally{$('#pf-connect-btn').disabled=false;}};
+$('#pf-disconnect').onclick=async()=>{if(!await confirmDlg('Disconnect Printify?','Deletes your stored token. Your Printify account isn\'t changed.','Disconnect'))return;
+  try{await pfCall('disconnect');PF.linked=null;pfLinkedUI();pfMsg('');pfRefreshAuth();}catch(e){pfMsg(e.message);}};
+$('#pf-shop').onchange=e=>{PF.shop=+e.target.value;PF.page=1;pfLoadProducts();};
+$('#pf-refresh').onclick=()=>pfLoadProducts();
+$('#pf-prev').onclick=()=>{if(PF.page>1){PF.page--;pfLoadProducts();}};
+$('#pf-next').onclick=()=>{if(PF.page<PF.last){PF.page++;pfLoadProducts();}};
+if(sb)sb.auth.onAuthStateChange(()=>{setTimeout(pfRefreshAuth,0);});
+pfRefreshAuth();
 
 /* ---------- templates tab ---------- */
 let tplFile=null;
