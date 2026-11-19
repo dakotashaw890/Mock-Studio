@@ -525,7 +525,8 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   }
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
-  const corners=(sm?[[-.3,v0],[1.3,v0],[1.3,v0+fh],[-.3,v0+fh]]:[[u0,v0],[u0+fw,v0],[u0+fw,v0+fh],[u0,v0+fh]]).map(([u,v])=>apply(M,u,v));
+  const aA=Math.abs(curArc||0)*1.05; // the curve lifts the middle of the design, so draw a little beyond its box
+  const corners=(sm?[[-.3,v0-aA],[1.3,v0-aA],[1.3,v0+fh+aA],[-.3,v0+fh+aA]]:[[u0,v0-aA],[u0+fw,v0-aA],[u0+fw,v0+fh+aA],[u0,v0+fh+aA]]).map(([u,v])=>apply(M,u,v));
   const pad=Math.ceil(amt*.6)+2;
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
@@ -535,7 +536,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null;
   if(sm&&sm.front){
-    const thr=fThr, qw=(topW+botW)/2, run=Math.max(2,Math.round(qw*.03)), raw=new Float32Array(maxY-minY+1).fill(NaN);
+    const thr=fThr-.04, qw=(topW+botW)/2, run=Math.max(2,Math.round(qw*.03)), raw=new Float32Array(maxY-minY+1).fill(NaN);
     const xAt=v=>apply(M,.5,v)[0];
     for(let y=minY;y<=maxY;y++){const sy=y+.5;
       const vRow=(()=>{const qx=xAt(.5);const z=m6*qx+m7*sy+m8;return (m3*qx+m4*sy+m5)/z;})();
@@ -552,7 +553,8 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       const sx=x+.5+disp*.35, sy=y+.5+disp;
       const z=m6*sx+m7*sy+m8; const u=(m0*sx+m1*sy+m2)/z, v=(m3*sx+m4*sy+m5)/z;
       let du,cv=1-(2*u-1)*(2*u-1);
-      if(sm){let uc=.5;if(hE){const ed=hE[y-minY],eo=isNaN(ed)?1:ed;uc=dS>0?eo-AR:1-eo+AR;}
+      if(sm){let uc=.5;if(hE){const ed=hE[y-minY],eo=isNaN(ed)?1:Math.min(1.04,Math.max(.8,ed));uc=dS>0?eo-AR:1-eo+AR;}
+        if(sm.front&&L[i]>fThr+.22)continue; // never print on skin or background
         const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
         du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}
       else{let uu=u; if(wth>0.01){const sx2=(2*u-1)*sinW; if(sx2<=-1||sx2>=1)continue; uu=(Math.asin(sx2)/wth+1)/2;}
@@ -598,13 +600,13 @@ function renderTo(pack,t,ctx,edit){
 
 /* ---------- automatic sleeve fitting (same engine for built-in and uploaded photos) ---------- */
 const FIT={chestIn:{men:20.5,women:19},onBody:.82,sleeveIn:3.1,widthPerArm:.646};
-function fabModel(pack,qpx){ // qpx: [[x,y]x4] region known to be shirt; returns {d(x,y), tol}
+function fabModel(pack,qpx,strict){ // qpx: [[x,y]x4] region known to be shirt; returns {d(x,y), tol}
   const {w,h,data}=pack, M=sq2quad(qpx), rs=[],gs=[],bs=[];
   for(let a=0;a<12;a++)for(let b=0;b<12;b++){const [x,y]=apply(M,.3+.4*(a+.5)/12,.3+.4*(b+.5)/12);const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=w||yi>=h)continue;const j=(yi*w+xi)*4;rs.push(data[j]);gs.push(data[j+1]);bs.push(data[j+2]);}
   const med=a=>{a.sort((x,y)=>x-y);return a[a.length>>1]||0;};const R=med(rs),G=med(gs),B=med(bs);
   const dist=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=w||y>=h)return 999;const j=(y*w+x)*4;return Math.abs(data[j]-R)+Math.abs(data[j+1]-G)+Math.abs(data[j+2]-B);};
   const ds=[];for(let a=0;a<12;a++)for(let b=0;b<12;b++){const [x,y]=apply(M,.3+.4*(a+.5)/12,.3+.4*(b+.5)/12);ds.push(dist(x,y));}ds.sort((x,y)=>x-y);
-  const tol=Math.max(70,ds[Math.floor(ds.length*.9)]*2.2);
+  const tol=strict?Math.max(50,ds[Math.floor(ds.length*.9)]*2.5):Math.max(70,ds[Math.floor(ds.length*.9)]*2.2);
   return {fab:(x,y)=>dist(x,y)<tol};
 }
 function lineFit(P){ // x = a*y + b, robust
@@ -658,7 +660,7 @@ function fitFront(t,pack){
 function refineFront(pack,seed,s,Wq){ // precise fit from a rough sleeve box: outer edge line along the arm + hem line
   const {w,h}=pack, q=seed.map(p=>[p.x*w,p.y*h]); const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
   const cx=xs.reduce((a,b)=>a+b)/4, cy=ys.reduce((a,b)=>a+b)/4, qh=Math.max(...ys)-Math.min(...ys), dS=s==='left'?1:-1, r0=Wq*.15;
-  const F=fabModel(pack,[[cx-r0,cy-r0],[cx+r0,cy-r0],[cx+r0,cy+r0],[cx-r0,cy+r0]]);
+  const F=fabModel(pack,[[cx-r0,cy-r0],[cx+r0,cy-r0],[cx+r0,cy+r0],[cx-r0,cy+r0]],true);
   if(!F.fab(cx,cy))return null;
   const hemAlong=(x,y,D,lim)=>{for(let k=0;k<lim;k++){const X=x+D[0]*k,Y=y+D[1]*k;if(!F.fab(X,Y)&&!F.fab(X+D[0]*2,Y+D[1]*2)&&!F.fab(X+D[0]*4,Y+D[1]*4))return [X,Y];}return null;};
   const h0=hemAlong(cx,cy,[0,1],Wq*2); let yh=h0?h0[1]:cy+qh;
