@@ -23,6 +23,10 @@ async function pf(token: string, path: string, init: RequestInit = {}) {
   const text = await r.text();
   let body: unknown = null;
   try { body = JSON.parse(text); } catch { body = text; }
+  if (r.status === 403) {
+    const scope = path.startsWith("/catalog") ? "catalog.read" : path.startsWith("/uploads") ? "uploads.read" : path.startsWith("/shops.json") ? "shops.read" : (init.method === "PUT" ? "products.write" : "products.read");
+    throw new HttpError(403, `Your Printify token is missing the "${scope}" permission. In Printify, create a new token with that scope ticked, then reconnect here.`);
+  }
   if (!r.ok) throw new HttpError(r.status === 401 ? 401 : 502, `Printify ${r.status}: ${typeof body === "string" ? body.slice(0, 300) : JSON.stringify(body).slice(0, 300)}`);
   return body as any;
 }
@@ -100,12 +104,13 @@ Deno.serve(async (req) => {
     }
     if (action === "image") {
       const id = String(body.image_id || "").replace(/[^a-zA-Z0-9]/g, "");
-      const up = await pf(token, `/uploads/${id}.json`);
-      // prefer the full-resolution source from the product; fall back to Printify's preview
-      let preview = true, url = new URL(up.preview_url);
-      if (body.src) { try { const s = new URL(String(body.src)); url = s; preview = false; } catch { /* keep preview */ } }
-      if (!/(^|\.)printify\.(com|me)$|(^|\.)amazonaws\.com$|(^|\.)cloudfront\.net$/.test(url.hostname)) throw new HttpError(400, "Unexpected image host.");
-      const r = await fetch(url.toString());
+      // prefer the full-resolution source from the product (no extra scope needed); fall back to Printify's preview
+      let preview = false, url: URL | null = null, up: any = {};
+      if (body.src) { try { url = new URL(String(body.src)); } catch { url = null; } }
+      if (!url) { up = await pf(token, `/uploads/${id}.json`); url = new URL(up.preview_url); preview = true; }
+      if (!up.file_name) up.file_name = decodeURIComponent(url.pathname.split("/").pop() || "printify-art.png");
+      if (!/(^|\.)printify\.(com|me)$|(^|\.)amazonaws\.com$|(^|\.)cloudfront\.net$/.test(url!.hostname)) throw new HttpError(400, "Unexpected image host.");
+      const r = await fetch(url!.toString());
       if (!r.ok) throw new HttpError(502, "Couldn't download the artwork.");
       const buf = await r.arrayBuffer();
       if (buf.byteLength > 40e6) throw new HttpError(413, "Artwork is too large to load.");

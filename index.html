@@ -316,7 +316,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <p class="small" style="margin:0 0 8px"><strong>Connect your Printify account</strong></p>
         <ol class="small" style="margin:0 0 10px;padding-left:18px">
           <li>In Printify, open <a href="https://printify.com/app/account/api" target="_blank" rel="noopener">My Profile → Connections</a> and generate a personal access token.</li>
-          <li>Give it the scopes <strong>shops.read</strong>, <strong>products.read</strong> and <strong>uploads.read</strong>. Add <strong>products.write</strong> if you want to push placement back. Leave orders off.</li>
+          <li>Give it the scopes <strong>shops.read</strong>, <strong>products.read</strong>, <strong>catalog.read</strong> and <strong>uploads.read</strong>. Add <strong>products.write</strong> if you want to push placement back. Leave orders off.</li>
           <li>Paste it below. It's stored encrypted on the server and never shown again.</li>
         </ol>
         <div class="row"><input type="password" id="pf-token" placeholder="Paste Printify token" autocomplete="off" style="max-width:420px"><button class="primary" id="pf-connect-btn">Connect</button></div>
