@@ -483,7 +483,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
   if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}
   let u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
   if(TS.on&&areaIn&&typeof P.cx==='number')u0=0.5+P.cx/areaIn-fw/2;
-  if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=Math.min(1-fh,Math.max(0,(P.top*ppi)/ah));}
+  if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=Math.min(1-fh,Math.max(0,((P.top+AREA_TOP_SHIFT)*ppi)/ah));}
   const tw=Math.max(2,Math.round((topW+botW)/2*fw*1.2)), th=Math.max(2,Math.round((lH+rH)/2*fh*1.2));
   const ds=designSampled(tw,th), pm=ds.pm, dw=ds.w, dh=ds.h;
   // mean luminance over the print area
@@ -528,6 +528,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
 
 /* ---------- print areas & layers ---------- */
 const TS={on:false,units:'px'};
+const AREA_TOP_SHIFT=0.5; // inches: Printify's print area starts this far below the studio's front area top
 const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units==='px'?v/300:v;
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
 function areaInches(t,s){if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
