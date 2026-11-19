@@ -56,7 +56,11 @@ label.file input{display:none}
 label.file strong{font-size:14px}
 .studio{display:grid;gap:12px}
 @media(min-width:900px){.studio{grid-template-columns:minmax(0,1fr) 340px;align-items:start}
-.studio.panes{height:calc(100vh - var(--studio-top,0px) - 12px)}
+.studio.panes{height:calc(100vh - var(--studio-top,0px) - 12px);grid-template-columns:minmax(0,1fr) 10px var(--rw,340px);gap:4px}
+.studio.panes>.split{cursor:col-resize;overflow:hidden;border-radius:5px;display:flex;align-items:center;justify-content:center}
+.studio.panes>.split::after{content:'';width:4px;height:48px;border-radius:2px;background:var(--line,#ccc)}
+.studio.panes>.split:hover::after,.studio.panes>.split.drag::after{background:var(--accent,#2563eb)}
+.studio:not(.panes)>.split{display:none}
 .studio.panes>div{height:100%;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;border-radius:var(--radius)}}
 .stage{position:relative;background:var(--soft);border-radius:12px;overflow:hidden;display:flex;justify-content:center}
 #view{display:block;max-width:100%;height:auto;max-height:78vh}
@@ -183,6 +187,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="grid" id="grid" style="display:none"></div>
       </div>
     </div>
+    <div class="split" id="split" title="Drag to resize"></div>
     <div>
       <div class="card">
         <h2>1. Your designs</h2>
@@ -223,6 +228,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="ctl fine" id="px-ctl"><div class="lab"><span id="px-lab">Left / right</span> <span id="v-px"></span></div><div class="frow"><button class="nb" data-n="px" data-d="-1" title="Nudge">−</button><input type="range" id="px"><button class="nb" data-n="px" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="curve-ctl"><div class="lab"><span id="curve-lab">Curve</span> <span id="v-curve"></span></div><div class="frow"><button class="nb" data-n="curve" data-d="-1" title="Nudge">−</button><input type="range" id="curve"><button class="nb" data-n="curve" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="rot-ctl"><div class="lab"><span id="rot-lab">Rotate</span> <span id="v-rot"></span></div><div class="frow"><button class="nb" data-n="rot" data-d="-1" title="Nudge">−</button><input type="range" id="rot"><button class="nb" data-n="rot" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="yaw-ctl"><div class="lab"><span id="yaw-lab">Turn (left / right)</span> <span id="v-yaw"></span></div><div class="frow"><button class="nb" data-n="yaw" data-d="-1" title="Nudge">−</button><input type="range" id="yaw"><button class="nb" data-n="yaw" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="bend-ctl"><div class="lab"><span id="bend-lab">Bend (sideways curve)</span> <span id="v-bend"></span></div><div class="frow"><button class="nb" data-n="bend" data-d="-1" title="Nudge">−</button><input type="range" id="bend"><button class="nb" data-n="bend" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="fshow-ctl" style="display:none"><div class="lab"><span id="fshow-lab">How much shows on this photo</span> <span id="v-fshow"></span></div><div class="frow"><button class="nb" data-n="fshow" data-d="-1" title="Nudge">−</button><input type="range" id="fshow"><button class="nb" data-n="fshow" data-d="1" title="Nudge">+</button></div></div>
         <p class="small muted" style="margin:2px 0 0">Tip: click a slider, then use the arrow keys. − / + nudge by 1 px at 300 DPI.</p>
 
@@ -513,7 +520,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // bounding box of design region
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
-  const AR=.774, dS=slot==='left'?1:-1, hC=u0+fw/2-.5, aC=sm?sm.turn*Math.PI/180:0, iP=new Float32Array(513);
+  const AR=.774, dS=slot==='left'?1:-1, hC=u0+fw/2-.5, aC=sm?sm.turn*Math.PI/180+(P.yaw||0)*Math.PI/180:0, iP=new Float32Array(513);
   if(sm){const K=sm.front?.8:.15,N=2048,E=[];for(let k=0;k<=N;k++){const al=-Math.PI/2+Math.PI*k/N;E.push((1-K)*Math.sin(al)+K*2*al/Math.PI);}
     let k=0;for(let j=0;j<=512;j++){const e=-1+2*j/512;while(k<N&&E[k+1]<e)k++;const lo=E[k],hi=E[Math.min(N,k+1)];iP[j]=-Math.PI/2+Math.PI*(k+(hi>lo?(e-lo)/(hi-lo):0))/N;}}
   // fabric brightness inside the area (used to find the hem and the arm's edge)
@@ -533,17 +540,19 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   }
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
+  const ex=Math.abs((P.yaw||0))/60*.5*fw;
   const cK=(P.curve||0)*.35, rr=(P.rot||0)*Math.PI/180, rc=Math.cos(rr), rs=Math.sin(rr);
-  const eu=Math.abs(rs)*fh/A/2+.002, ev=Math.abs(rs)*fw*A/2;
+  const bK=(P.bend||0)*.35, eu=Math.abs(rs)*fh/A/2+.002+Math.abs(bK)*fw, ev=Math.abs(rs)*fw*A/2;
   const aA=Math.abs(curArc||0)*1.05+Math.abs(cK)*fh+ev; // the curve lifts the middle of the design, so draw a little beyond its box
-  const corners=(sm?[[-.3,v0-aA],[1.3,v0-aA],[1.3,v0+fh+aA],[-.3,v0+fh+aA]]:[[u0-eu,v0-aA],[u0+fw+eu,v0-aA],[u0+fw+eu,v0+fh+aA],[u0-eu,v0+fh+aA]]).map(([u,v])=>apply(M,u,v));
+  const corners=(sm?[[-.3,v0-aA],[1.3,v0-aA],[1.3,v0+fh+aA],[-.3,v0+fh+aA]]:[[u0-eu-ex,v0-aA],[u0+fw+eu+ex,v0-aA],[u0+fw+eu+ex,v0+fh+aA],[u0-eu-ex,v0+fh+aA]]).map(([u,v])=>apply(M,u,v));
   const pad=Math.ceil(amt*.6)+2;
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
   const od=out.data, op=P.opacity, sh=P.shade;
   const wth=(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
   // turned torso: the chest is a rounder surface seen from the side, so the wrap strengthens with the turn
-  const sinWT=Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(curTurn)/.3)), wthT=Math.asin(sinWT), sinT=Math.sin(curTurn);
+  const TT=sm?0:Math.max(-1.2,Math.min(1.2,curTurn+(P.yaw||0)*Math.PI/180)); // body turn + the design's own turn
+  const sinWT=Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(TT)/.3)), wthT=Math.asin(sinWT), sinT=Math.sin(TT);
   const m0=Mi[0],m1=Mi[1],m2=Mi[2],m3=Mi[3],m4=Mi[4],m5=Mi[5],m6=Mi[6],m7=Mi[7],m8=Mi[8];
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null;
@@ -569,11 +578,12 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
         if(sm.front&&L[i]>fThr+.22)continue; // never print on skin or background
         const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
         du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}
-      else{let uu=u; if(wth>0.01||curTurn){const sx2=2*(u-.5)*sinWT+sinT; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-curTurn)/(2*wthT);}
+      else{let uu=u; if(wth>0.01||TT){const sx2=2*(u-.5)*sinWT+sinT; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-TT)/(2*wthT);}
       du=(uu-u0)/fw;}
       let dv=(v+arc*cv-v0)/fh;
       if(rr){const X=(du-.5)*fw*A,Y=(dv-.5)*fh;du=(X*rc+Y*rs)/(fw*A)+.5;dv=(-X*rs+Y*rc)/fh+.5;}
       if(cK)dv+=cK*(1-(2*du-1)*(2*du-1));
+      if(bK)du-=bK*(1-(2*dv-1)*(2*dv-1));
       if(du<=-.01||dv<=-.01||du>=1.01||dv>=1.01)continue;
       const fx=du*dw-.5, fy=dv*dh-.5; const ix=Math.floor(fx), iy=Math.floor(fy); const tx=fx-ix, ty=fy-iy;
       let r=0,g=0,b=0,a=0;
@@ -888,11 +898,14 @@ async function restoreHidden(){LS.set('hidden',[]);await reload();toast('Built-i
 const view=$('#view'), vctx=view.getContext('2d',{willReadFrequently:true});
 let rafPending=false;
 function scheduleRender(){ if(rafPending)return; rafPending=true; requestAnimationFrame(async()=>{rafPending=false; await renderView();}); }
+let slotPhoto=null;
 async function renderView(){
   const t=curT(); if(!t)return;
   let pack; try{pack=await previewPack(t);await ensureFit(t);}catch(e){toast('Couldn\'t load that photo.');return;}
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
   if(viewOf(t)!=='front'&&viewOf(t)!==slot)setSlot(viewOf(t));
+  else if(slotPhoto!==t.id&&viewOf(t)==='front'&&slot!=='front'&&!editMode)setSlot('front'); // new front photo: edit the chest design by default
+  slotPhoto=t.id;
   renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);
   if(editMode)drawHandles(editQuad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
@@ -1041,7 +1054,7 @@ const sliders=[['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+
 const labelId={fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;fineUI();}
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key==='x'){delete PL[slot].cx;delete P.cx;}if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0,yaw:0,bend:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,yaw:0,bend:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
 function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';
@@ -1063,14 +1076,16 @@ function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.r
        :{lab:'Left / right',min:-1.5,max:1.5,step:.002,get:()=>P.x,set:v=>{P.x=v;PL[slot].x=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')}, 
     curve:{lab:'Curve (arch)',min:-1,max:1,step:.01,get:()=>PL[slot].curve||0,set:v=>{PL[slot].curve=v;P.curve=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')+(v?(v>0?' up':' down'):'')},
     rot:{lab:'Rotate',min:-45,max:45,step:.1,get:()=>PL[slot].rot||0,set:v=>{PL[slot].rot=v;P.rot=v;},fmt:v=>sgn(+v.toFixed(1),x=>x+'°')},
+    yaw:{lab:'Turn (left / right)',min:-60,max:60,step:.5,get:()=>PL[slot].yaw||0,set:v=>{PL[slot].yaw=v;P.yaw=v;},fmt:v=>v===0?'0°':(v<0?'left ':'right ')+Math.abs(v)+'°'},
+    bend:{lab:'Bend (sideways curve)',min:-1,max:1,step:.01,get:()=>PL[slot].bend||0,set:v=>{PL[slot].bend=v;P.bend=v;},fmt:v=>v===0?'0':(v<0?'( bulge left ':') bulge right ')+Math.round(Math.abs(v)*100)},
     ...(sl?{fshow:{lab:'How much shows on this photo',min:-30,max:60,step:1,get:()=>{const t=curT();return t&&viewOf(t)==='front'?turnDefault(t,slot)-turnOf(t,slot):0;},set:v=>{const t=curT();if(t&&viewOf(t)==='front')saveTurn(t,slot,turnDefault(t,slot)-v);},fmt:v=>v===0?'half (default)':v>0?'more (+'+v+'°)':'less ('+v+'°)'}}:{})};}
 function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.display=slot!=='front'&&t&&viewOf(t)==='front'?'block':'none';}for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();$('#'+id+'-lab').textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}
   if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);}
 function fineSet(id,v){const d=fineDefs()[id];v=Math.max(d.min,Math.min(d.max,v));d.set(v);$('#'+id).value=v;$('#v-'+id).textContent=d.fmt(v);
   if(id==='size'||id==='py')dpiUI();if(id==='size'&&document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(id==='py'&&slot==='front'&&document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
   scheduleRender();savePlacement();scheduleGrid();}
-for(const id of ['size','py','px','curve','rot','fshow'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
-$$('.nb').forEach(b=>{let tm=null;const go=()=>{const id=b.dataset.n,d=fineDefs()[id];fineSet(id,d.get()+(+b.dataset.d)*(id==='curve'?.01:id==='rot'?.5:id==='fshow'?1:d.step*(TS.on||id==='py'&&slot!=='front'?1:2.5)));};
+for(const id of ['size','py','px','curve','rot','yaw','bend','fshow'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
+$$('.nb').forEach(b=>{let tm=null;const go=()=>{const id=b.dataset.n,d=fineDefs()[id];fineSet(id,d.get()+(+b.dataset.d)*(id==='curve'||id==='bend'?.01:id==='rot'||id==='yaw'?.5:id==='fshow'?1:d.step*(TS.on||id==='py'&&slot!=='front'?1:2.5)));};
   b.addEventListener('pointerdown',e=>{e.preventDefault();go();tm=setTimeout(function rep(){go();tm=setTimeout(rep,60);},400);});
   for(const ev of ['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>{clearTimeout(tm);});});
 function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
@@ -1087,7 +1102,7 @@ function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot','yaw','bend'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
@@ -1141,7 +1156,7 @@ $('#btn-qa').onclick=async()=>{
         const lab=!q?[st==='low'?'Check this':'No sleeve found',st==='low'?'#d97706':'#6b7280']:st==='manual'?['Your edit','#2563eb']:st==='ok'?['Auto-fit ✓','#16a34a']:['Check this','#d97706'];
         b.textContent=lab[0];b.style.background=lab[1];d.append(c,b,sp);box.append(d);n++;
         if(lab[0]==='Auto-fit ✓'||lab[0]==='Your edit')ok++;else chk.push(t.name);
-        d.onclick=()=>{curId=t.id;go('studio');if(viewOf(t)==='front')setSlot(s);renderThumbs();scheduleRender();setTimeout(startEdit,80);};
+        d.onclick=()=>{curId=t.id;slotPhoto=t.id;go('studio');if(viewOf(t)==='front')setSlot(s);renderThumbs();scheduleRender();setTimeout(startEdit,80);};
         if(q){const p=await previewPack(t);const full=document.createElement('canvas');full.width=p.w;full.height=p.h;renderTo(p,t,full.getContext('2d'));
           const pts=q.map(v=>[v.x*p.w,v.y*p.h]);const xs=pts.map(v=>v[0]),ys=pts.map(v=>v[1]);const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
           const side=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*2.2;c.width=320;c.height=400;const x=c.getContext('2d');x.imageSmoothingQuality='high';
@@ -1392,7 +1407,7 @@ async function pfLoadProduct(id,btn){
       const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;if(art.preview)toast('Printify only shared a preview of this artwork, so the mockup may look soft. Upload the original file in the Front slot for full quality.',6000);
       designs[slotName]=d;
       const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
-      PL[slotName].inches=wPx/300;PL[slotName].rot=+im.angle||0;PL[slotName].curve=0;
+      PL[slotName].inches=wPx/300;PL[slotName].rot=+im.angle||0;PL[slotName].curve=0;PL[slotName].yaw=0;PL[slotName].bend=0;
       if(slotName==='front'){PL.front.top=(im.y*pl.area.height-hPx/2)/300;PL.front.cx=(im.x-0.5)*pl.area.width/300;}
       linked.parts.push({position:pl.position,slot:slotName,image_id:im.id,area:pl.area,imgW,imgH});
     }
@@ -1404,6 +1419,12 @@ async function pfLoadProduct(id,btn){
   }catch(e){toast(e.message,5000);}
   finally{btn.disabled=false;btn.textContent=old;}
 }
+(()=>{const sp=$('#split');if(!sp)return;const rw=LS.get('rw',340);document.documentElement.style.setProperty('--rw',rw+'px');
+  sp.addEventListener('pointerdown',e=>{e.preventDefault();sp.setPointerCapture(e.pointerId);sp.classList.add('drag');
+    const mv=ev=>{const st=$('#studio-main').getBoundingClientRect();const w=Math.round(Math.max(280,Math.min(st.width-360,st.right-ev.clientX-2)));document.documentElement.style.setProperty('--rw',w+'px');};
+    const up=ev=>{sp.classList.remove('drag');sp.removeEventListener('pointermove',mv);sp.removeEventListener('pointerup',up);LS.set('rw',parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rw')));scheduleRender();};
+    sp.addEventListener('pointermove',mv);sp.addEventListener('pointerup',up);});
+  sp.addEventListener('dblclick',()=>{document.documentElement.style.setProperty('--rw','340px');LS.set('rw',340);});})();
 function sizePanes(){const st=$('#studio-main');if(!st)return;const on=innerWidth>=900;st.classList.toggle('panes',on);
   if(on&&st.offsetParent){const de=document.documentElement,top=st.getBoundingClientRect().top+scrollY;de.style.setProperty('--studio-top',top+'px');
     const over=de.scrollHeight-innerHeight;if(over>0)de.style.setProperty('--studio-top',(top+over)+'px');}}
