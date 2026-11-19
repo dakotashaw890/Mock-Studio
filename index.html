@@ -67,6 +67,7 @@ label.file strong{font-size:14px}
 .gtile.on{border-color:var(--accent)}.gtile.off canvas{opacity:.35}
 .gtile canvas{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}
 .gtile label{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;border-radius:7px;padding:3px 6px;font-size:12px;display:flex;gap:4px;align-items:center}
+.qtile .qb{position:absolute;top:6px;left:6px;border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600;color:#fff}
 .gtile span{display:block;font-size:11px;color:var(--muted);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .thumb{flex:0 0 auto;width:74px;border:2px solid transparent;border-radius:10px;padding:0;background:none;cursor:pointer;display:block}
 .thumb img{width:100%;height:92px;object-fit:cover;border-radius:8px;display:block;background:var(--soft)}
@@ -153,6 +154,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <button id="btn-edit">Adjust print area</button>
             <button id="btn-save-area" class="primary" style="display:none">Save area</button>
             <button id="btn-apply-sim" style="display:none">Save &amp; apply to similar</button>
+            <button id="btn-autofit" style="display:none" title="Find the sleeve in the photo and fit the print area to it">Auto-fit</button>
             <button id="btn-cancel-area" style="display:none">Cancel</button>
           </div>
           <label id="turn-row" class="row" style="display:none;gap:8px;align-items:center" title="Turn the logo around the arm to match how the body is facing">Arm turn
@@ -291,6 +293,12 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       </div>
     </div>
     <p class="status" id="store-status" style="margin:10px 0 0">Photos you add here are saved in this browser only. Clearing your browser data removes them.</p>
+  </div>
+  <div class="card">
+    <h2>Check sleeve fit on all photos</h2>
+    <p class="small muted" style="margin:0 0 10px">Every photo's sleeves are fitted automatically: the studio finds the arm's edge, its angle and the hem, then sizes the print area from the body. This renders your sleeve design on every photo at once so you can spot anything off. Click a tile to adjust that one.</p>
+    <div class="row"><button class="primary" id="btn-qa">Check all photos</button><span class="status" id="qa-sum"></span></div>
+    <div class="grid" id="qa-grid" style="margin-top:12px"></div>
   </div>
   <div class="card">
     <h2>Your model photos</h2>
@@ -588,6 +596,144 @@ function renderTo(pack,t,ctx,edit){
   ctx.putImageData(out,0,0);
 }
 
+/* ---------- automatic sleeve fitting (same engine for built-in and uploaded photos) ---------- */
+const FIT={chestIn:{men:20.5,women:19},onBody:.82,sleeveIn:3.1,widthPerArm:.646};
+function fabModel(pack,qpx){ // qpx: [[x,y]x4] region known to be shirt; returns {d(x,y), tol}
+  const {w,h,data}=pack, M=sq2quad(qpx), rs=[],gs=[],bs=[];
+  for(let a=0;a<12;a++)for(let b=0;b<12;b++){const [x,y]=apply(M,.3+.4*(a+.5)/12,.3+.4*(b+.5)/12);const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=w||yi>=h)continue;const j=(yi*w+xi)*4;rs.push(data[j]);gs.push(data[j+1]);bs.push(data[j+2]);}
+  const med=a=>{a.sort((x,y)=>x-y);return a[a.length>>1]||0;};const R=med(rs),G=med(gs),B=med(bs);
+  const dist=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=w||y>=h)return 999;const j=(y*w+x)*4;return Math.abs(data[j]-R)+Math.abs(data[j+1]-G)+Math.abs(data[j+2]-B);};
+  const ds=[];for(let a=0;a<12;a++)for(let b=0;b<12;b++){const [x,y]=apply(M,.3+.4*(a+.5)/12,.3+.4*(b+.5)/12);ds.push(dist(x,y));}ds.sort((x,y)=>x-y);
+  const tol=Math.max(70,ds[Math.floor(ds.length*.9)]*2.2);
+  return {fab:(x,y)=>dist(x,y)<tol};
+}
+function lineFit(P){ // x = a*y + b, robust
+  let a=0,b=0,keep=P;
+  for(let it=0;it<4;it++){const n=keep.length;if(n<2)break;let sy=0,sx=0,syy=0,sxy=0;for(const [x,y] of keep){sy+=y;sx+=x;syy+=y*y;sxy+=x*y;}const den=n*syy-sy*sy;if(Math.abs(den)<1e-9)break;a=(n*sxy-sx*sy)/den;b=(sx-a*sy)/n;
+    const r=P.map(([x,y])=>Math.abs(x-(a*y+b))),srt=[...r].sort((x,y)=>x-y),med=srt[srt.length>>1];keep=P.filter((_,i)=>r[i]<Math.max(2,med*2.5));}
+  return {a,b,n:keep.length};
+}
+function fitFront(t,pack){
+  const {w,h}=pack, tq=t.quad.map(p=>[p.x*w,p.y*h]); const tW=dist(tq[0],tq[1]), tH=dist(tq[0],tq[3]);
+  const F=fabModel(pack,tq), cx=(tq[0][0]+tq[1][0])/2;
+  const gap=Math.max(3,Math.round(w*.006));
+  const outer=(y,dS)=>{let last=null,miss=0;for(let x=Math.round(cx);x>=0&&x<w;x+=dS){if(F.fab(x,y)){last=x;miss=0;}else if(last!==null&&++miss>gap)break;}return last;};
+  // torso width at a row (contiguous shirt through the centre)
+  const span=y=>{const a=outer(y,1),b=outer(y,-1);return a!==null&&b!==null?a-b:null;};
+  const res={}, y0=Math.max(0,Math.round(tq[0][1]-tH*.2)), y1=Math.min(h-1,Math.round(tq[0][1]+tH*.6));
+  let areaIn=t.areaIn;
+  const drops=[];
+  for(const [s,dS] of [['left',1],['right',-1]]){
+    const rows=[];for(let y=y0;y<=y1;y+=2){const x=outer(y,dS);if(x!==null)rows.push([x,y]);}
+    if(rows.length<10)continue;
+    // sleeve hem on the outer side: scanning up from the waist, the shirt's outer edge jumps outward where the sleeve starts
+    let yDrop=null,yTop=null;const win=tH*.25;
+    for(let i=rows.length-1;i>=0&&yDrop===null;i--){const here=rows[i][0]*dS;let mx=-Infinity,mi=-1;
+      for(let j=i-1;j>=0&&rows[i][1]-rows[j][1]<=win;j--){const v=rows[j][0]*dS;if(v>mx){mx=v;mi=j;}}
+      if(mi>=0&&mx-here>tW*.12){const mid=here+(mx-here)*.5;for(let j=i;j>=mi;j--){if(rows[j][0]*dS>=mid){yDrop=rows[j][1];break;}}
+        let jt=mi;for(let j=mi;j>=0&&rows[mi][1]-rows[j][1]<=win;j--){if(rows[j][0]*dS>=mx-tW*.015)jt=j;else break;}yTop=rows[jt][1];}}
+    if(yDrop!==null&&yDrop<tq[0][1]-tH*.02)yDrop=null; // a raised arm, not a sleeve
+    if(yDrop===null)continue;
+    drops.push(yDrop);
+    res[s]={yDrop,yTop:yTop===null?yDrop:yTop,rows,dS,yrel:+((yDrop-tq[0][1])/tH).toFixed(3)};
+  }
+  if(!t.builtin||typeof areaIn!=='number'){ // true-to-size scale from torso width just under the sleeves
+    const yA=Math.round((drops.length?Math.max(...drops):tq[0][1]+tH*.35)+tH*.06);const sw=span(yA);
+    const chest=FIT.chestIn[t.group]||20;areaIn=sw&&sw>tW*.6?chest*FIT.onBody*(tW/sw):(t.group==='women'?13:14);
+  }
+  const ppi=tW/areaIn, Wq=FIT.sleeveIn*ppi, out={areaIn,sleeves:{}};
+  for(const s of ['left','right']){
+    let seed=t.seedSleeves&&t.seedSleeves[s];
+    const r=res[s];
+    if(!seed&&!t.builtin&&r&&r.yrel>=.1){ // rough box from the global scan: just inside the outer edge, above the hem
+      const P=r.rows.filter(([x,y])=>y>=r.yTop-Wq*.6&&y<=r.yTop);if(P.length){const xo=P.reduce((m,p)=>m+p[0],0)/P.length,dS=r.dS,yb=r.yTop;
+        seed=[{x:xo-dS*Wq*.7,y:yb-Wq*.55},{x:xo-dS*Wq*.1,y:yb-Wq*.55},{x:xo-dS*Wq*.1,y:yb-Wq*.1},{x:xo-dS*Wq*.7,y:yb-Wq*.1}].map(p=>({x:p.x/w,y:p.y/h}));}}
+    if(!seed)continue;
+    let f=refineFront(pack,seed,s,Wq);
+    if(!t.builtin||!(t.seedSleeves&&t.seedSleeves[s])){for(let it=0;it<2&&f&&f.quad;it++){const g=refineFront(pack,f.quad,s,Wq);if(!g||!g.quad)break;f=g;}}
+    out.sleeves[s]=f||{conf:'low'};
+  }
+  return out;
+}
+function refineFront(pack,seed,s,Wq){ // precise fit from a rough sleeve box: outer edge line along the arm + hem line
+  const {w,h}=pack, q=seed.map(p=>[p.x*w,p.y*h]); const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
+  const cx=xs.reduce((a,b)=>a+b)/4, cy=ys.reduce((a,b)=>a+b)/4, qh=Math.max(...ys)-Math.min(...ys), dS=s==='left'?1:-1, r0=Wq*.15;
+  const F=fabModel(pack,[[cx-r0,cy-r0],[cx+r0,cy-r0],[cx+r0,cy+r0],[cx-r0,cy+r0]]);
+  if(!F.fab(cx,cy))return null;
+  const hemAlong=(x,y,D,lim)=>{for(let k=0;k<lim;k++){const X=x+D[0]*k,Y=y+D[1]*k;if(!F.fab(X,Y)&&!F.fab(X+D[0]*2,Y+D[1]*2)&&!F.fab(X+D[0]*4,Y+D[1]*4))return [X,Y];}return null;};
+  const h0=hemAlong(cx,cy,[0,1],Wq*2); let yh=h0?h0[1]:cy+qh;
+  // hem height near the outer side (hems slant, so the middle reads too low)
+  let xo=cx;for(let k=0;k<Wq*1.6;k++){const x=cx+dS*k;if(!F.fab(x,cy)&&!F.fab(x+dS*2,cy)&&!F.fab(x+dS*4,cy))break;xo=x;}
+  const h1=F.fab(xo-dS*Wq*.15,cy)?hemAlong(xo-dS*Wq*.15,cy,[0,1],Wq*2):null; const yo=h1?Math.min(h1[1],yh):yh;
+  const P=[];
+  for(let y=Math.round(yo-Wq*1.2);y<yo-Wq*.1;y+=2){let x0=cx-dS*Wq*.3;if(!F.fab(x0,y))x0=cx;if(!F.fab(x0,y))continue;
+    for(let k=0;k<Wq*1.6;k++){const x=x0+dS*k;if(!F.fab(x,y)&&!F.fab(x+dS,y)&&!F.fab(x+2*dS,y)&&!F.fab(x+3*dS,y)){P.push([x,y]);break;}}}
+  yh=yo;
+  if(P.length<8)return null;
+  const L1=lineFit(P),a=L1.a,b=L1.b;
+  const nD=Math.hypot(a,1),D=[a/nD,1/nD];let I=[-D[1]*dS,D[0]*dS];if(I[0]*dS>0)I=[-I[0],-I[1]];
+  const fitk=(pr,pe)=>{const n=pr.length;let sx=0,sy=0,sxx=0,sxy=0;for(let i=0;i<n;i++){sx+=pr[i];sy+=pe[i];sxx+=pr[i]*pr[i];sxy+=pr[i]*pe[i];}const den=n*sxx-sx*sx;const k=Math.abs(den)<1e-9?0:(n*sxy-sx*sy)/den;return [k,(sy-k*sx)/n];};
+  const cand=[];
+  for(const [fr,lim] of [[[.08,.2,.32,.44,.56],true],[[.12,.3,.5,.7,.9],false]]){
+    const yS=yh-Wq*.5,xS=a*yS+b,hp=[];
+    for(const f of fr){const sx=xS+I[0]*Wq*f,sy=yS+I[1]*Wq*f;if(!F.fab(sx,sy))continue;const q2=hemAlong(sx,sy,D,Wq*1.5);if(q2)hp.push(q2);}
+    if(hp.length<2)continue;
+    let pr=hp.map(([x,y])=>x*I[0]+y*I[1]),pe=hp.map(([x,y])=>x*D[0]+y*D[1]);let [k,c]=fitk(pr,pe);
+    if(lim&&hp.length>=4){const r=pr.map((v,i)=>Math.abs(pe[i]-(k*v+c)));const wi=r.indexOf(Math.max(...r));pr=pr.filter((_,i)=>i!==wi);pe=pe.filter((_,i)=>i!==wi);[k,c]=fitk(pr,pe);}
+    if(lim&&(k>.5||k<-.12)){k=Math.max(-.12,Math.min(.5,k));const ds=pr.map((v,i)=>pe[i]-k*v).sort((x,y)=>x-y);c=ds[ds.length>>1];}
+    const res=pr.reduce((m,v,i)=>m+Math.abs(pe[i]-(k*v+c)),0)/pr.length;
+    cand.push({k,c,res,n:hp.length,lim});
+  }
+  if(!cand.length)return null;
+  // prefer the constrained fit; fall back to the wide one when it reads the hem clearly better
+  cand.sort((x,y)=>(x.lim?0:1)-(y.lim?0:1));let C=cand[0];if(cand[1]&&cand[1].k<=.5&&cand[1].k>=-.12&&cand[1].res+1<C.res)C=cand[1];
+  const {k,c}=C;
+  const t0=(k*b*I[0]+c-b*D[0])/((a*D[0]+D[1])-k*(a*I[0]+I[1]));const BO=[b+a*t0,t0];
+  const nH=Math.hypot(I[0]+k*D[0],I[1]+k*D[1]),Hd=[(I[0]+k*D[0])/nH,(I[1]+k*D[1])/nH],Hq=Wq*.8;
+  const Bin=[BO[0]+Hd[0]*Wq,BO[1]+Hd[1]*Wq],TO=[BO[0]-D[0]*Hq,BO[1]-D[1]*Hq],Tin=[Bin[0]-D[0]*Hq,Bin[1]-D[1]*Hq];
+  const qd=s==='left'?[Tin,TO,BO,Bin]:[TO,Tin,Bin,BO];
+  const tilt=Math.atan(a)*180/Math.PI, ok=L1.n>=8&&C.n>=3&&Math.abs(tilt)<40&&tilt*dS>-15&&Math.abs(BO[1]-yh)<Wq*.8&&C.res<Wq*.12&&k<.48&&k>-.1;
+  return {quad:qd.map(([x,y])=>({x:+(x/w).toFixed(4),y:+(y/h).toFixed(4)})),conf:ok?'ok':'low',dbg:{tilt:Math.round(tilt),k:+k.toFixed(2),n:L1.n,hn:C.n,res:+C.res.toFixed(1)}};
+}
+function fitSide(t,pack){
+  const {w,h}=pack, q=t.quad.map(p=>[p.x*w,p.y*h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),qw=x1-x0,cx=Math.round((x0+x1)/2);
+  const F=fabModel(pack,q);
+  if(!F.fab(cx,(y0+y1)/2))return {conf:'low'};
+  const hemAt=(x,ys)=>{if(!F.fab(x,ys))return null;for(let y=Math.round(ys);y<Math.min(h-4,ys+qw*1.4);y++){if(!F.fab(x,y)&&!F.fab(x,y+2)&&!F.fab(x,y+4))return y;}return 1e6;};
+  const hs=[];for(let x=Math.round(cx-qw*.2);x<=cx+qw*.2;x+=3){const y=hemAt(x,y0);if(y!==null&&y<1e6)hs.push(y);}
+  if(hs.length<3)return {conf:'low'};hs.sort((a,b)=>a-b);const yh=hs[hs.length>>1];
+  const ys0=Math.round(yh-qw*.18), pts=[];
+  const walk=d=>{let prev=hemAt(cx,ys0),x=cx,last=cx;if(prev===null||prev>=1e6)return null;while(x>0&&x<w-1){x+=d*2;const hh=hemAt(x,ys0);if(hh===null||hh>=1e6||Math.abs(hh-prev)>qw*.06)return last;prev=hh;last=x;pts.push([x,hh]);}return last;};
+  const sl=walk(-1),sr=walk(1);if(sl===null||sr===null)return {conf:'low'};
+  const sw=sr-sl;
+  // hem slope across the sleeve
+  let m=0;if(pts.length>4){let n=pts.length,sx=0,sy=0,sxx=0,sxy=0;for(const [x,y] of pts){sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;}const den=n*sxx-sx*sx;if(Math.abs(den)>1e-9)m=(n*sxy-sx*sy)/den;m=Math.max(-.6,Math.min(.6,m));}
+  const xc=(sl+sr)/2, wq=FIT.widthPerArm*sw, yc=yh+m*(xc-cx), mg=wq*.08, hq=wq*.6;
+  const bl=[xc-wq/2,yc-m*wq/2-mg],br=[xc+wq/2,yc+m*wq/2-mg];
+  const qd=[[bl[0],bl[1]-hq],[br[0],br[1]-hq],br,bl];
+  const ok=sw>qw*.9&&sw<qw*4;if(!ok)return {conf:'low',dbg:{sw,qw}};
+  return {quad:qd.map(([x,y])=>({x:+(x/w).toFixed(4),y:+(y/h).toFixed(4)})),conf:ok?'ok':'low'};
+}
+const fitRes=new Map();
+function isManual(t,s){if(t.builtin){const o=LS.get('quads',{});return !!o[s==='front'||s===viewOf(t)?t.id:t.id+':'+s];}return !!(t.manual&&t.manual[s]);}
+async function ensureFit(t){
+  if(t._fitted)return; t._fitted=true;
+  try{
+    let r=fitRes.get(t.id);
+    if(!r){const p=await previewPack(t);r=viewOf(t)==='front'?fitFront(t,p):{side:fitSide(t,p)};fitRes.set(t.id,r);}
+    t.fit={};
+    if(viewOf(t)==='front'){
+      if(!t.builtin&&r.areaIn)t.areaIn=r.areaIn;
+      t.sleeves=t.sleeves||{};
+      for(const s of ['left','right']){const f=r.sleeves&&r.sleeves[s];if(!f)continue;t.fit[s]=isManual(t,s)?'manual':f.conf;
+        if(!isManual(t,s)&&f.quad&&f.conf==='ok')t.sleeves[s]={...(t.sleeves[s]||{}),quad:f.quad};}
+    }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
+      if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;}
+  }catch(e){}
+}
+async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
+
 /* ---------- templates: storage ---------- */
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));}catch(e){}}};
 let idb=null;
@@ -615,11 +761,11 @@ let memMine=[];
 async function reload(){
   const quads=LS.get('quads',{}), names=LS.get('names',{}), hidden=LS.get('hidden',[]);
   const b=builtins.filter(t=>!hidden.includes(t.id)).map((t,i)=>{const sl={...(t.sleeves||{})};for(const k of ['left','right'])if(quads[t.id+':'+k])sl[k]={quad:quads[t.id+':'+k]};
-    return {...t,builtin:true,origQuad:t.quad,quad:quads[t.id]||t.quad,sleeves:sl,custom:!!(quads[t.id]||quads[t.id+':left']||quads[t.id+':right']||LS.get('turns',{})[t.id+':left']!=null||LS.get('turns',{})[t.id+':right']!=null),name:names[t.id]||t.name,createdAt:i};});
+    return {...t,builtin:true,seedSleeves:Object.fromEntries(Object.entries(t.sleeves||{}).map(([k,v])=>[k,v.quad])),origQuad:t.quad,quad:quads[t.id]||t.quad,sleeves:sl,custom:!!(quads[t.id]||quads[t.id+':left']||quads[t.id+':right']||LS.get('turns',{})[t.id+':left']!=null||LS.get('turns',{})[t.id+':right']!=null),name:names[t.id]||t.name,createdAt:i};});
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,sleeves:m.sleeves||{},createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -641,14 +787,17 @@ async function saveArea(t,s,quad){
   if(s===viewOf(t))return saveQuad(t,quad);
   const q=quad.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));t.sleeves=t.sleeves||{};t.sleeves[s]={quad:q};
   if(t.builtin){const o=LS.get('quads',{});o[t.id+':'+s]=q;LS.set('quads',o);t.custom=true;}
-  else if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,sleeves:t.sleeves}));}
-  else{const m=memMine.find(x=>x.id===t.id);if(m)m.sleeves=t.sleeves;}
+  else{t.manual={...(t.manual||{}),[s]:true};
+    if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,sleeves:t.sleeves,manual:t.manual}));}
+    else{const m=memMine.find(x=>x.id===t.id);if(m){m.sleeves=t.sleeves;m.manual=t.manual;}}}
 }
 async function saveQuad(t,quad){
   t.quad=quad.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));
+  if(viewOf(t)==='front'){fitRes.delete(t.id);t._fitted=false;}
   if(t.builtin){const q=LS.get('quads',{});q[t.id]=t.quad;LS.set('quads',q);t.custom=true;}
-  else if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,quad:t.quad}));}
-  else{const m=memMine.find(x=>x.id===t.id);if(m)m.quad=t.quad;}
+  else{t.manual={...(t.manual||{}),[viewOf(t)==='front'?'front':viewOf(t)]:true};
+    if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,quad:t.quad,manual:t.manual}));}
+    else{const m=memMine.find(x=>x.id===t.id);if(m){m.quad=t.quad;m.manual=t.manual;}}}
   renderList();
 }
 async function resetQuad(t){const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
@@ -673,7 +822,7 @@ let rafPending=false;
 function scheduleRender(){ if(rafPending)return; rafPending=true; requestAnimationFrame(async()=>{rafPending=false; await renderView();}); }
 async function renderView(){
   const t=curT(); if(!t)return;
-  let pack; try{pack=await previewPack(t);}catch(e){toast('Couldn\'t load that photo.');return;}
+  let pack; try{pack=await previewPack(t);await ensureFit(t);}catch(e){toast('Couldn\'t load that photo.');return;}
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
   if(viewOf(t)!=='front'&&viewOf(t)!==slot)setSlot(viewOf(t));
   renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);
@@ -732,9 +881,9 @@ let editTurn=null;
 function turnUI(t){const sl=editMode&&editSlot!=='front';$('#turn-row').style.display=sl?'flex':'none';if(!sl)return;const off=Math.round(editTurn-turnDefault(t,editSlot));$('#turn-in').value=off;$('#turn-v').textContent=(off>0?'+':'')+off+'°';}
 $('#turn-in').oninput=()=>{const t=curT();if(!t)return;editTurn=turnDefault(t,editSlot)+(+$('#turn-in').value);turnUI(t);scheduleRender();};
 function startEdit(){const t=curT();if(!t)return;editMode=true;editSlot=viewOf(t)==='front'?slot:viewOf(t);editTurn=editSlot==='front'?null:turnOf(t,editSlot);turnUI(t);const a=areaOf(t,editSlot)||defaultSleeveQuad(editSlot);editOrig=a.map(p=>({...p}));editQuad=a.map(p=>({...p}));$('#hint').textContent='Editing the '+SLOT_NAMES[editSlot].toLowerCase()+' print area. Drag the corners, or drag inside to move it.';view.style.touchAction='none';view.style.cursor='crosshair';
-  $('#btn-edit').style.display='none';$('#btn-save-area').style.display='';$('#btn-apply-sim').style.display='';$('#btn-cancel-area').style.display='';$('#hint').style.display='block';scheduleRender();}
+  $('#btn-edit').style.display='none';$('#btn-save-area').style.display='';$('#btn-apply-sim').style.display='';$('#btn-cancel-area').style.display='';$('#btn-autofit').style.display=editSlot==='front'?'none':'';$('#hint').style.display='block';scheduleRender();}
 function endEdit(){editMode=false;editQuad=null;drag=null;$('#turn-row').style.display='none';view.style.touchAction='';view.style.cursor='';
-  $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-apply-sim').style.display='none';$('#btn-cancel-area').style.display='none';$('#hint').style.display='none';scheduleRender();}
+  $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-apply-sim').style.display='none';$('#btn-cancel-area').style.display='none';$('#btn-autofit').style.display='none';$('#hint').style.display='none';scheduleRender();}
 function cancelEdit(){endEdit();}
 function evPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,r};}
 function inside(q,p){let c=false;for(let i=0,j=3;i<4;j=i++){const a=q[i],b=q[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))c=!c;}return c;}
@@ -756,6 +905,10 @@ const endDrag=()=>{drag=null;};
 view.addEventListener('pointerup',endDrag);view.addEventListener('pointercancel',endDrag);
 $('#btn-edit').onclick=startEdit;
 $('#btn-cancel-area').onclick=cancelEdit;
+$('#btn-autofit').onclick=async()=>{const t=curT();if(!t)return;const p=await previewPack(t);let f;
+  if(viewOf(t)==='front'){const r=fitFront(t,p);f=r.sleeves&&r.sleeves[editSlot];}else{f=fitSide({...t,quad:editQuad},p);}
+  if(f&&f.quad){editQuad=f.quad.map(q=>({...q}));editTurn=turnDefault(t,editSlot);turnUI(t);scheduleRender();toast(f.conf==='ok'?'Fitted to the sleeve. Save to keep it.':'Fitted, but check it. The sleeve was hard to read in this photo.');}
+  else toast(viewOf(t)==='front'?'Couldn\'t find this sleeve in the photo. Drag the box onto it instead.':'Couldn\'t find the sleeve. Drag the box onto the sleeve, then try Auto-fit again.');};
 function quadStats(q){const c={x:q.reduce((a,p)=>a+p.x,0)/4,y:q.reduce((a,p)=>a+p.y,0)/4};const w=(dist([q[0].x,q[0].y],[q[1].x,q[1].y])+dist([q[3].x,q[3].y],[q[2].x,q[2].y]))/2,h=(dist([q[0].x,q[0].y],[q[3].x,q[3].y])+dist([q[1].x,q[1].y],[q[2].x,q[2].y]))/2;return {c,w,h};}
 $('#btn-apply-sim').onclick=async()=>{
   const t=curT();if(!t)return;const s=editSlot,o=quadStats(editOrig),n=quadStats(editQuad);
@@ -870,7 +1023,7 @@ async function renderGrid(){
   updateDlCount();
   for(const [t,c] of tiles){
     if(job!==gridJob)return;
-    try{const p=await smallPack(t);c.width=p.w;c.height=p.h;renderTo(p,t,c.getContext('2d'));}catch(e){}
+    try{await ensureFit(t);const p=await smallPack(t);c.width=p.w;c.height=p.h;renderTo(p,t,c.getContext('2d'));}catch(e){}
     await new Promise(r=>setTimeout(r,0));
   }
 }
@@ -879,11 +1032,42 @@ $('#v-grid').onclick=()=>setGrid(true);$('#v-strip').onclick=()=>setGrid(false);
 $('#sel-all').onclick=()=>{shown().forEach(t=>excluded.delete(t.id));LS.set('excluded',[...excluded]);renderGrid();};
 $('#sel-none').onclick=()=>{shown().forEach(t=>excluded.add(t.id));LS.set('excluded',[...excluded]);renderGrid();};
 
+
+/* ---------- check all photos (sleeve fit QA) ---------- */
+$('#btn-qa').onclick=async()=>{
+  const box=$('#qa-grid');box.textContent='';
+  if(!designs.left&&!designs.right){$('#qa-sum').textContent='Add a left or right sleeve design in the Studio first.';return;}
+  $('#btn-qa').disabled=true;$('#qa-sum').textContent='Rendering…';
+  let n=0,ok=0,chk=[];
+  try{
+    for(const t of templates){
+      await ensureFit(t);
+      const slots=viewOf(t)==='front'?['right','left']:[viewOf(t)];
+      for(const s of slots){
+        if(!designs[s])continue;const q=areaOf(t,s);const st=t.fit&&t.fit[s];
+        if(!q&&!st)continue;
+        const d=document.createElement('div');d.className='gtile qtile';const c=document.createElement('canvas');const sp=document.createElement('span');
+        sp.textContent=t.name+(viewOf(t)==='front'?' · '+SLOT_NAMES[s].toLowerCase():'');
+        const b=document.createElement('span');b.className='qb';
+        const lab=!q?[st==='low'?'Check this':'No sleeve found',st==='low'?'#d97706':'#6b7280']:st==='manual'?['Your edit','#2563eb']:st==='ok'?['Auto-fit ✓','#16a34a']:['Check this','#d97706'];
+        b.textContent=lab[0];b.style.background=lab[1];d.append(c,b,sp);box.append(d);n++;
+        if(lab[0]==='Auto-fit ✓'||lab[0]==='Your edit')ok++;else chk.push(t.name);
+        d.onclick=()=>{curId=t.id;go('studio');if(viewOf(t)==='front')setSlot(s);renderThumbs();scheduleRender();setTimeout(startEdit,80);};
+        if(q){const p=await previewPack(t);const full=document.createElement('canvas');full.width=p.w;full.height=p.h;renderTo(p,t,full.getContext('2d'));
+          const pts=q.map(v=>[v.x*p.w,v.y*p.h]);const xs=pts.map(v=>v[0]),ys=pts.map(v=>v[1]);const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
+          const side=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*2.2;c.width=320;c.height=400;const x=c.getContext('2d');x.imageSmoothingQuality='high';
+          x.drawImage(full,cx-side/2,cy-side*.6,side,side*1.25,0,0,320,400);}
+        await new Promise(r=>setTimeout(r,0));
+      }
+    }
+    $('#qa-sum').textContent=n+' sleeves · '+ok+' fitted'+(chk.length?' · '+chk.length+' to check':' · all good');
+  }finally{$('#btn-qa').disabled=false;}
+};
 /* ---------- export ---------- */
 const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
 async function renderFull(t,sizeKey){const o=await renderCanvas(t,sizeKey);return canvasBlob(o,'image/jpeg',.92);}
 async function renderCanvas(t,sizeKey){
-  const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
+  await ensureFit(t);const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;renderTo(pack,t,c.getContext('2d'));
   const key=sizeKey||$('#out-size').value;
   if(key==='closeup'){const q=t.quad.map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
