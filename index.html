@@ -121,6 +121,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <div class="row">
             <button id="btn-edit">Adjust print area</button>
             <button id="btn-save-area" class="primary" style="display:none">Save area</button>
+            <button id="btn-apply-sim" style="display:none">Save &amp; apply to similar</button>
             <button id="btn-cancel-area" style="display:none">Cancel</button>
           </div>
           <span class="status" id="tname"></span>
@@ -160,7 +161,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         </label>
         <div class="design-prev" id="design-info" style="display:none;margin-top:10px">
           <canvas id="design-thumb" width="64" height="64"></canvas>
-          <div class="small"><div id="design-name" style="font-weight:600"></div><div class="muted" id="design-dim"></div></div>
+          <div class="small"><div id="design-name" style="font-weight:600"></div><div class="muted" id="design-dim"></div><div id="dpi" class="small" style="font-weight:600"></div></div>
         </div>
         <div class="note warn" id="bg-note" style="display:none">This file has a solid background, which will print as a box. Use a transparent PNG, or remove it below.</div>
         <div id="bg-ctl" style="display:none">
@@ -170,7 +171,9 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       </div>
       <div class="card">
         <h2>2. Placement <span class="muted small" id="pl-slot" style="font-weight:500">· Front</span></h2>
-        <div class="ctl"><div class="lab">Size <span id="v-size"></span></div><input type="range" id="size" min="20" max="100" value="85"></div>
+        <div class="ctl"><label class="row small" style="font-weight:600"><input type="checkbox" id="ts-on"> True-to-size printing</label></div>
+        <div class="ctl" id="ts-ctl" style="display:none"><div class="lab">Print width (inches) <span class="muted">art width, as set in Printify</span></div><input type="text" id="ts-in" inputmode="decimal" style="max-width:120px"></div>
+        <div class="ctl" id="size-ctl"><div class="lab">Size <span id="v-size"></span></div><input type="range" id="size" min="20" max="100" value="85"></div>
         <div class="ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
         <div class="ctl"><div class="lab">Left / right <span id="v-x"></span></div><input type="range" id="px" min="-100" max="100" value="0"></div>
         <h2 style="margin-top:16px">3. Realism</h2>
@@ -188,12 +191,15 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <option value="sq">Etsy square · 2000 × 2000</option>
             <option value="p45">Portrait 4:5 · 1600 × 2000</option>
             <option value="story">TikTok / Reels 9:16 · 1080 × 1920</option>
+            <option value="closeup">Close-up of the print (square)</option>
           </select></div>
         <p class="small muted" style="margin:0 0 10px">Crops keep the print centered in frame.</p>
         <div class="row">
           <button class="primary" id="btn-dl">Download this one</button>
           <button id="btn-dl-all">Download selected (.zip)</button>
         </div>
+        <div class="row" style="margin-top:8px"><button id="btn-set">Etsy listing set (10 images)</button></div>
+        <p class="small muted" style="margin:6px 0 0">Built around the photo open in the editor: hero, close-ups, both sides, more models from your selection, and a 9:16.</p>
       </div>
       <div class="card">
         <h2>5. Brand stamp</h2>
@@ -312,7 +318,7 @@ const imgCache=new Map(), packCache=new Map(), localImgs=new Map();
 let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
 const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
-const PL={front:{size:.85,y:.04,x:0,wrap:.35},left:{size:.95,y:.5,x:0,wrap:.7},right:{size:.95,y:.5,x:0,wrap:.7}};
+const PL={front:{size:.85,y:.04,x:0,wrap:.35,inches:10},left:{size:.95,y:.5,x:0,wrap:.7,inches:3},right:{size:.95,y:.5,x:0,wrap:.7,inches:3}};
 let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
@@ -328,10 +334,10 @@ function setSlot(v){
   $('#bg-note').style.display=design&&design.opaque?'block':'none';$('#bg-ctl').style.display=design&&design.opaque?'block':'none';
   $('#rm-bg').checked=!!(design&&design.removeBg);$('#tol-ctl').style.display=design&&design.removeBg?'block':'none';
   if(design){$('#tol').value=design.tol;}
-  syncSliders();
+  syncSliders();tsUI();
 }
 const P={...DEFAULTS, removeBg:false, tol:30};
-let editMode=false, editQuad=null, drag=null;
+let editMode=false, editQuad=null, drag=null, editSlot='front', editOrig=null;
 const designCache={key:'',data:null};
 
 /* ---------- utilities ---------- */
@@ -388,15 +394,16 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-function composite(pack,quadN,ctx,arcIn){curArc=arcIn||0;
+function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
-  const out=new ImageData(new Uint8ClampedArray(data),w,h);
-  if(!design){ctx.putImageData(out,0,0);return;}
+  const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
+  if(!design){if(own)ctx.putImageData(out,0,0);return;}
   const q=quadN.map(p=>[p.x*w,p.y*h]);
-  const M=sq2quad(q), Mi=inv3(M); if(!Mi){ctx.putImageData(out,0,0);return;}
+  const M=sq2quad(q), Mi=inv3(M); if(!Mi){if(own)ctx.putImageData(out,0,0);return;}
   const topW=dist(q[0],q[1]),botW=dist(q[3],q[2]),lH=dist(q[0],q[3]),rH=dist(q[1],q[2]);
   const A=(topW+botW)/(lH+rH), D=design.w/design.h, s=P.size;
   let fw,fh; if(D>A){fw=s;fh=s*A/D;}else{fh=s;fw=s*D/A;}
+  if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}
   const u0=(1-fw)/2*(1+P.x), v0=(1-fh)*P.y;
   const tw=Math.max(2,Math.round((topW+botW)/2*fw*1.2)), th=Math.max(2,Math.round((lH+rH)/2*fh*1.2));
   const ds=designSampled(tw,th), pm=ds.pm, dw=ds.w, dh=ds.h;
@@ -437,6 +444,20 @@ function composite(pack,quadN,ctx,arcIn){curArc=arcIn||0;
       od[j]=od[j]*(1-al)+r*al; od[j+1]=od[j+1]*(1-al)+g*al; od[j+2]=od[j+2]*(1-al)+b*al;
     }
   }
+  if(own)ctx.putImageData(out,0,0);
+}
+
+/* ---------- print areas & layers ---------- */
+const TS={on:false};
+function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
+function areaInches(t,s){if(s==='front')return t.group==='women'?10:12;return 3.5;}
+function layersOf(t){const v=viewOf(t);if(v!=='front')return [[v,t.quad,t.arc]];
+  const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
+function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
+function renderTo(pack,t,ctx,edit){
+  const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
+  const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s)));}
   ctx.putImageData(out,0,0);
 }
 
@@ -457,6 +478,7 @@ function shown(){return templates.filter(t=>kindFilter==='all'||(kindFilter==='m
 function setStoreStatus(msg){$('#store-status').textContent=msg;}
 let builtins=[];
 async function initStore(){
+  Object.assign(TS,LS.get('ts',{}));tsUI();
   try{const r=await fetch('models/models.json');builtins=await r.json();}catch(e){builtins=[];toast('Couldn\'t load the built-in models.');}
   idb=await openIDB();
   if(!idb){memoryMode=true;setStoreStatus('This browser won\'t save photos you add. They\'ll disappear when you close the page.');}
@@ -465,11 +487,12 @@ async function initStore(){
 let memMine=[];
 async function reload(){
   const quads=LS.get('quads',{}), names=LS.get('names',{}), hidden=LS.get('hidden',[]);
-  const b=builtins.filter(t=>!hidden.includes(t.id)).map((t,i)=>({...t,builtin:true,origQuad:t.quad,quad:quads[t.id]||t.quad,name:names[t.id]||t.name,createdAt:i}));
+  const b=builtins.filter(t=>!hidden.includes(t.id)).map((t,i)=>{const sl={...(t.sleeves||{})};for(const k of ['left','right'])if(quads[t.id+':'+k])sl[k]={quad:quads[t.id+':'+k]};
+    return {...t,builtin:true,origQuad:t.quad,quad:quads[t.id]||t.quad,sleeves:sl,custom:!!(quads[t.id]||quads[t.id+':left']||quads[t.id+':right']),name:names[t.id]||t.name,createdAt:i};});
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,sleeves:m.sleeves||{},createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -486,14 +509,21 @@ async function addTemplate(file,name,kind,view){
   else await idbTx('readwrite',st=>st.put({...rec,blob}));
   await reload(); curId=id; renderThumbs(); startEdit();
 }
+async function saveArea(t,s,quad){
+  if(s===viewOf(t))return saveQuad(t,quad);
+  const q=quad.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));t.sleeves=t.sleeves||{};t.sleeves[s]={quad:q};
+  if(t.builtin){const o=LS.get('quads',{});o[t.id+':'+s]=q;LS.set('quads',o);t.custom=true;}
+  else if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,sleeves:t.sleeves}));}
+  else{const m=memMine.find(x=>x.id===t.id);if(m)m.sleeves=t.sleeves;}
+}
 async function saveQuad(t,quad){
   t.quad=quad.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));
-  if(t.builtin){const q=LS.get('quads',{});q[t.id]=t.quad;LS.set('quads',q);}
+  if(t.builtin){const q=LS.get('quads',{});q[t.id]=t.quad;LS.set('quads',q);t.custom=true;}
   else if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,quad:t.quad}));}
   else{const m=memMine.find(x=>x.id===t.id);if(m)m.quad=t.quad;}
   renderList();
 }
-async function resetQuad(t){const q=LS.get('quads',{});delete q[t.id];LS.set('quads',q);await reload();}
+async function resetQuad(t){const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
 async function renameTemplate(t,name){
   t.name=name;
   if(t.builtin){const n=LS.get('names',{});n[t.id]=name;LS.set('names',n);}
@@ -517,10 +547,9 @@ async function renderView(){
   const t=curT(); if(!t)return;
   let pack; try{pack=await previewPack(t);}catch(e){toast('Couldn\'t load that photo.');return;}
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
-  const quad=editMode?editQuad:t.quad;
-  if(viewOf(t)!==slot)setSlot(viewOf(t));
-  composite(pack,quad,vctx,t.arc);
-  if(editMode)drawHandles(quad,pack);
+  if(viewOf(t)!=='front'&&viewOf(t)!==slot)setSlot(viewOf(t));
+  renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad}:null);
+  if(editMode)drawHandles(editQuad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
 }
 function drawHandles(quad,pack){
@@ -559,7 +588,7 @@ function renderList(){
     const x=document.createElement('button');x.textContent=t.builtin?'Hide':'Delete';x.className='danger';
     x.onclick=async()=>{const ok=t.builtin?await confirmDlg('Hide “'+t.name+'”?','It won\'t show in the studio. You can bring built-in models back below.','Hide'):await confirmDlg('Delete “'+t.name+'”?','This removes the photo and its print area from this browser. It can\'t be undone.');if(ok){try{await deleteTemplate(t);toast(t.builtin?'Hidden.':'Deleted.');}catch(err){toast('Couldn\'t remove it.');}}};
     row.append(e,x);
-    if(t.builtin&&JSON.stringify(t.quad)!==JSON.stringify(t.origQuad)){const r=document.createElement('button');r.textContent='Reset area';r.onclick=()=>resetQuad(t).then(()=>toast('Print area reset.'));row.append(r);}b.append(inp,badge,row);d.append(im,b);box.append(d);
+    if(t.builtin&&t.custom){const r=document.createElement('button');r.textContent='Reset area';r.onclick=()=>resetQuad(t).then(()=>toast('Print area reset.'));row.append(r);}b.append(inp,badge,row);d.append(im,b);box.append(d);
   }
 }
 function renderAll(){
@@ -571,10 +600,10 @@ function renderAll(){
 }
 
 /* ---------- edit print area ---------- */
-function startEdit(){const t=curT();if(!t)return;editMode=true;editQuad=t.quad.map(p=>({...p}));view.style.touchAction='none';view.style.cursor='crosshair';
-  $('#btn-edit').style.display='none';$('#btn-save-area').style.display='';$('#btn-cancel-area').style.display='';$('#hint').style.display='block';scheduleRender();}
+function startEdit(){const t=curT();if(!t)return;editMode=true;editSlot=viewOf(t)==='front'?slot:viewOf(t);const a=areaOf(t,editSlot)||defaultSleeveQuad(editSlot);editOrig=a.map(p=>({...p}));editQuad=a.map(p=>({...p}));$('#hint').textContent='Editing the '+SLOT_NAMES[editSlot].toLowerCase()+' print area. Drag the corners, or drag inside to move it.';view.style.touchAction='none';view.style.cursor='crosshair';
+  $('#btn-edit').style.display='none';$('#btn-save-area').style.display='';$('#btn-apply-sim').style.display='';$('#btn-cancel-area').style.display='';$('#hint').style.display='block';scheduleRender();}
 function endEdit(){editMode=false;editQuad=null;drag=null;view.style.touchAction='';view.style.cursor='';
-  $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-cancel-area').style.display='none';$('#hint').style.display='none';scheduleRender();}
+  $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-apply-sim').style.display='none';$('#btn-cancel-area').style.display='none';$('#hint').style.display='none';scheduleRender();}
 function cancelEdit(){endEdit();}
 function evPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,r};}
 function inside(q,p){let c=false;for(let i=0,j=3;i<4;j=i++){const a=q[i],b=q[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))c=!c;}return c;}
@@ -596,9 +625,25 @@ const endDrag=()=>{drag=null;};
 view.addEventListener('pointerup',endDrag);view.addEventListener('pointercancel',endDrag);
 $('#btn-edit').onclick=startEdit;
 $('#btn-cancel-area').onclick=cancelEdit;
-$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;try{await saveQuad(t,q);endEdit();toast('Print area saved.');scheduleGrid();}catch(e){toast('Couldn\'t save the print area.');}};
+function quadStats(q){const c={x:q.reduce((a,p)=>a+p.x,0)/4,y:q.reduce((a,p)=>a+p.y,0)/4};const w=(dist([q[0].x,q[0].y],[q[1].x,q[1].y])+dist([q[3].x,q[3].y],[q[2].x,q[2].y]))/2,h=(dist([q[0].x,q[0].y],[q[3].x,q[3].y])+dist([q[1].x,q[1].y],[q[2].x,q[2].y]))/2;return {c,w,h};}
+$('#btn-apply-sim').onclick=async()=>{
+  const t=curT();if(!t)return;const s=editSlot,o=quadStats(editOrig),n=quadStats(editQuad);
+  const dx=(n.c.x-o.c.x)/o.w,dy=(n.c.y-o.c.y)/o.h,sw=n.w/o.w,sh=n.h/o.h;
+  const others=shown().filter(x=>x.id!==t.id&&(viewOf(t)==='front'?viewOf(x)==='front':viewOf(x)===s)&&areaOf(x,s));
+  if(!await confirmDlg('Apply to '+others.length+' similar photos?','The same move and resize is applied to the '+SLOT_NAMES[s].toLowerCase()+' print area on every similar photo in the current filter. Reset area undoes it per photo.','Apply'))return;
+  try{await saveArea(t,s,editQuad);
+    for(const x of others){const q=areaOf(x,s),st=quadStats(q),nc={x:st.c.x+dx*st.w,y:st.c.y+dy*st.h};
+      await saveArea(x,s,q.map(p=>({x:Math.min(1,Math.max(0,nc.x+(p.x-st.c.x)*sw)),y:Math.min(1,Math.max(0,nc.y+(p.y-st.c.y)*sh))})));}
+    endEdit();renderList();toast('Applied to '+(others.length+1)+' photos.');scheduleGrid();
+  }catch(e){toast('Couldn\'t apply the change.');}
+};
+$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;try{await saveArea(t,editSlot,q);endEdit();toast('Print area saved.');scheduleGrid();}catch(e){toast('Couldn\'t save the print area.');}};
 
 /* ---------- design input ---------- */
+function artBounds(c){const s=Math.min(1,600/Math.max(c.width,c.height)),w=Math.max(1,Math.round(c.width*s)),h=Math.max(1,Math.round(c.height*s));
+  const t=document.createElement('canvas');t.width=w;t.height=h;const x=t.getContext('2d');x.drawImage(c,0,0,w,h);const d=x.getImageData(0,0,w,h).data;
+  let x0=w,x1=-1;for(let y=0;y<h;y++)for(let i=0;i<w;i++)if(d[(y*w+i)*4+3]>16){if(i<x0)x0=i;if(i>x1)x1=i;}
+  return x1<x0?1:(x1-x0+1)/w;}
 function analyzeOpaque(c){
   const x=c.getContext('2d');const w=c.width,h=c.height;const pts=[[1,1],[w-2,1],[1,h-2],[w-2,h-2]];
   let opaque=0;const cols=[];for(const [px,py] of pts){const d=x.getImageData(px,py,1,1).data;if(d[3]>250)opaque++;cols.push(d);}
@@ -622,7 +667,7 @@ $('#design-file').onchange=async e=>{
   try{
     const img=await fileToImage(f);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,3000);const c=drawScaled(img,w,h);
     const a=analyzeOpaque(c);
-    designs[slot]={orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30};
+    const af=a.opaque?1:artBounds(c);designs[slot]={orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30,artFrac:af,artPx:Math.round(img.naturalWidth*af)};
     if(loadPlacement(slot))toast('Restored your last placement for '+f.name+'.');
     setSlot(slot);
     if(Math.max(img.naturalWidth,img.naturalHeight)<1200&&slot==='front')toast('Low-res design. Exports may look soft.',3500);
@@ -634,7 +679,7 @@ $('#rm-bg').onchange=e=>{if(!design)return;design.removeBg=e.target.checked;$('#
 let tolT;$('#tol').oninput=e=>{if(!design)return;design.tol=+e.target.value;$('#v-tol').textContent=design.tol;clearTimeout(tolT);tolT=setTimeout(rebuildDesign,120);};
 $$('#slots button').forEach(b=>b.onclick=()=>{
   const v=b.dataset.slot;if(editMode)cancelEdit();setSlot(v);
-  const t=curT();if(viewOf(t)!==v){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
+  const t=curT();if(viewOf(t)!==v&&!(viewOf(t)==='front')){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
   scheduleRender();
 });
 
@@ -645,12 +690,22 @@ function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
 $('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
+/* ---------- true size + DPI ---------- */
+function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';$('#size-ctl').style.opacity=TS.on?.4:1;$('#size').disabled=TS.on;
+  if(document.activeElement!==$('#ts-in'))$('#ts-in').value=PL[slot].inches;dpiUI();}
+function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
+  const inch=PL[slot].inches||1,dpi=Math.round(design.artPx/inch);
+  const [lab,col]=dpi>=300?['Great for print','var(--ok)']:dpi>=200?['Good','var(--ok)']:dpi>=150?['Fair, may print slightly soft','var(--warn)']:['Too low, will print blurry','#b91c1c'];
+  el.style.color=col;el.textContent='≈ '+dpi+' DPI at '+inch+'" wide · '+lab;}
+$('#ts-on').onchange=e=>{TS.on=e.target.checked;LS.set('ts',TS);tsUI();scheduleRender();scheduleGrid();};
+$('#ts-in').oninput=e=>{const v=parseFloat(e.target.value);if(v>0&&v<30){PL[slot].inches=v;P.inches=v;dpiUI();savePlacement();scheduleRender();scheduleGrid();}};
+
 /* ---------- remembered placement ---------- */
 function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
@@ -675,7 +730,7 @@ async function renderGrid(){
   updateDlCount();
   for(const [t,c] of tiles){
     if(job!==gridJob)return;
-    try{const p=await smallPack(t);c.width=p.w;c.height=p.h;withSlot(viewOf(t),()=>composite(p,t.quad,c.getContext('2d'),t.arc));}catch(e){}
+    try{const p=await smallPack(t);c.width=p.w;c.height=p.h;renderTo(p,t,c.getContext('2d'));}catch(e){}
     await new Promise(r=>setTimeout(r,0));
   }
 }
@@ -689,8 +744,14 @@ const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
 async function renderFull(t,sizeKey){const o=await renderCanvas(t,sizeKey);return canvasBlob(o,'image/jpeg',.92);}
 async function renderCanvas(t,sizeKey){
   const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
-  const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;withSlot(viewOf(t),()=>composite(pack,t.quad,c.getContext('2d'),t.arc));
-  const sz=SIZES[sizeKey||$('#out-size').value];
+  const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;renderTo(pack,t,c.getContext('2d'));
+  const key=sizeKey||$('#out-size').value;
+  if(key==='closeup'){const q=t.quad.map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
+    const bw=Math.max(...xs)-Math.min(...xs),bh=Math.max(...ys)-Math.min(...ys),side=Math.min(pack.w,pack.h,Math.max(bw,bh)*1.7);
+    const cx=(Math.max(...xs)+Math.min(...xs))/2,cy=(Math.max(...ys)+Math.min(...ys))/2;
+    const sx=Math.min(pack.w-side,Math.max(0,cx-side/2)),sy=Math.min(pack.h-side,Math.max(0,cy-side/2));
+    const W=Math.round(Math.min(2000,Math.max(1200,side*1.5)));const o=document.createElement('canvas');o.width=W;o.height=W;const x=o.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(c,sx,sy,side,side,0,0,W,W);stamp(o);return o;}
+  const sz=SIZES[key];
   if(!sz){stamp(c);return c;}
   const [W,H]=sz,A=W/H,w=pack.w,h=pack.h;
   let cw,ch; if(w/h>A){ch=h;cw=h*A;}else{cw=w;ch=w/A;}
@@ -742,11 +803,39 @@ $('#btn-dl-all').onclick=async()=>{
   }catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
 };
 
+/* ---------- Etsy listing set ---------- */
+$('#btn-set').onclick=async()=>{
+  if(editMode){toast('Save or cancel the print area first.');return;}
+  if(!designs.front){toast('Upload a front design first.');return;}
+  if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
+  const cur=curT();const baseId=cur&&cur.builtin?cur.id.replace(/[lr]$/,''):cur&&cur.id;
+  let hero=templates.find(x=>x.id===baseId&&viewOf(x)==='front')||shown().find(x=>viewOf(x)==='front'&&!excluded.has(x.id));
+  if(!hero){toast('Pick a front photo first.');return;}
+  const byId=id=>templates.find(x=>x.id===id);
+  const L=byId(hero.id+'l'),R=byId(hero.id+'r');
+  const steps=[[hero,'sq','hero'],[hero,'closeup','print-closeup']];
+  if(L&&designs.left)steps.push([L,'sq','left-sleeve']);
+  if(R&&designs.right)steps.push([R,'sq','right-sleeve']);
+  if(L&&designs.left)steps.push([L,'closeup','sleeve-closeup']);
+  const pool=shown().filter(x=>viewOf(x)==='front'&&x.id!==hero.id&&!excluded.has(x.id));
+  const other=pool.filter(x=>x.group!==hero.group),same=pool.filter(x=>x.group===hero.group),mix=[];
+  while((other.length||same.length)&&mix.length<9){if(other.length)mix.push(other.shift());if(same.length)mix.push(same.shift());}
+  for(const x of mix){if(steps.length>=9)break;steps.push([x,'sq','model']);}
+  steps.push([hero,'story','tiktok-9x16']);
+  busy(true);
+  try{const zip=new JSZip();let n=0;
+    for(const [t,k,label] of steps){n++;$('#busy').textContent='Rendering '+n+' of '+steps.length+'…';const b=await renderFull(t,k);
+      zip.file(String(n).padStart(2,'0')+'-'+label+'-'+safeName(t.name)+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
+    $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});await saveFile(safeName(baseName())+'-etsy-listing-set.zip',z);
+    toast(steps.length+' images, numbered in listing order.');
+  }catch(e){toast('Listing set failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
+};
+
 /* ---------- batch designs ---------- */
 let batchFiles=[];
 $('#batch-file').onchange=e=>{batchFiles=[...e.target.files];$('#batch-label').textContent=batchFiles.length?batchFiles.length+' design'+(batchFiles.length>1?'s':'')+' chosen':'Choose front designs';$('#btn-batch').disabled=!batchFiles.length;};
 async function loadDesignFile(f){const img=await fileToImage(f);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,3000);const c=drawScaled(img,w,h);const a=analyzeOpaque(c);
-  return {orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30};}
+  const af=a.opaque?1:artBounds(c);return {orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30,artFrac:af,artPx:Math.round(img.naturalWidth*af)};}
 $('#btn-batch').onclick=async()=>{
   if(!batchFiles.length)return;if(editMode){toast('Save or cancel the print area first.');return;}
   if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
