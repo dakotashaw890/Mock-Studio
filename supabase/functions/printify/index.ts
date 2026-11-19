@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
           images: (ph.images || []).map((im: any) => {
             const c = changes.find((x: any) => x.position === ph.position && x.image_id === im.id);
             const n = (k: string, lo: number, hi: number) => { const val = Number(c?.[k]); return Number.isFinite(val) ? Math.min(hi, Math.max(lo, val)) : im[k]; };
-            return { id: im.id, x: c ? n("x", -1, 2) : im.x, y: c ? n("y", -1, 2) : im.y, scale: c ? n("scale", 0.01, 5) : im.scale, angle: im.angle };
+            return { id: im.id, x: c ? n("x", -1, 2) : im.x, y: c ? n("y", -1, 2) : im.y, scale: c ? n("scale", 0.01, 5) : im.scale, angle: c ? n("angle", -360, 360) : im.angle };
           }),
         })),
       }));

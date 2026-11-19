@@ -67,6 +67,7 @@ label.file strong{font-size:14px}
 .gtile.on{border-color:var(--accent)}.gtile.off canvas{opacity:.35}
 .gtile canvas{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}
 .gtile label{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;border-radius:7px;padding:3px 6px;font-size:12px;display:flex;gap:4px;align-items:center}
+.frow{display:flex;gap:6px;align-items:center}.frow input[type=range]{flex:1}.nb{padding:2px 9px;min-width:30px;font-weight:700}
 .qtile .qb{position:absolute;top:6px;left:6px;border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600;color:#fff}
 .gtile span{display:block;font-size:11px;color:var(--muted);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .thumb{flex:0 0 auto;width:74px;border:2px solid transparent;border-radius:10px;padding:0;background:none;cursor:pointer;display:block}
@@ -215,10 +216,14 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <div class="ctl" id="ts-collar-ctl"><div class="lab">Distance from top of print area <span class="muted" id="ts-top-u">px</span></div><input type="text" id="ts-collar" inputmode="decimal" style="max-width:140px"></div>
           <p class="small muted" style="margin:0">Copy these from Printify's editor. Pixels ÷ 300 = inches.</p>
         </div>
-        <div class="ctl" id="size-ctl"><div class="lab">Size <span id="v-size"></span></div><input type="range" id="size" min="20" max="100" value="85"></div>
-        <div class="ctl" id="hem-ctl" style="display:none"><div class="lab">Distance above sleeve hem <span class="muted" id="hem-u">px</span></div><input type="text" id="hem-in" inputmode="decimal" style="max-width:140px"><div class="small muted">From the hem to the bottom of the design. Same on every photo.</div></div>
-        <div class="ctl" id="py-ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
-        <div class="ctl"><div class="lab">Left / right <span id="v-x"></span></div><input type="range" id="px" min="-100" max="100" value="0"></div>
+
+        <div class="ctl fine" id="size-ctl"><div class="lab"><span id="size-lab">Size</span> <span id="v-size"></span></div><div class="frow"><button class="nb" data-n="size" data-d="-1" title="Nudge">−</button><input type="range" id="size"><button class="nb" data-n="size" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="py-ctl"><div class="lab"><span id="py-lab">Up / down</span> <span id="v-py"></span></div><div class="frow"><button class="nb" data-n="py" data-d="-1" title="Nudge">−</button><input type="range" id="py"><button class="nb" data-n="py" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="px-ctl"><div class="lab"><span id="px-lab">Left / right</span> <span id="v-px"></span></div><div class="frow"><button class="nb" data-n="px" data-d="-1" title="Nudge">−</button><input type="range" id="px"><button class="nb" data-n="px" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="curve-ctl"><div class="lab"><span id="curve-lab">Curve</span> <span id="v-curve"></span></div><div class="frow"><button class="nb" data-n="curve" data-d="-1" title="Nudge">−</button><input type="range" id="curve"><button class="nb" data-n="curve" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="rot-ctl"><div class="lab"><span id="rot-lab">Rotate</span> <span id="v-rot"></span></div><div class="frow"><button class="nb" data-n="rot" data-d="-1" title="Nudge">−</button><input type="range" id="rot"><button class="nb" data-n="rot" data-d="1" title="Nudge">+</button></div></div>
+        <p class="small muted" style="margin:2px 0 0">Tip: click a slider, then use the arrow keys. − / + nudge by 1 px at 300 DPI.</p>
+
         <h2 style="margin-top:16px">3. Realism</h2>
         <div class="ctl"><div class="lab">Wrap around body <span id="v-wrap"></span></div><input type="range" id="wrap" min="0" max="100" value="35"></div>
         <div class="ctl"><div class="lab">Follow folds <span id="v-fold"></span></div><input type="range" id="fold" min="0" max="100" value="45"></div>
@@ -407,7 +412,7 @@ let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
 const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
 const HEM_IN=1;
-const PL={front:{size:.85,y:.1,x:0,wrap:.35,inches:10,top:1.25},left:{size:.95,y:.5,x:0,wrap:.7,inches:3,hem:HEM_IN},right:{size:.95,y:.5,x:0,wrap:.7,inches:3,hem:HEM_IN}};
+const PL={front:{size:.85,y:.1,x:0,wrap:.35,inches:10,top:1.25,curve:0,rot:0},left:{size:.95,y:.5,x:0,wrap:.7,inches:3,hem:HEM_IN,curve:0,rot:0},right:{size:.95,y:.5,x:0,wrap:.7,inches:3,hem:HEM_IN,curve:0,rot:0}};
 let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
@@ -496,7 +501,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}
   let u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
   if(TS.on&&areaIn&&typeof P.cx==='number')u0=0.5+P.cx/areaIn-fw/2;
-  if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=Math.min(1-fh,Math.max(0,((P.top+AREA_TOP_SHIFT)*ppi)/ah));}
+  if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=((P.top+AREA_TOP_SHIFT)*ppi)/ah;}
   const tw=Math.max(2,Math.round((topW+botW)/2*fw*1.2)), th=Math.max(2,Math.round((lH+rH)/2*fh*1.2));
   const ds=designSampled(tw,th), pm=ds.pm, dw=ds.w, dh=ds.h;
   // mean luminance over the print area
@@ -526,8 +531,10 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   }
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
-  const aA=Math.abs(curArc||0)*1.05; // the curve lifts the middle of the design, so draw a little beyond its box
-  const corners=(sm?[[-.3,v0-aA],[1.3,v0-aA],[1.3,v0+fh+aA],[-.3,v0+fh+aA]]:[[u0,v0-aA],[u0+fw,v0-aA],[u0+fw,v0+fh+aA],[u0,v0+fh+aA]]).map(([u,v])=>apply(M,u,v));
+  const cK=(P.curve||0)*.35, rr=(P.rot||0)*Math.PI/180, rc=Math.cos(rr), rs=Math.sin(rr);
+  const eu=Math.abs(rs)*fh/A/2+.002, ev=Math.abs(rs)*fw*A/2;
+  const aA=Math.abs(curArc||0)*1.05+Math.abs(cK)*fh+ev; // the curve lifts the middle of the design, so draw a little beyond its box
+  const corners=(sm?[[-.3,v0-aA],[1.3,v0-aA],[1.3,v0+fh+aA],[-.3,v0+fh+aA]]:[[u0-eu,v0-aA],[u0+fw+eu,v0-aA],[u0+fw+eu,v0+fh+aA],[u0-eu,v0+fh+aA]]).map(([u,v])=>apply(M,u,v));
   const pad=Math.ceil(amt*.6)+2;
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
@@ -562,7 +569,9 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
         du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}
       else{let uu=u; if(wth>0.01||curTurn){const sx2=2*(u-.5)*sinWT+sinT; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-curTurn)/(2*wthT);}
       du=(uu-u0)/fw;}
-      const dv=(v+arc*cv-v0)/fh;
+      let dv=(v+arc*cv-v0)/fh;
+      if(rr){const X=(du-.5)*fw*A,Y=(dv-.5)*fh;du=(X*rc+Y*rs)/(fw*A)+.5;dv=(-X*rs+Y*rc)/fh+.5;}
+      if(cK)dv+=cK*(1-(2*du-1)*(2*du-1));
       if(du<=-.01||dv<=-.01||du>=1.01||dv>=1.01)continue;
       const fx=du*dw-.5, fy=dv*dh-.5; const ix=Math.floor(fx), iy=Math.floor(fy); const tx=fx-ix, ty=fy-iy;
       let r=0,g=0,b=0,a=0;
@@ -1026,21 +1035,41 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
 });
 
 /* ---------- sliders ---------- */
-const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['px','x',v=>v/100,v=>(v>0?'+':'')+v],['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%'],['wrap','wrap',v=>v/100,v=>v+'%']];
-const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
-function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
+const sliders=[['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%'],['wrap','wrap',v=>v/100,v=>v+'%']];
+const labelId={fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
+function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;fineUI();}
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key==='x'){delete PL[slot].cx;delete P.cx;}if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
-function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';$('#size-ctl').style.opacity=TS.on?.4:1;$('#size').disabled=TS.on;
+function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';
   $('#ts-units').value=TS.units;$('#ts-in-u').textContent=$('#ts-top-u').textContent=TS.units==='px'?'px':'inches';
   if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);
   $('#ts-collar-ctl').style.display=TS.on&&slot==='front'?'block':'none';if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
-  $('#py').disabled=TS.on&&slot==='front';
-  const sl=slot!=='front';$('#hem-ctl').style.display=sl?'block':'none';$('#py-ctl').style.display=sl?'none':'block';$('#hem-u').textContent=TS.units==='px'?'px':'inches';
-  if(sl&&document.activeElement!==$('#hem-in'))$('#hem-in').value=toU(typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN);dpiUI();}
-$('#hem-in').oninput=e=>{const v=fromU(parseFloat(e.target.value));if(slot!=='front'&&v>=0&&v<6){PL[slot].hem=v;P.hem=v;savePlacement();scheduleRender();scheduleGrid();}};
+  fineUI();dpiUI();}
+/* fine placement controls: in true-to-size mode they edit the real measurements (same numbers as Printify) */
+const STEP_IN=1/300;
+function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.round(v*300)+' px':(+v.toFixed(2))+'"';
+  const sgn=(v,f)=>(v>0?'+':'')+f(v);
+  return {
+    size: ts?{lab:'Width',min:.25,max:sl?6:16,step:STEP_IN,get:()=>PL[slot].inches,set:v=>{PL[slot].inches=v;P.inches=v;},fmt:u}
+            :{lab:'Size',min:.05,max:1.2,step:.002,get:()=>P.size,set:v=>{P.size=v;PL[slot].size=v;},fmt:v=>Math.round(v*100)+'%'},
+    py: sl?{lab:'Distance above sleeve hem',min:-.5,max:4,step:STEP_IN,get:()=>typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN,set:v=>{PL[slot].hem=v;P.hem=v;},fmt:u}
+       :ts?{lab:'Down from top of print area',min:-1.5,max:14,step:STEP_IN,get:()=>PL.front.top,set:v=>{PL.front.top=v;P.top=v;},fmt:u}
+       :{lab:'Up / down',min:-.2,max:1.2,step:.002,get:()=>P.y,set:v=>{P.y=v;PL[slot].y=v;},fmt:v=>Math.round(v*100)+'%'},
+    px: ts?{lab:'Left / right of centre',min:sl?-2:-7,max:sl?2:7,step:STEP_IN,get:()=>typeof PL[slot].cx==='number'?PL[slot].cx:0,set:v=>{PL[slot].cx=v;P.cx=v;},fmt:v=>sgn(v,u)}
+       :{lab:'Left / right',min:-1.5,max:1.5,step:.002,get:()=>P.x,set:v=>{P.x=v;PL[slot].x=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')}, 
+    curve:{lab:'Curve (arch)',min:-1,max:1,step:.01,get:()=>PL[slot].curve||0,set:v=>{PL[slot].curve=v;P.curve=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')+(v?(v>0?' up':' down'):'')},
+    rot:{lab:'Rotate',min:-45,max:45,step:.1,get:()=>PL[slot].rot||0,set:v=>{PL[slot].rot=v;P.rot=v;},fmt:v=>sgn(+v.toFixed(1),x=>x+'°')}};}
+function fineUI(){const D=fineDefs();for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();$('#'+id+'-lab').textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}
+  if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);}
+function fineSet(id,v){const d=fineDefs()[id];v=Math.max(d.min,Math.min(d.max,v));d.set(v);$('#'+id).value=v;$('#v-'+id).textContent=d.fmt(v);
+  if(id==='size'||id==='py')dpiUI();if(id==='size'&&document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(id==='py'&&slot==='front'&&document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
+  scheduleRender();savePlacement();scheduleGrid();}
+for(const id of ['size','py','px','curve','rot'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
+$$('.nb').forEach(b=>{let tm=null;const go=()=>{const id=b.dataset.n,d=fineDefs()[id];fineSet(id,d.get()+(+b.dataset.d)*(id==='curve'?.01:id==='rot'?.5:d.step*(TS.on||id==='py'&&slot!=='front'?1:2.5)));};
+  b.addEventListener('pointerdown',e=>{e.preventDefault();go();tm=setTimeout(function rep(){go();tm=setTimeout(rep,60);},400);});
+  for(const ev of ['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>{clearTimeout(tm);});});
 function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
   const inch=PL[slot].inches||1,dpi=Math.round(design.artPx/inch);
   const [lab,col]=dpi>=300?['Great for print','var(--ok)']:dpi>=200?['Good','var(--ok)']:dpi>=150?['Fair, may print slightly soft','var(--warn)']:['Too low, will print blurry','#b91c1c'];
@@ -1055,7 +1084,7 @@ function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap','inches','top','cx'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
@@ -1360,7 +1389,7 @@ async function pfLoadProduct(id,btn){
       const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;if(art.preview)toast('Printify only shared a preview of this artwork, so the mockup may look soft. Upload the original file in the Front slot for full quality.',6000);
       designs[slotName]=d;
       const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
-      PL[slotName].inches=wPx/300;
+      PL[slotName].inches=wPx/300;PL[slotName].rot=+im.angle||0;PL[slotName].curve=0;
       if(slotName==='front'){PL.front.top=(im.y*pl.area.height-hPx/2)/300;PL.front.cx=(im.x-0.5)*pl.area.width/300;}
       linked.parts.push({position:pl.position,slot:slotName,image_id:im.id,area:pl.area,imgW,imgH});
     }
@@ -1376,8 +1405,8 @@ function pfLinkedUI(){$('#pf-linked').style.display=PF.linked?'block':'none';if(
 $('#pf-push').onclick=async()=>{
   const L=PF.linked;if(!L)return;
   if(!TS.on){toast('Turn on True-to-size first, so the size and position are in real units.');return;}
-  if(!await confirmDlg('Update “'+L.title+'” in Printify?','This changes the design size and position on the live Printify product to match the studio. Needs the products.write scope on your token.','Update Printify'))return;
-  const changes=L.parts.map(pt=>{const pl=PL[pt.slot],scale=pl.inches*300/pt.area.width,c={position:pt.position,image_id:pt.image_id,scale};
+  if(!await confirmDlg('Update “'+L.title+'” in Printify?','This changes the design size, position and rotation on the live Printify product to match the studio. Needs the products.write scope on your token.','Update Printify'))return;
+  const changes=L.parts.map(pt=>{const pl=PL[pt.slot],scale=pl.inches*300/pt.area.width,c={position:pt.position,image_id:pt.image_id,scale,angle:Math.round((pl.rot||0)*10)/10};
     if(pt.slot==='front'){const hPx=pl.inches*300*pt.imgH/pt.imgW;c.x=0.5+(pl.cx||0)*300/pt.area.width;c.y=((pl.top||0)*300+hPx/2)/pt.area.height;}return c;});
   try{await pfCall('update_placement',{shop_id:L.shop_id,product_id:L.product_id,changes});toast('Printify product updated.');}
   catch(e){toast(e.status===502&&/403|scope/i.test(e.message)?'Printify refused the update. Your token needs the products.write scope.':e.message,6000);}
