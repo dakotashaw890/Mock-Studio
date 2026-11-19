@@ -90,7 +90,23 @@ Deno.serve(async (req) => {
     if (action === "product") {
       const p = await pf(token, `/shops/${shopId}/products/${prodId}.json`);
       // print area pixel sizes for this blueprint + provider
-      const v = await pf(token, `/catalog/blueprints/${p.blueprint_id}/print_providers/${p.print_provider_id}/variants.json`);
+      // print-area sizes are the same for everyone, so they're cached after the first lookup; Printify's catalog sometimes refuses briefly, so retry
+      let v: any = null;
+      const { data: cached } = await admin.from("printify_catalog_cache").select("variants").eq("blueprint_id", p.blueprint_id).eq("provider_id", p.print_provider_id).maybeSingle();
+      if (cached?.variants) v = { variants: cached.variants };
+      else {
+        let lastErr: unknown = null;
+        for (let i = 0; i < 3 && !v; i++) {
+          try { v = await pf(token, `/catalog/blueprints/${p.blueprint_id}/print_providers/${p.print_provider_id}/variants.json`); }
+          catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 600 * (i + 1))); }
+        }
+        if (!v) {
+          if (lastErr instanceof HttpError && lastErr.status === 403) throw new HttpError(403, "Printify wouldn't share the print-area size for this shirt right now. Wait a minute and load it again. If it keeps happening, make sure your Printify token has the catalog.read scope ticked, then reconnect here.");
+          throw lastErr;
+        }
+        const slim = (v.variants || []).map((vr: any) => ({ id: vr.id, placeholders: (vr.placeholders || []).map((ph: any) => ({ position: ph.position, width: ph.width, height: ph.height })) }));
+        await admin.from("printify_catalog_cache").upsert({ blueprint_id: p.blueprint_id, provider_id: p.print_provider_id, variants: slim, updated_at: new Date().toISOString() });
+      }
       const sizes: Record<string, { width: number; height: number }> = {};
       // print areas can differ by size; Printify's editor works on the largest one
       const used = new Set(((p.print_areas || [])[0]?.variant_ids) || []);
