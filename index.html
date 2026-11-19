@@ -223,7 +223,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="ctl fine" id="px-ctl"><div class="lab"><span id="px-lab">Left / right</span> <span id="v-px"></span></div><div class="frow"><button class="nb" data-n="px" data-d="-1" title="Nudge">−</button><input type="range" id="px"><button class="nb" data-n="px" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="curve-ctl"><div class="lab"><span id="curve-lab">Curve</span> <span id="v-curve"></span></div><div class="frow"><button class="nb" data-n="curve" data-d="-1" title="Nudge">−</button><input type="range" id="curve"><button class="nb" data-n="curve" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="rot-ctl"><div class="lab"><span id="rot-lab">Rotate</span> <span id="v-rot"></span></div><div class="frow"><button class="nb" data-n="rot" data-d="-1" title="Nudge">−</button><input type="range" id="rot"><button class="nb" data-n="rot" data-d="1" title="Nudge">+</button></div></div>
-        <div class="ctl fine" id="fshow-ctl" style="display:none"><div class="lab"><span id="fshow-lab">How much shows on front photos</span> <span id="v-fshow"></span></div><div class="frow"><button class="nb" data-n="fshow" data-d="-1" title="Nudge">−</button><input type="range" id="fshow"><button class="nb" data-n="fshow" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="fshow-ctl" style="display:none"><div class="lab"><span id="fshow-lab">How much shows on this photo</span> <span id="v-fshow"></span></div><div class="frow"><button class="nb" data-n="fshow" data-d="-1" title="Nudge">−</button><input type="range" id="fshow"><button class="nb" data-n="fshow" data-d="1" title="Nudge">+</button></div></div>
         <p class="small muted" style="margin:2px 0 0">Tip: click a slider, then use the arrow keys. − / + nudge by 1 px at 300 DPI.</p>
 
         <h2 style="margin-top:16px">3. Realism</h2>
@@ -608,7 +608,7 @@ function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))-(viewOf(t)==='front'?(PL[s].fshow||0):0)}));}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}));}
   ctx.putImageData(out,0,0);
 }
 
@@ -906,7 +906,7 @@ function drawHandles(quad,pack){
   pts.forEach(p=>{vctx.beginPath();vctx.arc(p[0],p[1],9*sc,0,Math.PI*2);vctx.fillStyle='#ea580c';vctx.fill();vctx.lineWidth=2.5*sc;vctx.strokeStyle='#fff';vctx.stroke();});
   vctx.restore();
 }
-function renderThumbs(){
+function renderThumbs(){requestAnimationFrame(fineUI);
   if(typeof updateDlCount==='function')try{updateDlCount();}catch(e){}
   const box=$('#thumbs');box.textContent='';
   for(const t of shown()){
@@ -1041,7 +1041,7 @@ const sliders=[['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+
 const labelId={fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;fineUI();}
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key==='x'){delete PL[slot].cx;delete P.cx;}if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,fshow:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
 function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';
@@ -1063,8 +1063,8 @@ function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.r
        :{lab:'Left / right',min:-1.5,max:1.5,step:.002,get:()=>P.x,set:v=>{P.x=v;PL[slot].x=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')}, 
     curve:{lab:'Curve (arch)',min:-1,max:1,step:.01,get:()=>PL[slot].curve||0,set:v=>{PL[slot].curve=v;P.curve=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')+(v?(v>0?' up':' down'):'')},
     rot:{lab:'Rotate',min:-45,max:45,step:.1,get:()=>PL[slot].rot||0,set:v=>{PL[slot].rot=v;P.rot=v;},fmt:v=>sgn(+v.toFixed(1),x=>x+'°')},
-    ...(sl?{fshow:{lab:'How much shows on front photos',min:-30,max:60,step:1,get:()=>PL[slot].fshow||0,set:v=>{PL[slot].fshow=v;P.fshow=v;},fmt:v=>v===0?'half (default)':v>0?'more (+'+v+'°)':'less ('+v+'°)'}}:{})};}
-function fineUI(){const D=fineDefs();$('#fshow-ctl').style.display=slot!=='front'?'block':'none';for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();$('#'+id+'-lab').textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}
+    ...(sl?{fshow:{lab:'How much shows on this photo',min:-30,max:60,step:1,get:()=>{const t=curT();return t&&viewOf(t)==='front'?turnDefault(t,slot)-turnOf(t,slot):0;},set:v=>{const t=curT();if(t&&viewOf(t)==='front')saveTurn(t,slot,turnDefault(t,slot)-v);},fmt:v=>v===0?'half (default)':v>0?'more (+'+v+'°)':'less ('+v+'°)'}}:{})};}
+function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.display=slot!=='front'&&t&&viewOf(t)==='front'?'block':'none';}for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();$('#'+id+'-lab').textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}
   if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);}
 function fineSet(id,v){const d=fineDefs()[id];v=Math.max(d.min,Math.min(d.max,v));d.set(v);$('#'+id).value=v;$('#v-'+id).textContent=d.fmt(v);
   if(id==='size'||id==='py')dpiUI();if(id==='size'&&document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(id==='py'&&slot==='front'&&document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
@@ -1087,7 +1087,7 @@ function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot','fshow'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
