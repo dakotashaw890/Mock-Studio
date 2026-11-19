@@ -471,7 +471,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
+function composite(pack,quadN,ctx,arcIn,outIn,areaIn,half){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
   if(!design){if(own)ctx.putImageData(out,0,0);return;}
@@ -491,7 +491,11 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
   const mean=Math.max(.04,cnt?sum/cnt:.5);
   const amt=P.fold*Math.max(w,h)*.035;
   // bounding box of design region
-  const corners=[[u0,v0],[u0+fw,v0],[u0+fw,v0+fh],[u0,v0+fh]].map(([u,v])=>apply(M,u,v));
+  const corners=(half?[[0,v0],[1,v0],[1,v0+fh],[0,v0+fh]]:[[u0,v0],[u0+fw,v0],[u0+fw,v0+fh],[u0,v0+fh]]).map(([u,v])=>apply(M,u,v));
+  // half: sleeve seen from the front. Design centre sits on the arm's outer silhouette; only the front half shows, foreshortened.
+  const hOutR=slot==='left', hH=fw/2, hW=hH*.8, hC=u0+fw/2-.5, hT=new Float32Array(257);
+  if(half){const N=512,E=[];for(let k=0;k<=N;k++){const t=k/N;E.push(hW*(.5*t+.5*(1-Math.cos(t*Math.PI/2))));}
+    let k=0;for(let j=0;j<=256;j++){const e=hW*j/256;while(k<N&&E[k+1]<e)k++;const a=E[k],b=E[Math.min(N,k+1)];hT[j]=(k+(b>a?(e-a)/(b-a):0))/N;}}
   const pad=Math.ceil(amt*.6)+2;
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
@@ -504,8 +508,12 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
       const disp=(Lb[i]-mean)*amt;
       const sx=x+.5+disp*.35, sy=y+.5+disp;
       const z=m6*sx+m7*sy+m8; const u=(m0*sx+m1*sy+m2)/z, v=(m3*sx+m4*sy+m5)/z;
-      let uu=u; if(wth>0.01){const sx2=(2*u-1)*sinW; if(sx2<=-1||sx2>=1)continue; uu=(Math.asin(sx2)/wth+1)/2;}
-      const du=(uu-u0)/fw, dv=(v+arc*(1-(2*u-1)*(2*u-1))-v0)/fh;
+      let du;
+      if(half){if(u<-.002||u>1.002)continue;const e=hOutR?1-u:u;if(e<0||e>hW)continue;const jf=e/hW*256,j0=Math.floor(jf),f=hH*(hT[j0]+(hT[Math.min(256,j0+1)]-hT[j0])*(jf-j0));
+        du=hOutR?.5-(f+hC)/fw:.5+(f-hC)/fw;}
+      else{let uu=u; if(wth>0.01){const sx2=(2*u-1)*sinW; if(sx2<=-1||sx2>=1)continue; uu=(Math.asin(sx2)/wth+1)/2;}
+      du=(uu-u0)/fw;}
+      const dv=(v+arc*(1-(2*u-1)*(2*u-1))-v0)/fh;
       if(du<=-.01||dv<=-.01||du>=1.01||dv>=1.01)continue;
       const fx=du*dw-.5, fy=dv*dh-.5; const ix=Math.floor(fx), iy=Math.floor(fy); const tx=fx-ix, ty=fy-iy;
       let r=0,g=0,b=0,a=0;
@@ -538,7 +546,7 @@ function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s)));}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s!=='front'&&viewOf(t)==='front'));}
   ctx.putImageData(out,0,0);
 }
 

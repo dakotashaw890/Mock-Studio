@@ -71,7 +71,7 @@
  },
  {
   "id": "m01l",
-  "name": "M01 Track – left sleeve",
+  "name": "M01 Track \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -80,26 +80,26 @@
   "quad": [
    {
     "x": 0.5549,
-    "y": 0.4236
+    "y": 0.3973
    },
    {
     "x": 0.6545,
-    "y": 0.4194
+    "y": 0.3931
    },
    {
     "x": 0.6545,
-    "y": 0.4672
+    "y": 0.4409
    },
    {
     "x": 0.5549,
-    "y": 0.4714
+    "y": 0.4451
    }
   ],
   "arc": 0.198
  },
  {
   "id": "m01r",
-  "name": "M01 Track – right sleeve",
+  "name": "M01 Track \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -108,19 +108,19 @@
   "quad": [
    {
     "x": 0.351,
-    "y": 0.4111
+    "y": 0.3844
    },
    {
     "x": 0.4522,
-    "y": 0.4105
+    "y": 0.3838
    },
    {
     "x": 0.4522,
-    "y": 0.4591
+    "y": 0.4324
    },
    {
     "x": 0.351,
-    "y": 0.4597
+    "y": 0.433
    }
   ],
   "arc": 0.18
@@ -197,7 +197,7 @@
  },
  {
   "id": "m02l",
-  "name": "M02 Basketball court – left sleeve",
+  "name": "M02 Basketball court \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -206,26 +206,26 @@
   "quad": [
    {
     "x": 0.5515,
-    "y": 0.4278
+    "y": 0.387
    },
    {
     "x": 0.7059,
-    "y": 0.4236
+    "y": 0.3828
    },
    {
     "x": 0.7059,
-    "y": 0.4977
+    "y": 0.4569
    },
    {
     "x": 0.5515,
-    "y": 0.5019
+    "y": 0.4611
    }
   ],
   "arc": 0.198
  },
  {
   "id": "m02r",
-  "name": "M02 Basketball court – right sleeve",
+  "name": "M02 Basketball court \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -234,19 +234,19 @@
   "quad": [
    {
     "x": 0.339,
-    "y": 0.3945
+    "y": 0.3679
    },
    {
     "x": 0.4398,
-    "y": 0.4051
+    "y": 0.3785
    },
    {
     "x": 0.4398,
-    "y": 0.4534
+    "y": 0.4268
    },
    {
     "x": 0.339,
-    "y": 0.4429
+    "y": 0.4163
    }
   ],
   "arc": 0.179
@@ -323,7 +323,7 @@
  },
  {
   "id": "m03l",
-  "name": "M03 Garage – left sleeve",
+  "name": "M03 Garage \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -332,26 +332,26 @@
   "quad": [
    {
     "x": 0.5302,
-    "y": 0.4198
+    "y": 0.3874
    },
    {
     "x": 0.653,
-    "y": 0.4112
+    "y": 0.3788
    },
    {
     "x": 0.653,
-    "y": 0.4701
+    "y": 0.4377
    },
    {
     "x": 0.5302,
-    "y": 0.4788
+    "y": 0.4464
    }
   ],
   "arc": 0.138
  },
  {
   "id": "m03r",
-  "name": "M03 Garage – right sleeve",
+  "name": "M03 Garage \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -360,19 +360,19 @@
   "quad": [
    {
     "x": 0.3192,
-    "y": 0.4066
+    "y": 0.3775
    },
    {
     "x": 0.4296,
-    "y": 0.4088
+    "y": 0.3796
    },
    {
     "x": 0.4296,
-    "y": 0.4618
+    "y": 0.4326
    },
    {
     "x": 0.3192,
-    "y": 0.4596
+    "y": 0.4304
    }
   ],
   "arc": 0.159
@@ -449,7 +449,7 @@
  },
  {
   "id": "m04l",
-  "name": "M04 City street – left sleeve",
+  "name": "M04 City street \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -458,26 +458,26 @@
   "quad": [
    {
     "x": 0.5935,
-    "y": 0.4418
+    "y": 0.4151
    },
    {
     "x": 0.6947,
-    "y": 0.4363
+    "y": 0.4096
    },
    {
     "x": 0.6947,
-    "y": 0.4849
+    "y": 0.4582
    },
    {
     "x": 0.5935,
-    "y": 0.4904
+    "y": 0.4637
    }
   ],
   "arc": 0.198
  },
  {
   "id": "m04r",
-  "name": "M04 City street – right sleeve",
+  "name": "M04 City street \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -486,19 +486,19 @@
   "quad": [
    {
     "x": 0.3387,
-    "y": 0.4453
+    "y": 0.4207
    },
    {
     "x": 0.4319,
-    "y": 0.4431
+    "y": 0.4185
    },
    {
     "x": 0.4319,
-    "y": 0.4878
+    "y": 0.4632
    },
    {
     "x": 0.3387,
-    "y": 0.49
+    "y": 0.4654
    }
   ],
   "arc": 0.198
@@ -575,7 +575,7 @@
  },
  {
   "id": "m05l",
-  "name": "M05 Campus – left sleeve",
+  "name": "M05 Campus \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -584,26 +584,26 @@
   "quad": [
    {
     "x": 0.5581,
-    "y": 0.3855
+    "y": 0.3597
    },
    {
     "x": 0.6557,
-    "y": 0.3803
+    "y": 0.3545
    },
    {
     "x": 0.6557,
-    "y": 0.4272
+    "y": 0.4014
    },
    {
     "x": 0.5581,
-    "y": 0.4323
+    "y": 0.4065
    }
   ],
   "arc": 0.198
  },
  {
   "id": "m05r",
-  "name": "M05 Campus – right sleeve",
+  "name": "M05 Campus \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -612,19 +612,19 @@
   "quad": [
    {
     "x": 0.3575,
-    "y": 0.4437
+    "y": 0.4155
    },
    {
     "x": 0.4643,
-    "y": 0.4405
+    "y": 0.4123
    },
    {
     "x": 0.4643,
-    "y": 0.4917
+    "y": 0.4635
    },
    {
     "x": 0.3575,
-    "y": 0.4949
+    "y": 0.4667
    }
   ],
   "arc": 0.198
@@ -701,7 +701,7 @@
  },
  {
   "id": "m06l",
-  "name": "M06 Backyard grill – left sleeve",
+  "name": "M06 Backyard grill \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -710,26 +710,26 @@
   "quad": [
    {
     "x": 0.4007,
-    "y": 0.4974
+    "y": 0.4692
    },
    {
     "x": 0.5075,
-    "y": 0.4882
+    "y": 0.46
    },
    {
     "x": 0.5075,
-    "y": 0.5394
+    "y": 0.5112
    },
    {
     "x": 0.4007,
-    "y": 0.5487
+    "y": 0.5205
    }
   ],
   "arc": 0.161
  },
  {
   "id": "m06r",
-  "name": "M06 Backyard grill – right sleeve",
+  "name": "M06 Backyard grill \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -738,19 +738,19 @@
   "quad": [
    {
     "x": 0.3009,
-    "y": 0.4833
+    "y": 0.4537
    },
    {
     "x": 0.4129,
-    "y": 0.4897
+    "y": 0.4601
    },
    {
     "x": 0.4129,
-    "y": 0.5435
+    "y": 0.5139
    },
    {
     "x": 0.3009,
-    "y": 0.5371
+    "y": 0.5075
    }
   ],
   "arc": 0.198
@@ -827,7 +827,7 @@
  },
  {
   "id": "m07l",
-  "name": "M07 Brick alley – left sleeve",
+  "name": "M07 Brick alley \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -836,26 +836,26 @@
   "quad": [
    {
     "x": 0.5544,
-    "y": 0.4474
+    "y": 0.4157
    },
    {
     "x": 0.6744,
-    "y": 0.4369
+    "y": 0.4052
    },
    {
     "x": 0.6744,
-    "y": 0.4945
+    "y": 0.4628
    },
    {
     "x": 0.5544,
-    "y": 0.505
+    "y": 0.4733
    }
   ],
   "arc": 0.135
  },
  {
   "id": "m07r",
-  "name": "M07 Brick alley – right sleeve",
+  "name": "M07 Brick alley \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -864,19 +864,19 @@
   "quad": [
    {
     "x": 0.2312,
-    "y": 0.4424
+    "y": 0.4114
    },
    {
     "x": 0.3488,
-    "y": 0.4412
+    "y": 0.4102
    },
    {
     "x": 0.3488,
-    "y": 0.4976
+    "y": 0.4666
    },
    {
     "x": 0.2312,
-    "y": 0.4989
+    "y": 0.4679
    }
   ],
   "arc": 0.164
@@ -933,7 +933,7 @@
  },
  {
   "id": "m08l",
-  "name": "M08 Beach boardwalk – left sleeve",
+  "name": "M08 Beach boardwalk \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -942,26 +942,26 @@
   "quad": [
    {
     "x": 0.513,
-    "y": 0.4563
+    "y": 0.4189
    },
    {
     "x": 0.6545,
-    "y": 0.4505
+    "y": 0.4131
    },
    {
     "x": 0.6545,
-    "y": 0.5185
+    "y": 0.4811
    },
    {
     "x": 0.513,
-    "y": 0.5242
+    "y": 0.4868
    }
   ],
   "arc": 0.137
  },
  {
   "id": "m08r",
-  "name": "M08 Beach boardwalk – right sleeve",
+  "name": "M08 Beach boardwalk \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -970,19 +970,19 @@
   "quad": [
    {
     "x": 0.3185,
-    "y": 0.4684
+    "y": 0.4417
    },
    {
     "x": 0.4197,
-    "y": 0.4707
+    "y": 0.444
    },
    {
     "x": 0.4197,
-    "y": 0.5192
+    "y": 0.4925
    },
    {
     "x": 0.3185,
-    "y": 0.517
+    "y": 0.4903
    }
   ],
   "arc": 0.188
@@ -1059,7 +1059,7 @@
  },
  {
   "id": "m09l",
-  "name": "M09 Lake cabin – left sleeve",
+  "name": "M09 Lake cabin \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -1068,26 +1068,26 @@
   "quad": [
    {
     "x": 0.5867,
-    "y": 0.4386
+    "y": 0.4118
    },
    {
     "x": 0.6883,
-    "y": 0.43
+    "y": 0.4032
    },
    {
     "x": 0.6883,
-    "y": 0.4788
+    "y": 0.452
    },
    {
     "x": 0.5867,
-    "y": 0.4874
+    "y": 0.4606
    }
   ],
   "arc": 0.198
  },
  {
   "id": "m09r",
-  "name": "M09 Lake cabin – right sleeve",
+  "name": "M09 Lake cabin \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -1096,19 +1096,19 @@
   "quad": [
    {
     "x": 0.3491,
-    "y": 0.4392
+    "y": 0.4113
    },
    {
     "x": 0.4547,
-    "y": 0.4408
+    "y": 0.4129
    },
    {
     "x": 0.4547,
-    "y": 0.4915
+    "y": 0.4636
    },
    {
     "x": 0.3491,
-    "y": 0.4899
+    "y": 0.462
    }
   ],
   "arc": 0.198
@@ -1185,7 +1185,7 @@
  },
  {
   "id": "m10l",
-  "name": "M10 Bookstore – left sleeve",
+  "name": "M10 Bookstore \u2013 left sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -1194,26 +1194,26 @@
   "quad": [
    {
     "x": 0.5841,
-    "y": 0.4275
+    "y": 0.3937
    },
    {
     "x": 0.7121,
-    "y": 0.4211
+    "y": 0.3873
    },
    {
     "x": 0.7121,
-    "y": 0.4825
+    "y": 0.4487
    },
    {
     "x": 0.5841,
-    "y": 0.4889
+    "y": 0.4551
    }
   ],
   "arc": 0.198
  },
  {
   "id": "m10r",
-  "name": "M10 Bookstore – right sleeve",
+  "name": "M10 Bookstore \u2013 right sleeve",
   "group": "men",
   "kind": "tee",
   "color": "black",
@@ -1222,19 +1222,19 @@
   "quad": [
    {
     "x": 0.3546,
-    "y": 0.445
+    "y": 0.4154
    },
    {
     "x": 0.4666,
-    "y": 0.445
+    "y": 0.4154
    },
    {
     "x": 0.4666,
-    "y": 0.4988
+    "y": 0.4692
    },
    {
     "x": 0.3546,
-    "y": 0.4988
+    "y": 0.4692
    }
   ],
   "arc": 0.198
@@ -1311,7 +1311,7 @@
  },
  {
   "id": "f01l",
-  "name": "F01 Waterfront – left sleeve",
+  "name": "F01 Waterfront \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1320,26 +1320,26 @@
   "quad": [
    {
     "x": 0.5455,
-    "y": 0.3747
+    "y": 0.3484
    },
    {
     "x": 0.6451,
-    "y": 0.3702
+    "y": 0.3439
    },
    {
     "x": 0.6451,
-    "y": 0.418
+    "y": 0.3917
    },
    {
     "x": 0.5455,
-    "y": 0.4225
+    "y": 0.3962
    }
   ],
   "arc": 0.216
  },
  {
   "id": "f01r",
-  "name": "F01 Waterfront – right sleeve",
+  "name": "F01 Waterfront \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1348,19 +1348,19 @@
   "quad": [
    {
     "x": 0.3724,
-    "y": 0.3741
+    "y": 0.3472
    },
    {
     "x": 0.4744,
-    "y": 0.3868
+    "y": 0.3599
    },
    {
     "x": 0.4744,
-    "y": 0.4357
+    "y": 0.4088
    },
    {
     "x": 0.3724,
-    "y": 0.4231
+    "y": 0.3962
    }
   ],
   "arc": 0.117
@@ -1417,7 +1417,7 @@
  },
  {
   "id": "f02l",
-  "name": "F02 Brownstone sidewalk – left sleeve",
+  "name": "F02 Brownstone sidewalk \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1426,26 +1426,26 @@
   "quad": [
    {
     "x": 0.5626,
-    "y": 0.4036
+    "y": 0.3789
    },
    {
     "x": 0.6562,
-    "y": 0.4031
+    "y": 0.3784
    },
    {
     "x": 0.6562,
-    "y": 0.448
+    "y": 0.4233
    },
    {
     "x": 0.5626,
-    "y": 0.4485
+    "y": 0.4238
    }
   ],
   "arc": 0.27
  },
  {
   "id": "f02r",
-  "name": "F02 Brownstone sidewalk – right sleeve",
+  "name": "F02 Brownstone sidewalk \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1454,19 +1454,19 @@
   "quad": [
    {
     "x": 0.3822,
-    "y": 0.4311
+    "y": 0.4056
    },
    {
     "x": 0.479,
-    "y": 0.4389
+    "y": 0.4134
    },
    {
     "x": 0.479,
-    "y": 0.4853
+    "y": 0.4598
    },
    {
     "x": 0.3822,
-    "y": 0.4776
+    "y": 0.4521
    }
   ],
   "arc": 0.27
@@ -1543,7 +1543,7 @@
  },
  {
   "id": "f03l",
-  "name": "F03 Skyline patio – left sleeve",
+  "name": "F03 Skyline patio \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1552,26 +1552,26 @@
   "quad": [
    {
     "x": 0.5455,
-    "y": 0.4136
+    "y": 0.3862
    },
    {
     "x": 0.6495,
-    "y": 0.4167
+    "y": 0.3893
    },
    {
     "x": 0.6495,
-    "y": 0.4666
+    "y": 0.4392
    },
    {
     "x": 0.5455,
-    "y": 0.4635
+    "y": 0.4361
    }
   ],
   "arc": 0.238
  },
  {
   "id": "f03r",
-  "name": "F03 Skyline patio – right sleeve",
+  "name": "F03 Skyline patio \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1580,19 +1580,19 @@
   "quad": [
    {
     "x": 0.3976,
-    "y": 0.4343
+    "y": 0.4078
    },
    {
     "x": 0.498,
-    "y": 0.4455
+    "y": 0.419
    },
    {
     "x": 0.498,
-    "y": 0.4937
+    "y": 0.4672
    },
    {
     "x": 0.3976,
-    "y": 0.4825
+    "y": 0.456
    }
   ],
   "arc": 0.243
@@ -1669,7 +1669,7 @@
  },
  {
   "id": "f04l",
-  "name": "F04 Art gallery – left sleeve",
+  "name": "F04 Art gallery \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1678,26 +1678,26 @@
   "quad": [
    {
     "x": 0.5483,
-    "y": 0.417
+    "y": 0.3951
    },
    {
     "x": 0.6311,
-    "y": 0.4229
+    "y": 0.401
    },
    {
     "x": 0.6311,
-    "y": 0.4627
+    "y": 0.4408
    },
    {
     "x": 0.5483,
-    "y": 0.4568
+    "y": 0.4349
    }
   ],
   "arc": 0.156
  },
  {
   "id": "f04r",
-  "name": "F04 Art gallery – right sleeve",
+  "name": "F04 Art gallery \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1706,19 +1706,19 @@
   "quad": [
    {
     "x": 0.3533,
-    "y": 0.4639
+    "y": 0.4386
    },
    {
     "x": 0.4492,
-    "y": 0.4739
+    "y": 0.4486
    },
    {
     "x": 0.4492,
-    "y": 0.5199
+    "y": 0.4946
    },
    {
     "x": 0.3533,
-    "y": 0.5099
+    "y": 0.4846
    }
   ],
   "arc": 0.27
@@ -1775,7 +1775,7 @@
  },
  {
   "id": "f05l",
-  "name": "F05 Concrete steps – left sleeve",
+  "name": "F05 Concrete steps \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1784,26 +1784,26 @@
   "quad": [
    {
     "x": 0.5394,
-    "y": 0.3559
+    "y": 0.3353
    },
    {
     "x": 0.6174,
-    "y": 0.3595
+    "y": 0.3389
    },
    {
     "x": 0.6174,
-    "y": 0.397
+    "y": 0.3764
    },
    {
     "x": 0.5394,
-    "y": 0.3934
+    "y": 0.3728
    }
   ],
   "arc": 0.27
  },
  {
   "id": "f05r",
-  "name": "F05 Concrete steps – right sleeve",
+  "name": "F05 Concrete steps \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1812,19 +1812,19 @@
   "quad": [
    {
     "x": 0.4957,
-    "y": 0.3578
+    "y": 0.3402
    },
    {
     "x": 0.5625,
-    "y": 0.3527
+    "y": 0.3351
    },
    {
     "x": 0.5625,
-    "y": 0.3848
+    "y": 0.3672
    },
    {
     "x": 0.4957,
-    "y": 0.3898
+    "y": 0.3722
    }
   ],
   "arc": 0.094
@@ -1901,7 +1901,7 @@
  },
  {
   "id": "f06l",
-  "name": "F06 Courtyard – left sleeve",
+  "name": "F06 Courtyard \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1910,26 +1910,26 @@
   "quad": [
    {
     "x": 0.5074,
-    "y": 0.3399
+    "y": 0.3141
    },
    {
     "x": 0.605,
-    "y": 0.3368
+    "y": 0.311
    },
    {
     "x": 0.605,
-    "y": 0.3836
+    "y": 0.3578
    },
    {
     "x": 0.5074,
-    "y": 0.3868
+    "y": 0.361
    }
   ],
   "arc": 0.221
  },
  {
   "id": "f06r",
-  "name": "F06 Courtyard – right sleeve",
+  "name": "F06 Courtyard \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -1938,19 +1938,19 @@
   "quad": [
    {
     "x": 0.3994,
-    "y": 0.3506
+    "y": 0.3236
    },
    {
     "x": 0.5018,
-    "y": 0.3577
+    "y": 0.3307
    },
    {
     "x": 0.5018,
-    "y": 0.4068
+    "y": 0.3798
    },
    {
     "x": 0.3994,
-    "y": 0.3997
+    "y": 0.3727
    }
   ],
   "arc": 0.223
@@ -2027,7 +2027,7 @@
  },
  {
   "id": "f07l",
-  "name": "F07 Stone alley – left sleeve",
+  "name": "F07 Stone alley \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2036,26 +2036,26 @@
   "quad": [
    {
     "x": 0.373,
-    "y": 0.3652
+    "y": 0.3465
    },
    {
     "x": 0.4438,
-    "y": 0.3849
+    "y": 0.3662
    },
    {
     "x": 0.4438,
-    "y": 0.4189
+    "y": 0.4002
    },
    {
     "x": 0.373,
-    "y": 0.3992
+    "y": 0.3805
    }
   ],
   "arc": 0.244
  },
  {
   "id": "f07r",
-  "name": "F07 Stone alley – right sleeve",
+  "name": "F07 Stone alley \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2064,19 +2064,19 @@
   "quad": [
    {
     "x": 0.3139,
-    "y": 0.3651
+    "y": 0.3409
    },
    {
     "x": 0.4055,
-    "y": 0.3709
+    "y": 0.3467
    },
    {
     "x": 0.4055,
-    "y": 0.4149
+    "y": 0.3907
    },
    {
     "x": 0.3139,
-    "y": 0.4091
+    "y": 0.3849
    }
   ],
   "arc": 0.27
@@ -2153,7 +2153,7 @@
  },
  {
   "id": "f08l",
-  "name": "F08 Greenhouse – left sleeve",
+  "name": "F08 Greenhouse \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2162,26 +2162,26 @@
   "quad": [
    {
     "x": 0.5235,
-    "y": 0.448
+    "y": 0.4266
    },
    {
     "x": 0.6047,
-    "y": 0.4662
+    "y": 0.4448
    },
    {
     "x": 0.6047,
-    "y": 0.5051
+    "y": 0.4837
    },
    {
     "x": 0.5235,
-    "y": 0.487
+    "y": 0.4656
    }
   ],
   "arc": 0.247
  },
  {
   "id": "f08r",
-  "name": "F08 Greenhouse – right sleeve",
+  "name": "F08 Greenhouse \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2190,19 +2190,19 @@
   "quad": [
    {
     "x": 0.3929,
-    "y": 0.4258
+    "y": 0.3973
    },
    {
     "x": 0.5009,
-    "y": 0.4362
+    "y": 0.4077
    },
    {
     "x": 0.5009,
-    "y": 0.488
+    "y": 0.4595
    },
    {
     "x": 0.3929,
-    "y": 0.4776
+    "y": 0.4491
    }
   ],
   "arc": 0.223
@@ -2279,7 +2279,7 @@
  },
  {
   "id": "f09l",
-  "name": "F09 Market hall – left sleeve",
+  "name": "F09 Market hall \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2288,26 +2288,26 @@
   "quad": [
    {
     "x": 0.5841,
-    "y": 0.431
+    "y": 0.413
    },
    {
     "x": 0.6521,
-    "y": 0.4423
+    "y": 0.4243
    },
    {
     "x": 0.6521,
-    "y": 0.475
+    "y": 0.457
    },
    {
     "x": 0.5841,
-    "y": 0.4637
+    "y": 0.4457
    }
   ],
   "arc": 0.27
  },
  {
   "id": "f09r",
-  "name": "F09 Market hall – right sleeve",
+  "name": "F09 Market hall \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2316,19 +2316,19 @@
   "quad": [
    {
     "x": 0.377,
-    "y": 0.4359
+    "y": 0.4105
    },
    {
     "x": 0.473,
-    "y": 0.4327
+    "y": 0.4073
    },
    {
     "x": 0.473,
-    "y": 0.4788
+    "y": 0.4534
    },
    {
     "x": 0.377,
-    "y": 0.482
+    "y": 0.4566
    }
   ],
   "arc": 0.198
@@ -2405,7 +2405,7 @@
  },
  {
   "id": "f10l",
-  "name": "F10 Cobblestone plaza – left sleeve",
+  "name": "F10 Cobblestone plaza \u2013 left sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2414,26 +2414,26 @@
   "quad": [
    {
     "x": 0.4995,
-    "y": 0.3619
+    "y": 0.3395
    },
    {
     "x": 0.5843,
-    "y": 0.3672
+    "y": 0.3448
    },
    {
     "x": 0.5843,
-    "y": 0.4079
+    "y": 0.3855
    },
    {
     "x": 0.4995,
-    "y": 0.4026
+    "y": 0.3802
    }
   ],
   "arc": 0.256
  },
  {
   "id": "f10r",
-  "name": "F10 Cobblestone plaza – right sleeve",
+  "name": "F10 Cobblestone plaza \u2013 right sleeve",
   "group": "women",
   "kind": "tee",
   "color": "black",
@@ -2442,19 +2442,19 @@
   "quad": [
    {
     "x": 0.3746,
-    "y": 0.3624
+    "y": 0.3399
    },
    {
     "x": 0.4598,
-    "y": 0.3702
+    "y": 0.3477
    },
    {
     "x": 0.4598,
-    "y": 0.4111
+    "y": 0.3886
    },
    {
     "x": 0.3746,
-    "y": 0.4033
+    "y": 0.3808
    }
   ],
   "arc": 0.27
