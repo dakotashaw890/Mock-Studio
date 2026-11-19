@@ -162,6 +162,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="design-prev" id="design-info" style="display:none;margin-top:10px">
           <canvas id="design-thumb" width="64" height="64"></canvas>
           <div class="small"><div id="design-name" style="font-weight:600"></div><div class="muted" id="design-dim"></div><div id="dpi" class="small" style="font-weight:600"></div></div>
+          <button id="design-remove" class="small danger" style="margin-left:auto">Remove</button>
         </div>
         <div class="note warn" id="bg-note" style="display:none">This file has a solid background, which will print as a box. Use a transparent PNG, or remove it below.</div>
         <div id="bg-ctl" style="display:none">
@@ -675,6 +676,7 @@ $('#design-file').onchange=async e=>{
   }catch(err){toast('Couldn\'t read that file.');}
   e.target.value='';
 };
+$('#design-remove').onclick=()=>{if(!designs[slot])return;const nm=SLOT_NAMES[slot].toLowerCase();designs[slot]=null;designCache.key='';setSlot(slot);scheduleRender();scheduleGrid();updateDlCount();toast('Removed the '+nm+' design.');};
 $('#rm-bg').onchange=e=>{if(!design)return;design.removeBg=e.target.checked;$('#tol-ctl').style.display=design.removeBg?'block':'none';rebuildDesign();};
 let tolT;$('#tol').oninput=e=>{if(!design)return;design.tol=+e.target.value;$('#v-tol').textContent=design.tol;clearTimeout(tolT);tolT=setTimeout(rebuildDesign,120);};
 $$('#slots button').forEach(b=>b.onclick=()=>{
