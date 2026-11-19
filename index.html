@@ -21,6 +21,19 @@
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,sans-serif}
 h1,h2,h3{font-family:"Space Grotesk",Inter,sans-serif;margin:0;letter-spacing:-.01em}
 header{padding:18px 16px 8px;max-width:1180px;margin:0 auto;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.acct{margin-left:auto;position:relative;align-self:center}
+.acct-menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.15);min-width:240px;padding:6px;z-index:40;display:none}
+.acct-menu.on{display:block}
+.acct-menu button,.acct-menu .mi{display:flex;width:100%;border:0;background:none;justify-content:flex-start;padding:9px 10px;border-radius:8px;font-weight:500}
+.acct-menu button:hover{background:var(--soft)}
+.acct-menu .sep{height:1px;background:var(--line);margin:4px 0}
+.acct-menu .who{font-size:12px;color:var(--muted);padding:6px 10px;word-break:break-all}
+.dlist{display:grid;gap:6px;margin-bottom:10px}
+.dlist .di{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font-size:13px}
+.dlist .di.on{border-color:var(--accent)}
+.dlist .di img{width:32px;height:32px;object-fit:contain;border-radius:6px;background:repeating-conic-gradient(#ccc 0 25%,#fff 0 50%) 50%/8px 8px}
+.dlist .di .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlist .di button{padding:5px 9px;font-size:12px}
 header h1{font-size:24px}
 header p{margin:0;color:var(--muted);font-size:13px}
 nav{max-width:1180px;margin:0 auto;padding:6px 16px 0;display:flex;gap:6px;overflow-x:auto}
@@ -93,6 +106,21 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 <header>
   <h1>Mockup Studio</h1>
   <p>Your exact design on model photos. No AI redrawing your artwork.</p>
+  <div class="acct">
+    <button id="acct-btn" class="pill">Log in</button>
+    <div class="acct-menu" id="acct-menu">
+      <div class="who" id="acct-who"></div>
+      <button id="mi-printify">Printify connection</button>
+      <button id="mi-photos">Model photos</button>
+      <div class="sep"></div>
+      <div class="who">Settings</div>
+      <button id="mi-units">Units: <span id="mi-units-v" style="margin-left:4px"></span></button>
+      <button id="mi-ts">True-to-size: <span id="mi-ts-v" style="margin-left:4px"></span></button>
+      <button id="mi-stamp">Brand stamp…</button>
+      <div class="sep"></div>
+      <button id="mi-signout" class="danger">Log out</button>
+    </div>
+  </div>
 </header>
 <nav>
   <button class="pill on" data-tab="studio">Studio</button>
@@ -157,6 +185,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <button data-slot="left"><span class="dot"></span>Left sleeve</button>
           <button data-slot="right"><span class="dot"></span>Right sleeve</button>
         </div>
+        <div class="dlist" id="dlist"></div>
         <label class="file" id="design-drop">
           <input type="file" id="design-file" accept="image/png,image/webp,image/jpeg">
           <strong id="design-up-label">Upload front design</strong>
@@ -271,18 +300,18 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 <!-- PRINTIFY -->
 <section class="tab" id="tab-printify">
   <div class="card" id="pf-auth">
-    <h2>Sign in</h2>
-    <p class="small muted" style="margin:0 0 10px">An account keeps your Printify connection private to you.</p>
+    <h2>Mockup Studio login</h2>
+    <p class="small muted" style="margin:0 0 10px">This is your Mockup Studio account, <strong>not</strong> your Printify login. Use any email and create a password here. You'll link Printify after logging in, with a token.</p>
     <form id="pf-login" class="grid2" style="align-items:end">
       <input type="email" id="pf-email" placeholder="Email" autocomplete="email" required style="font:14px Inter,sans-serif;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink)">
       <input type="password" id="pf-pass" placeholder="Password (8+ characters)" autocomplete="current-password" minlength="8" required style="font:14px Inter,sans-serif;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink)">
-      <div class="row"><button class="primary" type="submit" id="pf-signin">Sign in</button><button type="button" id="pf-signup">Create account</button></div>
+      <div class="row"><button class="primary" type="submit" id="pf-signin">Log in</button><button type="button" id="pf-signup">Create account</button></div>
     </form>
     <p class="status" id="pf-auth-msg" style="margin:8px 0 0"></p>
   </div>
   <div id="pf-app" style="display:none">
     <div class="card">
-      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Printify</h2><div class="row small"><span class="muted" id="pf-who"></span><button id="pf-signout" class="small">Sign out</button></div></div>
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Printify</h2><div class="row small"><span class="muted" id="pf-who"></span><button id="pf-signout" class="small">Log out</button></div></div>
       <div id="pf-connect" style="display:none;margin-top:10px">
         <p class="small" style="margin:0 0 8px"><strong>Connect your Printify account</strong></p>
         <ol class="small" style="margin:0 0 10px;padding-left:18px">
@@ -382,7 +411,7 @@ function setSlot(v){
   $('#bg-note').style.display=design&&design.opaque?'block':'none';$('#bg-ctl').style.display=design&&design.opaque?'block':'none';
   $('#rm-bg').checked=!!(design&&design.removeBg);$('#tol-ctl').style.display=design&&design.removeBg?'block':'none';
   if(design){$('#tol').value=design.tol;}
-  syncSliders();tsUI();
+  syncSliders();tsUI();renderDlist();
 }
 const P={...DEFAULTS, removeBg:false, tol:30};
 let editMode=false, editQuad=null, drag=null, editSlot='front', editOrig=null;
@@ -726,7 +755,7 @@ $('#design-file').onchange=async e=>{
   }catch(err){toast('Couldn\'t read that file.');}
   e.target.value='';
 };
-$('#design-remove').onclick=()=>{if(!designs[slot])return;const nm=SLOT_NAMES[slot].toLowerCase();designs[slot]=null;designCache.key='';setSlot(slot);scheduleRender();scheduleGrid();updateDlCount();toast('Removed the '+nm+' design.');};
+$('#design-remove').onclick=()=>removeDesign(slot);
 $('#rm-bg').onchange=e=>{if(!design)return;design.removeBg=e.target.checked;$('#tol-ctl').style.display=design.removeBg?'block':'none';rebuildDesign();};
 let tolT;$('#tol').oninput=e=>{if(!design)return;design.tol=+e.target.value;$('#v-tol').textContent=design.tol;clearTimeout(tolT);tolT=setTimeout(rebuildDesign,120);};
 $$('#slots button').forEach(b=>b.onclick=()=>{
@@ -946,6 +975,39 @@ $('#btn-vid').onclick=async()=>{
   finally{busy(false);$('#btn-vid').disabled=false;}
 };
 
+/* ---------- designs list ---------- */
+function renderDlist(){
+  const box=$('#dlist');if(!box)return;box.textContent='';
+  for(const k of ['front','left','right']){const d=designs[k];if(!d)continue;
+    const row=document.createElement('div');row.className='di'+(k===slot?' on':'');
+    const im=document.createElement('img');try{im.src=d.src.toDataURL('image/png');}catch(e){}
+    const nm=document.createElement('span');nm.className='nm';nm.textContent=SLOT_NAMES[k]+': '+d.name;
+    const ed=document.createElement('button');ed.textContent='Edit';ed.onclick=()=>$$('#slots button').find(b=>b.dataset.slot===k).click();
+    const rm=document.createElement('button');rm.textContent='Remove';rm.className='danger';rm.onclick=()=>removeDesign(k);
+    row.append(im,nm,ed,rm);box.append(row);}
+}
+function removeDesign(k){if(!designs[k])return;designs[k]=null;designCache.key='';setSlot(slot);scheduleRender();scheduleGrid();updateDlCount();toast('Removed the '+SLOT_NAMES[k].toLowerCase()+' design.');}
+
+/* ---------- account menu ---------- */
+function acctUI(session){
+  $('#acct-btn').textContent=session?'Account ▾':'Log in';
+  $('#acct-who').textContent=session?'Signed in as '+session.user.email:'Not logged in';
+  $('#mi-signout').style.display=session?'flex':'none';
+  $('#mi-units-v').textContent=TS.units==='px'?'Pixels':'Inches';$('#mi-ts-v').textContent=TS.on?'On':'Off';
+}
+$('#acct-btn').onclick=async e=>{e.stopPropagation();
+  const {data:{session}}=sb?await sb.auth.getSession():{data:{session:null}};
+  if(!session){go('printify');$('#pf-email').focus();return;}
+  acctUI(session);$('#acct-menu').classList.toggle('on');};
+document.addEventListener('click',e=>{if(!e.target.closest('.acct'))$('#acct-menu').classList.remove('on');});
+const closeMenu=()=>$('#acct-menu').classList.remove('on');
+$('#mi-printify').onclick=()=>{closeMenu();go('printify');};
+$('#mi-photos').onclick=()=>{closeMenu();go('templates');};
+$('#mi-units').onclick=()=>{TS.units=TS.units==='px'?'in':'px';LS.set('ts',TS);tsUI();$('#mi-units-v').textContent=TS.units==='px'?'Pixels':'Inches';};
+$('#mi-ts').onclick=()=>{TS.on=!TS.on;LS.set('ts',TS);tsUI();scheduleRender();scheduleGrid();$('#mi-ts-v').textContent=TS.on?'On':'Off';};
+$('#mi-stamp').onclick=()=>{closeMenu();go('studio');$('#wm-file').closest('.card').scrollIntoView({behavior:'smooth',block:'start'});};
+$('#mi-signout').onclick=async()=>{closeMenu();if(sb)await sb.auth.signOut();PF.linked=null;pfLinkedUI();pfRefreshAuth();toast('Logged out.');};
+
 /* ---------- Printify connection ---------- */
 const SB_URL='https://wxzinlczpohjqlnhshhh.supabase.co', SB_KEY='sb_publishable_hjua7l4qyu_dDs4u2ZoGjg_tCTzn5xy';
 const sb=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SB_URL,SB_KEY):null;
@@ -961,7 +1023,7 @@ async function pfCall(action,extra={}){
 }
 async function pfRefreshAuth(){
   if(!sb){$('#pf-auth-msg').textContent='Sign-in service didn\'t load. Check your connection and reload.';return;}
-  const {data:{session}}=await sb.auth.getSession();
+  const {data:{session}}=await sb.auth.getSession();acctUI(session);
   $('#pf-auth').style.display=session?'none':'block';$('#pf-app').style.display=session?'block':'none';
   if(!session)return;
   $('#pf-who').textContent=session.user.email;
