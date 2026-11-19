@@ -239,6 +239,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="ctl"><div class="lab">Follow folds <span id="v-fold"></span></div><input type="range" id="fold" min="0" max="100" value="45"></div>
         <div class="ctl"><div class="lab">Fabric shading <span id="v-shade"></span></div><input type="range" id="shade" min="0" max="100" value="75"></div>
         <div class="ctl"><div class="lab">Ink opacity <span id="v-op"></span></div><input type="range" id="op" min="40" max="100" value="94"></div>
+        <div id="ov-bar" class="row small" style="display:none;gap:8px;align-items:center;margin:6px 0;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent,#2563eb) 12%,transparent)"><span>Adjusted on this photo only.</span><button id="btn-ov-reset" class="small">Reset this photo</button><button id="btn-ov-all" class="small">Use on all photos</button></div>
         <button id="btn-reset" class="small">Reset to defaults</button>
       </div>
       <div class="card">
@@ -428,7 +429,7 @@ let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
 function bindSlot(v){slot=v;design=designs[v];delete P.cx;delete P.top;delete P.hem;Object.assign(P,PL[v]);}
-function withSlot(v,fn){const ps=slot;bindSlot(v);try{return fn();}finally{bindSlot(ps);}}
+function withSlot(v,fn,t){const ps=slot,snap={...P};bindSlot(v);if(t)Object.assign(P,ovOf(t,v));try{return fn();}finally{bindSlot(ps);for(const k of Object.keys(P))if(!(k in snap))delete P[k];Object.assign(P,snap);}}
 function setSlot(v){
   bindSlot(v);
   $$('#slots button').forEach(b=>{b.classList.toggle('on',b.dataset.slot===v);b.classList.toggle('has',!!designs[b.dataset.slot]);});
@@ -620,7 +621,7 @@ function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}));}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
   ctx.putImageData(out,0,0);
 }
 
@@ -1054,8 +1055,13 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
 /* ---------- sliders ---------- */
 const sliders=[['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+'%'],['op','opacity',v=>v/100,v=>v+'%'],['wrap','wrap',v=>v/100,v=>v+'%']];
 const labelId={fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
-function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;fineUI();}
-for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key==='x'){delete PL[slot].cx;delete P.cx;}if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
+function syncSliders(){$('#v-tol').textContent=design?design.tol:30;fineUI();}
+
+$('#btn-ov-reset').onclick=()=>{const k=ovKey(curT(),slot);if(k){delete ovAll()[k];ovSave();}fineUI();scheduleRender();scheduleGrid();};
+$('#btn-ov-all').onclick=()=>{const t=curT(),o={...ovOf(t,slot)},A=ovAll(),d=designs[slot];
+  for(const [k,v] of Object.entries(o)){if(k==='fold'||k==='shade'||k==='opacity')P[k]=v;else{PL[slot][k]=v;if(k==='top')PL.front.top=v;}}
+  for(const key of Object.keys(A)){const [,s2,...nm]=key.split(':');if(s2!==slot||!d||nm.join(':')!==d.name)continue;for(const k of Object.keys(o))delete A[key][k];if(!Object.keys(A[key]).length)delete A[key];}
+  ovSave();savePlacement();fineUI();scheduleRender();scheduleGrid();toast('Applied to every photo.');};
 $('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0,yaw:0,bend:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,yaw:0,bend:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
@@ -1066,32 +1072,45 @@ function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'bloc
   fineUI();dpiUI();}
 /* fine placement controls: in true-to-size mode they edit the real measurements (same numbers as Printify) */
 const STEP_IN=1/300;
+/* per-photo adjustments: sliders change only the photo on screen; the base placement (Printify / the measurement boxes) is shared */
+let OVM=null;const ovAll=()=>OVM||(OVM=LS.get('ov',{}));let ovT;const ovSave=()=>{clearTimeout(ovT);ovT=setTimeout(()=>LS.set('ov',OVM),250);};
+function ovKey(t,s){const d=designs[s];return t&&d?t.id+':'+s+':'+d.name:null;}
+function ovOf(t,s){const k=ovKey(t,s);return (k&&ovAll()[k])||{};}
+const BASE_DEF={size:.85,y:.1,x:0,curve:0,rot:0,yaw:0,bend:0,wrap:.35};
+function baseOf(key){if(key==='inches')return PL[slot].inches;if(key==='top')return PL.front.top;if(key==='cx')return typeof PL[slot].cx==='number'?PL[slot].cx:0;
+  if(key==='hem')return typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN;if(key==='fold'||key==='shade'||key==='opacity')return P[key];
+  return typeof PL[slot][key]==='number'?PL[slot][key]:(slot!=='front'&&key==='wrap'?.7:slot!=='front'&&key==='size'?.95:slot!=='front'&&key==='y'?.5:BASE_DEF[key]);}
+function effOf(key){const o=ovOf(curT(),slot);return typeof o[key]==='number'?o[key]:baseOf(key);}
+function ovSet(key,v){const k=ovKey(curT(),slot);if(!k)return;const A=ovAll();const o=A[k]||(A[k]={});if(Math.abs(v-baseOf(key))<1e-9)delete o[key];else o[key]=v;if(!Object.keys(o).length)delete A[k];ovSave();ovUI();}
+function ovUI(){const o=ovOf(curT(),slot),n=Object.keys(o).length;$('#ov-bar').style.display=n?'flex':'none';}
 function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.round(v*300)+' px':(+v.toFixed(2))+'"';
-  const sgn=(v,f)=>(v>0?'+':'')+f(v);
+  const sgn=(v,f)=>(v>0?'+':'')+f(v), K=(key,o)=>({...o,key,get:()=>effOf(key),set:v=>ovSet(key,v)});
   return {
-    size: ts?{lab:'Width',min:.25,max:sl?6:16,step:STEP_IN,get:()=>PL[slot].inches,set:v=>{PL[slot].inches=v;P.inches=v;},fmt:u}
-            :{lab:'Size',min:.05,max:1.2,step:.002,get:()=>P.size,set:v=>{P.size=v;PL[slot].size=v;},fmt:v=>Math.round(v*100)+'%'},
-    py: sl?{lab:'Distance above sleeve hem',min:-.5,max:4,step:STEP_IN,get:()=>typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN,set:v=>{PL[slot].hem=v;P.hem=v;},fmt:u}
-       :ts?{lab:'Down from top of print area',min:-1.5,max:14,step:STEP_IN,get:()=>PL.front.top,set:v=>{PL.front.top=v;P.top=v;},fmt:u}
-       :{lab:'Up / down',min:-.2,max:1.2,step:.002,get:()=>P.y,set:v=>{P.y=v;PL[slot].y=v;},fmt:v=>Math.round(v*100)+'%'},
-    px: ts?{lab:'Left / right of centre',min:sl?-2:-7,max:sl?2:7,step:STEP_IN,get:()=>typeof PL[slot].cx==='number'?PL[slot].cx:0,set:v=>{PL[slot].cx=v;P.cx=v;},fmt:v=>sgn(v,u)}
-       :{lab:'Left / right',min:-1.5,max:1.5,step:.002,get:()=>P.x,set:v=>{P.x=v;PL[slot].x=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')}, 
-    curve:{lab:'Curve (arch)',min:-1,max:1,step:.01,get:()=>PL[slot].curve||0,set:v=>{PL[slot].curve=v;P.curve=v;},fmt:v=>sgn(Math.round(v*100),x=>x+'')+(v?(v>0?' up':' down'):'')},
-    rot:{lab:'Rotate',min:-45,max:45,step:.1,get:()=>PL[slot].rot||0,set:v=>{PL[slot].rot=v;P.rot=v;},fmt:v=>sgn(+v.toFixed(1),x=>x+'°')},
-    yaw:{lab:'Turn (left / right)',min:-60,max:60,step:.5,get:()=>PL[slot].yaw||0,set:v=>{PL[slot].yaw=v;P.yaw=v;},fmt:v=>v===0?'0°':(v<0?'left ':'right ')+Math.abs(v)+'°'},
-    bend:{lab:'Bend (sideways curve)',min:-1,max:1,step:.01,get:()=>PL[slot].bend||0,set:v=>{PL[slot].bend=v;P.bend=v;},fmt:v=>v===0?'0':(v<0?'( bulge left ':') bulge right ')+Math.round(Math.abs(v)*100)},
+    size: ts?K('inches',{lab:'Width',min:.25,max:sl?6:16,step:STEP_IN,fmt:u}):K('size',{lab:'Size',min:.05,max:1.2,step:.002,fmt:v=>Math.round(v*100)+'%'}),
+    py: sl?K('hem',{lab:'Distance above sleeve hem',min:-.5,max:4,step:STEP_IN,fmt:u})
+       :ts?K('top',{lab:'Down from top of print area',min:-1.5,max:14,step:STEP_IN,fmt:u})
+       :K('y',{lab:'Up / down',min:-.2,max:1.2,step:.002,fmt:v=>Math.round(v*100)+'%'}),
+    px: ts?K('cx',{lab:'Left / right of centre',min:sl?-2:-7,max:sl?2:7,step:STEP_IN,fmt:v=>sgn(v,u)}):K('x',{lab:'Left / right',min:-1.5,max:1.5,step:.002,fmt:v=>sgn(Math.round(v*100),x=>x+'')}),
+    curve:K('curve',{lab:'Curve (arch)',min:-1,max:1,step:.01,fmt:v=>sgn(Math.round(v*100),x=>x+'')+(v?(v>0?' up':' down'):'')}),
+    rot:K('rot',{lab:'Rotate',min:-45,max:45,step:.1,fmt:v=>sgn(+v.toFixed(1),x=>x+'°')}),
+    yaw:K('yaw',{lab:'Turn (left / right)',min:-60,max:60,step:.5,fmt:v=>v===0?'0°':(v<0?'left ':'right ')+Math.abs(v)+'°'}),
+    bend:K('bend',{lab:'Bend (sideways curve)',min:-1,max:1,step:.01,fmt:v=>v===0?'0':(v<0?'( bulge left ':') bulge right ')+Math.round(Math.abs(v)*100)}),
+    wrap:K('wrap',{lab:'Wrap around body',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
+    fold:K('fold',{lab:'Follow folds',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
+    shade:K('shade',{lab:'Fabric shading',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
+    op:K('opacity',{lab:'Ink opacity',min:.4,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
     ...(sl?{fshow:{lab:'How much shows on this photo',min:-30,max:60,step:1,get:()=>{const t=curT();return t&&viewOf(t)==='front'?turnDefault(t,slot)-turnOf(t,slot):0;},set:v=>{const t=curT();if(t&&viewOf(t)==='front')saveTurn(t,slot,turnDefault(t,slot)-v);},fmt:v=>v===0?'half (default)':v>0?'more (+'+v+'°)':'less ('+v+'°)'}}:{})};}
-function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.display=slot!=='front'&&t&&viewOf(t)==='front'?'block':'none';}for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();$('#'+id+'-lab').textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}
+function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.display=slot!=='front'&&t&&viewOf(t)==='front'?'block':'none';}for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();const lb=$('#'+id+'-lab');if(lb)lb.textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}ovUI();
   if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);}
 function fineSet(id,v){const d=fineDefs()[id];v=Math.max(d.min,Math.min(d.max,v));d.set(v);$('#'+id).value=v;$('#v-'+id).textContent=d.fmt(v);
   if(id==='size'||id==='py')dpiUI();if(id==='size'&&document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(id==='py'&&slot==='front'&&document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
-  scheduleRender();savePlacement();scheduleGrid();}
-for(const id of ['size','py','px','curve','rot','yaw','bend','fshow'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
+  scheduleRender();scheduleGrid();}
+for(const id of ['size','py','px','curve','rot','yaw','bend','fshow','wrap','fold','shade','op'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
 $$('.nb').forEach(b=>{let tm=null;const go=()=>{const id=b.dataset.n,d=fineDefs()[id];fineSet(id,d.get()+(+b.dataset.d)*(id==='curve'||id==='bend'?.01:id==='rot'||id==='yaw'?.5:id==='fshow'?1:d.step*(TS.on||id==='py'&&slot!=='front'?1:2.5)));};
   b.addEventListener('pointerdown',e=>{e.preventDefault();go();tm=setTimeout(function rep(){go();tm=setTimeout(rep,60);},400);});
   for(const ev of ['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>{clearTimeout(tm);});});
 function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
-  const inch=PL[slot].inches||1,dpi=Math.round(design.artPx/inch);
+  const inch=effOf('inches')||1,dpi=Math.round(design.artPx/inch);
   const [lab,col]=dpi>=300?['Great for print','var(--ok)']:dpi>=200?['Good','var(--ok)']:dpi>=150?['Fair, may print slightly soft','var(--warn)']:['Too low, will print blurry','#b91c1c'];
   el.style.color=col;el.textContent='≈ '+dpi+' DPI at '+(TS.units==='px'?Math.round(inch*300)+' px ('+(+inch.toFixed(2))+'")':(+inch.toFixed(2))+'"')+' wide · '+lab;}
 $('#ts-on').onchange=e=>{TS.on=e.target.checked;LS.set('ts',TS);tsUI();scheduleRender();scheduleGrid();};
