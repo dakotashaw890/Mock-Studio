@@ -194,7 +194,32 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <button class="primary" id="btn-dl">Download this one</button>
           <button id="btn-dl-all">Download selected (.zip)</button>
         </div>
-        
+      </div>
+      <div class="card">
+        <h2>5. Brand stamp</h2>
+        <p class="small muted" style="margin:0 0 10px">Adds your logo to a corner of every export and video. Saved in this browser.</p>
+        <label class="file"><input type="file" id="wm-file" accept="image/png,image/webp,image/jpeg"><strong id="wm-label">Upload logo</strong><span class="small muted">Transparent PNG works best</span></label>
+        <div id="wm-ctl" style="display:none">
+          <div class="ctl"><label class="row small" style="font-weight:600"><input type="checkbox" id="wm-on" checked> Stamp exports</label></div>
+          <div class="ctl"><div class="lab">Corner</div><select id="wm-pos"><option value="br">Bottom right</option><option value="bl">Bottom left</option><option value="tr">Top right</option><option value="tl">Top left</option></select></div>
+          <div class="ctl"><div class="lab">Size <span id="v-wms"></span></div><input type="range" id="wm-size" min="5" max="40" value="16"></div>
+          <div class="ctl"><div class="lab">Opacity <span id="v-wmo"></span></div><input type="range" id="wm-op" min="20" max="100" value="85"></div>
+          <button id="wm-clear" class="small danger">Remove logo</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>6. Batch designs</h2>
+        <p class="small muted" style="margin:0 0 10px">Pick several front designs. Each one goes on every selected photo, in its own folder of one zip. Sleeve designs stay as set above. Each design uses its remembered placement, or the current one.</p>
+        <label class="file"><input type="file" id="batch-file" accept="image/png,image/webp,image/jpeg" multiple><strong id="batch-label">Choose front designs</strong><span class="small muted">Select multiple files</span></label>
+        <div class="row" style="margin-top:10px"><button class="primary" id="btn-batch" disabled>Export batch (.zip)</button></div>
+      </div>
+      <div class="card">
+        <h2>7. Slideshow video</h2>
+        <p class="small muted" style="margin:0 0 10px">Turns your selected photos into a 9:16 clip for TikTok or Reels. It records in real time, so keep this tab open.</p>
+        <div class="ctl"><div class="lab">Seconds per photo</div><select id="vid-sec"><option value="1">1</option><option value="1.5" selected>1.5</option><option value="2">2</option><option value="3">3</option></select></div>
+        <div class="ctl"><label class="row small" style="font-weight:600"><input type="checkbox" id="vid-zoom" checked> Slow zoom</label></div>
+        <button class="primary" id="btn-vid">Make video</button>
+        <div class="note" id="vid-note" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -661,18 +686,37 @@ $('#sel-none').onclick=()=>{shown().forEach(t=>excluded.add(t.id));LS.set('exclu
 
 /* ---------- export ---------- */
 const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
-async function renderFull(t){
+async function renderFull(t,sizeKey){const o=await renderCanvas(t,sizeKey);return canvasBlob(o,'image/jpeg',.92);}
+async function renderCanvas(t,sizeKey){
   const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;withSlot(viewOf(t),()=>composite(pack,t.quad,c.getContext('2d'),t.arc));
-  const sz=SIZES[$('#out-size').value];
-  if(!sz)return canvasBlob(c,'image/jpeg',.92);
+  const sz=SIZES[sizeKey||$('#out-size').value];
+  if(!sz){stamp(c);return c;}
   const [W,H]=sz,A=W/H,w=pack.w,h=pack.h;
   let cw,ch; if(w/h>A){ch=h;cw=h*A;}else{cw=w;ch=w/A;}
   const cx=t.quad.reduce((a,p)=>a+p.x,0)/4*w, cy=t.quad.reduce((a,p)=>a+p.y,0)/4*h;
   const sx=Math.min(w-cw,Math.max(0,cx-cw/2)), sy=Math.min(h-ch,Math.max(0,cy-ch*0.45));
   const o=document.createElement('canvas');o.width=W;o.height=H;const x=o.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(c,sx,sy,cw,ch,0,0,W,H);
-  return canvasBlob(o,'image/jpeg',.92);
+  stamp(o);return o;
 }
+/* ---------- brand stamp ---------- */
+const WM={img:null,...LS.get('wm',{on:true,pos:'br',size:.16,op:.85})};
+function stamp(c){
+  if(!WM.img||!WM.on)return;const x=c.getContext('2d');const w=c.width*WM.size,h=w*WM.img.height/WM.img.width,m=c.width*.035;
+  const px=WM.pos[1]==='r'?c.width-w-m:m, py=WM.pos[0]==='b'?c.height-h-m:m;
+  x.save();x.globalAlpha=WM.op;x.drawImage(WM.img,px,py,w,h);x.restore();
+}
+function wmSave(){LS.set('wm',{on:WM.on,pos:WM.pos,size:WM.size,op:WM.op});}
+function wmUI(){$('#wm-ctl').style.display=WM.img?'block':'none';$('#wm-label').textContent=WM.img?'Replace logo':'Upload logo';
+  $('#wm-on').checked=WM.on;$('#wm-pos').value=WM.pos;$('#wm-size').value=Math.round(WM.size*100);$('#wm-op').value=Math.round(WM.op*100);
+  $('#v-wms').textContent=Math.round(WM.size*100)+'%';$('#v-wmo').textContent=Math.round(WM.op*100)+'%';}
+(async()=>{const d=LS.get('wmimg',null);if(d){try{WM.img=await loadImage(d);}catch(e){}}wmUI();})();
+$('#wm-file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const im=await fileToImage(f);const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,700);const c=drawScaled(im,w,h);const url=c.toDataURL('image/png');WM.img=await loadImage(url);LS.set('wmimg',url);wmUI();toast('Logo added to exports.');}catch(err){toast('Couldn\'t read that file.');}e.target.value='';};
+$('#wm-on').onchange=e=>{WM.on=e.target.checked;wmSave();};
+$('#wm-pos').onchange=e=>{WM.pos=e.target.value;wmSave();};
+$('#wm-size').oninput=e=>{WM.size=+e.target.value/100;wmSave();wmUI();};
+$('#wm-op').oninput=e=>{WM.op=+e.target.value/100;wmSave();wmUI();};
+$('#wm-clear').onclick=()=>{WM.img=null;try{localStorage.removeItem('ms_wmimg');}catch(e){}wmUI();};
 function sizeTag(){const v=$('#out-size').value;return v==='orig'?'':'-'+v;}
 function baseName(){const d=designs.front||designs.left||designs.right;return d?d.name.replace(/\.[^.]+$/,''):'mockup';}
 function outName(t){return safeName(baseName()+'-'+t.name);}
@@ -696,6 +740,64 @@ $('#btn-dl-all').onclick=async()=>{
     $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});
     await saveFile(safeName(baseName())+'-mockups.zip',z);
   }catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
+};
+
+/* ---------- batch designs ---------- */
+let batchFiles=[];
+$('#batch-file').onchange=e=>{batchFiles=[...e.target.files];$('#batch-label').textContent=batchFiles.length?batchFiles.length+' design'+(batchFiles.length>1?'s':'')+' chosen':'Choose front designs';$('#btn-batch').disabled=!batchFiles.length;};
+async function loadDesignFile(f){const img=await fileToImage(f);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,3000);const c=drawScaled(img,w,h);const a=analyzeOpaque(c);
+  return {orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30};}
+$('#btn-batch').onclick=async()=>{
+  if(!batchFiles.length)return;if(editMode){toast('Save or cancel the print area first.');return;}
+  if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
+  const fronts=shown().filter(t=>!excluded.has(t.id)&&viewOf(t)==='front');
+  const sleeves=shown().filter(t=>!excluded.has(t.id)&&viewOf(t)!=='front'&&designs[viewOf(t)]);
+  if(!fronts.length){toast('Select at least one front photo.');return;}
+  const keepD=designs.front, keepPL={...PL.front}, keepP={fold:P.fold,shade:P.shade,opacity:P.opacity}, keepSlot=slot;
+  busy(true);$('#btn-batch').disabled=true;
+  try{const zip=new JSZip();let n=0;const total=batchFiles.length*(fronts.length+sleeves.length);
+    for(const f of batchFiles){
+      let d;try{d=await loadDesignFile(f);}catch(e){toast('Skipped '+f.name);continue;}
+      designs.front=d;Object.assign(PL.front,keepPL);Object.assign(P,keepP);loadPlacement('front');
+      const folder=zip.folder(safeName(f.name.replace(/\.[^.]+$/,'')));
+      for(const t of [...fronts,...sleeves]){$('#busy').textContent='Rendering '+(++n)+' of '+total+'…';
+        const b=await renderFull(t);folder.file(safeName(f.name.replace(/\.[^.]+$/,'')+'-'+t.name)+sizeTag()+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
+    }
+    $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});await saveFile('mockups-batch.zip',z);
+  }catch(e){toast('Batch export failed.');}
+  finally{designs.front=keepD;Object.assign(PL.front,keepPL);Object.assign(P,keepP);setSlot(keepSlot);designCache.key='';$('#busy').textContent='Rendering…';busy(false);$('#btn-batch').disabled=false;scheduleRender();}
+};
+
+/* ---------- slideshow video ---------- */
+function pickVideoType(){for(const t of ['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm']){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t))return t;}catch(e){}}return null;}
+$('#btn-vid').onclick=async()=>{
+  const list=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id));
+  if(!list.length){toast('Nothing selected that has a design yet.');return;}
+  if(editMode){toast('Save or cancel the print area first.');return;}
+  const type=pickVideoType();const note=$('#vid-note');note.style.display='block';
+  if(!type){note.textContent='This browser can\'t record video. Try Chrome or Edge on a computer.';return;}
+  const sec=+$('#vid-sec').value, zoom=$('#vid-zoom').checked, fade=Math.min(.4,sec/3);
+  busy(true);$('#btn-vid').disabled=true;
+  try{
+    const frames=[];let n=0;
+    for(const t of list){note.textContent='Preparing '+(++n)+' of '+list.length+'…';frames.push(await renderCanvas(t,'story'));await new Promise(r=>setTimeout(r,0));}
+    const W=1080,H=1920,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+    const stream=c.captureStream(30);const rec=new MediaRecorder(stream,{mimeType:type,videoBitsPerSecond:8e6});const chunks=[];
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+    const done=new Promise(r=>rec.onstop=r);
+    const total=frames.length*sec;
+    const draw=(f,tt,a)=>{const z=zoom?1+.06*Math.min(1,tt/sec):1;const w=W*z,h=H*z;x.globalAlpha=a;x.drawImage(f,(W-w)/2,(H-h)/2,w,h);x.globalAlpha=1;};
+    rec.start(250);const t0=performance.now();
+    await new Promise(res=>{const tick=()=>{const el=(performance.now()-t0)/1000;if(el>=total){res();return;}
+      const i=Math.min(frames.length-1,Math.floor(el/sec)),tt=el-i*sec;x.fillStyle='#000';x.fillRect(0,0,W,H);draw(frames[i],tt,1);
+      if(i<frames.length-1&&tt>sec-fade)draw(frames[i+1],tt-sec,(tt-(sec-fade))/fade);
+      note.textContent='Recording… '+Math.ceil(total-el)+'s left';requestAnimationFrame(tick);};tick();});
+    rec.stop();await done;
+    const ext=type.startsWith('video/mp4')?'mp4':'webm';const blob=new Blob(chunks,{type:type.split(';')[0]});
+    await saveFile(safeName(baseName())+'-slideshow.'+ext,blob);
+    note.textContent=ext==='mp4'?'Saved as MP4, ready for TikTok.':'Saved as WebM. TikTok may need it converted to MP4 first, using a free converter like CloudConvert.';
+  }catch(e){note.textContent='Video failed: '+(e&&e.message||e);}
+  finally{busy(false);$('#btn-vid').disabled=false;}
 };
 
 /* ---------- templates tab ---------- */
