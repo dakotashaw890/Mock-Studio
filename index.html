@@ -72,6 +72,7 @@ label.file strong{font-size:14px}
 .gtile.on{border-color:var(--accent)}.gtile.off canvas{opacity:.35}
 .gtile canvas{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}
 .gtile label{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;border-radius:7px;padding:3px 6px;font-size:12px;display:flex;gap:4px;align-items:center}
+.swrow{display:flex;flex-wrap:wrap;gap:6px}.sw{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid var(--line,#ccc);cursor:pointer}.sw.on{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
 .frow{display:flex;gap:6px;align-items:center}.frow input[type=range]{flex:1}.nb{padding:2px 9px;min-width:30px;font-weight:700}
 .qtile .qb{position:absolute;top:6px;left:6px;border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600;color:#fff}
 .gtile span{display:block;font-size:11px;color:var(--muted);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -120,6 +121,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <div class="who small" id="sync-st" style="font-weight:400"></div>
       <button id="mi-printify">Printify connection</button>
       <button id="mi-photos">Model photos</button>
+      <button id="mi-lib">Design library</button>
       <div class="sep"></div>
       <div class="who">Settings</div>
       <button id="mi-units">Units: <span id="mi-units-v" style="margin-left:4px"></span></button>
@@ -192,6 +194,11 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="split" id="split" title="Drag to resize"></div>
     <div>
       <div class="card">
+        <h2>Shirt color</h2>
+        <div class="swrow" id="shirt-sw"></div>
+        <div class="row small" style="gap:8px;align-items:center;margin-top:6px"><span id="shirt-name" class="muted"></span><label class="row small" style="gap:4px;margin-left:auto">Custom <input type="color" id="shirt-custom" value="#3355aa" style="width:34px;height:24px;padding:0;border:0"></label></div>
+      </div>
+      <div class="card">
         <h2>1. Your designs</h2>
         <div class="slots" id="slots">
           <button data-slot="front" class="on"><span class="dot"></span>Front</button>
@@ -199,6 +206,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <button data-slot="right"><span class="dot"></span>Right sleeve</button>
         </div>
         <div class="dlist" id="dlist"></div>
+        <div class="row" style="margin:6px 0"><button class="small" id="btn-lib">Open design library</button></div>
         <label class="file" id="design-drop">
           <input type="file" id="design-file" accept="image/png,image/webp,image/jpeg">
           <strong id="design-up-label">Upload front design</strong>
@@ -306,7 +314,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <div style="display:grid;gap:8px;align-content:start">
         <input type="text" id="tpl-name" placeholder="Name, e.g. Man – heather gray tee" maxlength="60">
         <select id="tpl-kind"><option value="tee">T-shirt</option><option value="hoodie">Hoodie</option></select>
-        <select id="tpl-view"><option value="front">Front view</option><option value="left">Side view – left sleeve</option><option value="right">Side view – right sleeve</option></select>
+        <select id="tpl-view"><option value="front">Front view (model)</option><option value="left">Side view – left sleeve</option><option value="right">Side view – right sleeve</option><option value="flat">Flat lay</option><option value="hanger">On a hanger</option><option value="folded">Folded</option></select>
         <button class="primary" id="tpl-add" disabled>Add and set print area</button>
       </div>
     </div>
@@ -374,6 +382,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="grid2">
       <select id="g-kind"><option value="tee">T-shirt</option><option value="hoodie">Hoodie</option></select>
       <select id="g-model">
+        <option value="flat">No model: flat lay</option><option value="hanger">No model: on a hanger</option><option value="folded">No model: folded</option>
         <option>a man in his 30s</option><option>a woman in her 30s</option><option>a man in his 50s</option><option>a woman in her 20s</option><option>a man in his 20s</option><option>a woman in her 40s</option>
       </select>
       <select id="g-color">
@@ -405,6 +414,12 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 </section>
 </main>
 
+<div class="modal" id="lib"><div class="card" style="max-width:760px;max-height:86vh;overflow:auto">
+  <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Design library</h2><button id="lib-close" class="small">Close</button></div>
+  <p class="small muted" id="lib-note" style="margin:6px 0 10px">Every design you upload or load from Printify is saved to your account. Click a slot to put it on the shirt.</p>
+  <input type="search" id="lib-q" placeholder="Search designs" style="width:100%;margin-bottom:10px">
+  <div class="grid" id="lib-grid"></div>
+</div></div>
 <div class="modal" id="confirm"><div class="card">
   <h2 id="confirm-title">Delete this photo?</h2>
   <p class="small muted" id="confirm-body">This removes the model photo and its print area. It can't be undone.</p>
@@ -422,7 +437,7 @@ const DEFAULTS = {size:.85, y:.04, x:0, fold:.45, shade:.75, opacity:.94};
 
 let memoryMode=false;
 let templates=[]; let curId=null; let kindFilter='all';
-const imgCache=new Map(), packCache=new Map(), localImgs=new Map();
+const imgCache=new Map(), packCache=new Map(), localImgs=new Map(), colorPacks=new Map(), maskImgs=new Map();
 let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
 const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
@@ -466,9 +481,10 @@ function safeName(s){return (s||'mockup').replace(/[^\w\- ]+/g,'').trim().replac
 /* ---------- photo analysis pack ---------- */
 function boxBlurH(s,d,w,h,r){const n=2*r+1;for(let y=0;y<h;y++){const o=y*w;let sum=0;for(let x=-r;x<=r;x++)sum+=s[o+Math.min(w-1,Math.max(0,x))];for(let x=0;x<w;x++){d[o+x]=sum/n;sum+=s[o+Math.min(w-1,x+r+1)]-s[o+Math.max(0,x-r)];}}}
 function boxBlurV(s,d,w,h,r){const n=2*r+1;for(let x=0;x<w;x++){let sum=0;for(let y=-r;y<=r;y++)sum+=s[Math.min(h-1,Math.max(0,y))*w+x];for(let y=0;y<h;y++){d[y*w+x]=sum/n;sum+=s[Math.min(h-1,y+r+1)*w+x]-s[Math.max(0,y-r)*w+x];}}}
-function makePack(img,max){
+function makePack(img,max,rc){
   const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,max);
   const c=drawScaled(img,w,h);const data=c.getContext('2d').getImageData(0,0,w,h).data;
+  if(rc)recolor(data,w,h,rc);
   const n=w*h, L=new Float32Array(n);
   for(let i=0,j=0;i<n;i++,j+=4)L[i]=(.299*data[j]+.587*data[j+1]+.114*data[j+2])/255;
   const r=Math.max(2,Math.round(Math.max(w,h)*.006));const t=new Float32Array(n), Lb=new Float32Array(n);
@@ -476,6 +492,43 @@ function makePack(img,max){
   return {w,h,data,L,Lb};
 }
 
+/* ---------- shirt color: recolor the blank from the photo's own folds and shading ---------- */
+const SHIRT_COLORS=[['Black',''],['White','#f3f3f0'],['Athletic Heather','#b4b3b0'],['Dark Grey Heather','#48494d'],['Asphalt','#3c3d41'],['Navy','#1e2843'],['Royal','#2a4c9e'],['Red','#b11f2b'],['Maroon','#5a1f2b'],['Military Green','#4b5338'],['Forest','#24382a'],['Natural','#e8ddc6'],['Pink','#f0b4c3'],['Mustard','#d39b2a']];
+let SHIRT=null;
+function shirtHex(){if(!SHIRT)SHIRT=LS.get('shirt',{hex:''});return SHIRT.hex||'';}
+function setShirt(hex,name){SHIRT={hex:hex||'',name:name||''};LS.set('shirt',SHIRT);colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();}
+function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';
+  for(const [n,hex] of SHIRT_COLORS){const b=document.createElement('button');b.className='sw'+(cur===hex?' on':'');b.title=n;b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
+  $('#shirt-name').textContent=(SHIRT_COLORS.find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];if(cur)$('#shirt-custom').value=cur;}
+async function maskImage(t){if(maskImgs.has(t.id))return maskImgs.get(t.id);let m=null;
+  if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}}maskImgs.set(t.id,m);return m;}
+async function recolorSpec(t,hex){return {hex,mask:await maskImage(t),t};}
+function maskFromFill(data,w,h,t){ // photos without a stored mask: grow the shirt from its print areas by fabric colour
+  const seeds=[];const add=q=>{if(!q)return;const xs=q.map(p=>p.x*w),ys=q.map(p=>p.y*h);seeds.push([Math.round(xs.reduce((a,b)=>a+b)/4),Math.round(ys.reduce((a,b)=>a+b)/4),Math.max(...ys)-Math.min(...ys)]);};
+  add(t.quad);if(t.sleeves)for(const k of ['left','right'])if(t.sleeves[k]&&t.sleeves[k].quad)add(t.sleeves[k].quad);
+  const m=new Uint8Array(w*h);if(!seeds.length)return m;
+  const [sx,sy]=seeds[0];const j0=(sy*w+sx)*4,R=data[j0],G=data[j0+1],B=data[j0+2];
+  let acc=[0,0,0,0];for(let y=-6;y<=6;y++)for(let x=-6;x<=6;x++){const j=((sy+y)*w+sx+x)*4;acc[0]+=data[j];acc[1]+=data[j+1];acc[2]+=data[j+2];acc[3]++;}
+  const r0=acc[0]/acc[3],g0=acc[1]/acc[3],b0=acc[2]/acc[3],tol=60,ymax=t.view&&t.view!=='front'?h:Math.min(h,Math.round(Math.max(...t.quad.map(p=>p.y))*h+seeds[0][2]*.75));
+  const st=[];for(const [x,y] of seeds)st.push(y*w+x);
+  while(st.length){const i=st.pop();if(m[i])continue;const x=i%w,y=(i/w)|0;if(y>ymax)continue;const j=i*4;
+    if(Math.abs(data[j]-r0)+Math.abs(data[j+1]-g0)+Math.abs(data[j+2]-b0)>tol)continue;m[i]=1;
+    if(x>0)st.push(i-1);if(x<w-1)st.push(i+1);if(y>0)st.push(i-w);if(y<h-1)st.push(i+w);}
+  return m;}
+function recolor(data,w,h,rc){
+  const n=w*h,a=new Float32Array(n);
+  if(rc.mask){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.drawImage(rc.mask,0,0,w,h);const md=x.getImageData(0,0,w,h).data;for(let i=0;i<n;i++)a[i]=md[i*4]/255;}
+  else{const m=maskFromFill(data,w,h,rc.t);for(let i=0;i<n;i++)a[i]=m[i];}
+  const hx=rc.hex.replace('#',''),tr=parseInt(hx.slice(0,2),16),tg=parseInt(hx.slice(2,4),16),tb=parseInt(hx.slice(4,6),16),tl=(.299*tr+.587*tg+.114*tb)/255;
+  const ls=[];for(let i=0;i<n;i+=7)if(a[i]>.6){const j=i*4;ls.push(.299*data[j]+.587*data[j+1]+.114*data[j+2]);}
+  if(ls.length<50)return;ls.sort((p,q)=>p-q);const lo=ls[Math.floor(ls.length*.02)],md=ls[Math.floor(ls.length*.5)],hi=ls[Math.floor(ls.length*.98)];
+  const k=1/Math.max(4,hi-lo), dark=tl<.35;
+  for(let i=0;i<n;i++){const al=a[i];if(al<.02)continue;const j=i*4,l=.299*data[j]+.587*data[j+1]+.114*data[j+2];
+    const sN=Math.max(-1.5,Math.min(2.5,(l-md)*k)); // folds relative to the fabric's typical tone
+    let f=1+sN*(dark?.5:.42);f=Math.max(.35,Math.min(1.35,f));
+    const spec=Math.max(0,sN-1.2)*(dark?18:8);
+    data[j]=data[j]*(1-al)+Math.min(255,tr*f+spec)*al;data[j+1]=data[j+1]*(1-al)+Math.min(255,tg*f+spec)*al;data[j+2]=data[j+2]*(1-al)+Math.min(255,tb*f+spec)*al;}
+}
 /* ---------- homography ---------- */
 function sq2quad(q){
   const [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]=q;
@@ -503,7 +556,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-let curTurn=0;
+let curTurn=0,curFlat=false;
 function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
@@ -555,7 +608,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
   const od=out.data, op=P.opacity, sh=P.shade;
-  const wth=(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
+  const wth=curFlat?0:(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
   // turned torso: the chest is a rounder surface seen from the side, so the wrap strengthens with the turn
   const TT=sm?0:Math.max(-1.2,Math.min(1.2,curTurn+(P.yaw||0)*Math.PI/180)); // body turn + the design's own turn
   const sinWT=Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(TT)/.3)), wthT=Math.asin(sinWT), sinT=Math.sin(TT);
@@ -618,14 +671,14 @@ const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units=
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
 function turnDefault(t,s){if(s==='front'&&viewOf(t)!=='front')return 90+(typeof t.turn==='number'?t.turn:0);if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
 function turnOf(t,s){const o=LS.get('turns',{})[t.id+':'+s];return typeof o==='number'?o:turnDefault(t,s);}
-function areaInches(t,s){if(s==='front'&&viewOf(t)!=='front')return t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
+function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front')return t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
 function layersOf(t){const v=viewOf(t);if(v!=='front')return t.chestQ?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
   ctx.putImageData(out,0,0);
 }
 
@@ -808,7 +861,7 @@ function fitSide(t,pack){
 const fitRes=new Map();
 function isManual(t,s){if(t.builtin){const o=LS.get('quads',{});return !!o[s==='front'||s===viewOf(t)?t.id:t.id+':'+s];}return !!(t.manual&&t.manual[s]);}
 async function ensureFit(t){
-  if(t._fitted)return; t._fitted=true;
+  if(t._fitted)return; t._fitted=true; if(t.scene){t.fit={};return;}
   try{
     let r=fitRes.get(t.id);
     if(!r){const p=await previewPack(t);
@@ -842,7 +895,7 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
@@ -851,6 +904,8 @@ function openIDB(){return new Promise(res=>{try{const r=indexedDB.open('mockup-s
 function idbTx(mode,fn){return new Promise((res,rej)=>{if(!idb)return rej(new Error('nostore'));const tx=idb.transaction('templates',mode);const r=fn(tx.objectStore('templates'));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
 function tplSrc(t){ if(localImgs.has(t.id))return localImgs.get(t.id); return t.file; }
 async function tplImage(t){ if(imgCache.has(t.id))return imgCache.get(t.id); const img=await loadImage(tplSrc(t)); imgCache.set(t.id,img); return img; }
+async function viewPack(t){const col=shirtHex();if(!col)return previewPack(t);const k=t.id+col;if(colorPacks.has(k))return colorPacks.get(k);
+  const p=makePack(await tplImage(t),PREVIEW_MAX,await recolorSpec(t,col));colorPacks.set(k,p);return p;}
 async function previewPack(t){ if(packCache.has(t.id))return packCache.get(t.id); const p=makePack(await tplImage(t),PREVIEW_MAX); packCache.set(t.id,p); return p; }
 function defaultQuad(kind){
   const x0=kind==='hoodie'?.34:.32, x1=kind==='hoodie'?.66:.68, y0=kind==='hoodie'?.33:.3, y1=kind==='hoodie'?.6:.64;
@@ -875,7 +930,7 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -886,9 +941,10 @@ async function addTemplate(file,name,kind,view){
   const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,UPLOAD_MAX);
   const c=drawScaled(img,w,h);const blob=await canvasBlob(c,'image/jpeg',.92);
   const id='u'+Date.now();
-  const rec={id,name:name||file.name.replace(/\.[^.]+$/,''),kind,view:view||'front',quad:view&&view!=='front'?[{x:.4,y:.35},{x:.55,y:.35},{x:.55,y:.47},{x:.4,y:.47}]:defaultQuad(kind),createdAt:Date.now()};
+  const scene=['flat','hanger','folded'].includes(view)?view:null;if(scene)view='front';
+  const rec={id,name:name||file.name.replace(/\.[^.]+$/,''),kind,view:view||'front',scene,quad:view&&view!=='front'?[{x:.4,y:.35},{x:.55,y:.35},{x:.55,y:.47},{x:.4,y:.47}]:defaultQuad(kind),createdAt:Date.now()};
   localImgs.set(id,URL.createObjectURL(blob));
-  if(rec.view==='front'){try{toast('Reading the body position…');rec.body=await detectBody(c);}catch(e){rec.body=null;}}
+  if(rec.view==='front'&&!scene){try{toast('Reading the body position…');rec.body=await detectBody(c);}catch(e){rec.body=null;}}
   if(memoryMode)memMine.push({...rec,group:'mine'});
   else await idbTx('readwrite',st=>st.put({...rec,blob}));
   await reload(); curId=id; const nt=curT(); if(nt)await ensureFit(nt); renderThumbs(); startEdit();
@@ -939,6 +995,7 @@ async function renderView(){
   if(slotPhoto!==t.id&&viewOf(t)!=='front'&&viewOf(t)!==slot&&!editMode)setSlot(viewOf(t));
   else if(slotPhoto!==t.id&&viewOf(t)==='front'&&slot!=='front'&&!editMode)setSlot('front'); // new front photo: edit the chest design by default
   slotPhoto=t.id;
+  if(shirtHex())pack=await viewPack(t);
   renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);
   if(editMode)drawHandles(editQuad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
@@ -1067,6 +1124,7 @@ $('#design-file').onchange=async e=>{
     const a=analyzeOpaque(c);
     const af=a.opaque?1:artBounds(c);designs[slot]={orig:c,src:c,w,h,name:f.name,dim:img.naturalWidth+' × '+img.naturalHeight+' px',ver:++verSeq,bgColor:a.bg,opaque:a.opaque,removeBg:false,tol:30,artFrac:af,artPx:Math.round(img.naturalWidth*af)};
     if(loadPlacement(slot))toast('Restored your last placement for '+f.name+'.');
+    libSave(f,c);
     setSlot(slot);
     if(Math.max(img.naturalWidth,img.naturalHeight)<1200&&slot==='front')toast('Low-res design. Exports may look soft.',3500);
     rebuildDesign();
@@ -1160,7 +1218,7 @@ function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)re
 const excluded=new Set(LS.get('excluded',[]));
 let gridOn=false, gridJob=0, gridT;
 const smallPacks=new Map();
-async function smallPack(t){if(smallPacks.has(t.id))return smallPacks.get(t.id);const p=makePack(await tplImage(t),360);smallPacks.set(t.id,p);return p;}
+async function smallPack(t){if(smallPacks.has(t.id))return smallPacks.get(t.id);const p=makePack(await tplImage(t),360,shirtHex()?await recolorSpec(t,shirtHex()):null);smallPacks.set(t.id,p);return p;}
 function updateDlCount(){const n=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id)).length;$('#btn-dl-all').textContent='Download selected ('+n+') .zip';}
 function scheduleGrid(){if(!gridOn)return;clearTimeout(gridT);gridT=setTimeout(renderGrid,350);}
 async function renderGrid(){
@@ -1208,7 +1266,7 @@ $('#btn-qa').onclick=async()=>{
         b.textContent=lab[0];b.style.background=lab[1];d.append(c,b,sp);box.append(d);n++;
         if(lab[0]==='Auto-fit ✓'||lab[0]==='Your edit')ok++;else chk.push(t.name);
         d.onclick=()=>{curId=t.id;slotPhoto=t.id;go('studio');if(viewOf(t)==='front')setSlot(s);renderThumbs();scheduleRender();setTimeout(startEdit,80);};
-        if(q){const p=await previewPack(t);const full=document.createElement('canvas');full.width=p.w;full.height=p.h;renderTo(p,t,full.getContext('2d'));
+        if(q){const p=await viewPack(t);const full=document.createElement('canvas');full.width=p.w;full.height=p.h;renderTo(p,t,full.getContext('2d'));
           const pts=q.map(v=>[v.x*p.w,v.y*p.h]);const xs=pts.map(v=>v[0]),ys=pts.map(v=>v[1]);const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
           const side=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*2.2;c.width=320;c.height=400;const x=c.getContext('2d');x.imageSmoothingQuality='high';
           x.drawImage(full,cx-side/2,cy-side*.6,side,side*1.25,0,0,320,400);}
@@ -1218,11 +1276,49 @@ $('#btn-qa').onclick=async()=>{
     $('#qa-sum').textContent=n+' sleeves · '+ok+' fitted'+(chk.length?' · '+chk.length+' to check':' · all good');
   }finally{$('#btn-qa').disabled=false;}
 };
+
+/* ---------- design library (saved in the user's account) ---------- */
+const libSaved=new Set();
+async function libSave(file,canvas){
+  if(!sb||!CS.uid||!file||libSaved.has(file.name+':'+file.size))return;libSaved.add(file.name+':'+file.size);
+  try{const path=CS.uid+'/'+Date.now()+'-'+safeName(file.name.replace(/\.[^.]+$/,''))+(file.name.match(/\.[a-z0-9]+$/i)||['.png'])[0].toLowerCase();
+    const tc=document.createElement('canvas');const [w,h]=fitSize(canvas.width,canvas.height,200);tc.width=w;tc.height=h;tc.getContext('2d').drawImage(canvas,0,0,w,h);
+    const old=await sb.from('design_library').select('path').eq('name',file.name).maybeSingle();
+    const up=await sb.storage.from('designs').upload(path,file,{upsert:true,contentType:file.type||'image/png'});if(up.error)throw up.error;
+    const {error}=await sb.from('design_library').upsert({user_id:CS.uid,name:file.name,path,width:canvas.width,height:canvas.height,bytes:file.size,thumb:tc.toDataURL('image/webp',.8),created_at:new Date().toISOString()},{onConflict:'user_id,name'});
+    if(error)throw error;
+    if(old.data&&old.data.path&&old.data.path!==path)sb.storage.from('designs').remove([old.data.path]);
+  }catch(e){libSaved.delete(file.name+':'+file.size);console.warn('library save failed',e);}}
+let libRows=[];
+async function libOpen(){$('#lib').classList.add('on');$('#acct-menu').classList.remove('on');
+  if(!sb||!CS.uid){$('#lib-note').textContent='Log in (Printify tab) to keep a library of your designs in your account.';$('#lib-grid').textContent='';return;}
+  $('#lib-grid').textContent='Loading…';
+  const {data,error}=await sb.from('design_library').select('id,name,path,width,height,thumb,created_at').order('created_at',{ascending:false});
+  if(error){$('#lib-grid').textContent='Couldn\'t load your library.';return;}libRows=data||[];libRender();}
+function libRender(){const q=$('#lib-q').value.trim().toLowerCase(),box=$('#lib-grid');box.textContent='';
+  const rows=libRows.filter(r=>!q||r.name.toLowerCase().includes(q));
+  if(!rows.length){box.textContent=libRows.length?'No designs match.':'No designs yet. Upload one in the studio and it appears here.';return;}
+  for(const r of rows){const d=document.createElement('div');d.className='gtile';d.style.cursor='default';
+    const im=document.createElement('img');im.src=r.thumb||'';im.alt='';im.style.cssText='width:100%;aspect-ratio:1;object-fit:contain;background:#3a3a3a;border-radius:8px';
+    const nm=document.createElement('span');nm.textContent=r.name;
+    const row=document.createElement('div');row.className='row';row.style.cssText='gap:4px;flex-wrap:wrap;margin-top:4px';
+    for(const [sl,lab] of [['front','Front'],['left','Left sleeve'],['right','Right sleeve']]){const b=document.createElement('button');b.className='small';b.textContent=lab;b.onclick=()=>libUse(r,sl,b);row.append(b);}
+    const del=document.createElement('button');del.className='small';del.textContent='Delete';del.onclick=async()=>{if(!await confirmDlg('Delete “'+r.name+'” from your library?','The file is removed from your account. Mockups you already exported aren\'t affected.'))return;
+      await sb.storage.from('designs').remove([r.path]);await sb.from('design_library').delete().eq('id',r.id);libRows=libRows.filter(x=>x.id!==r.id);libRender();};
+    row.append(del);d.append(im,nm,row);box.append(d);}}
+async function libUse(r,sl,btn){const old=btn.textContent;btn.textContent='Loading…';btn.disabled=true;
+  try{const {data,error}=await sb.storage.from('designs').download(r.path);if(error)throw error;
+    const f=new File([data],r.name,{type:data.type||'image/png'});libSaved.add(r.name+':'+f.size);
+    designs[sl]=await loadDesignFile(f);designCache.key='';if(loadPlacement(sl))toast('Restored your placement for '+r.name+'.');
+    $('#lib').classList.remove('on');go('studio');setSlot(sl);scheduleRender();scheduleGrid();updateDlCount();
+  }catch(e){toast('Couldn\'t load that design.');}finally{btn.textContent=old;btn.disabled=false;}}
+$('#shirt-custom').oninput=e=>setShirt(e.target.value,'Custom');shirtUI();
+$('#btn-lib').onclick=libOpen;$('#mi-lib').onclick=libOpen;$('#lib-close').onclick=()=>$('#lib').classList.remove('on');$('#lib-q').oninput=libRender;
 /* ---------- export ---------- */
 const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
 async function renderFull(t,sizeKey){const o=await renderCanvas(t,sizeKey);return canvasBlob(o,'image/jpeg',.92);}
 async function renderCanvas(t,sizeKey){
-  await ensureFit(t);const img=await tplImage(t);const pack=makePack(img,FULL_MAX);
+  await ensureFit(t);const img=await tplImage(t);const pack=makePack(img,FULL_MAX,shirtHex()?await recolorSpec(t,shirtHex()):null);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;renderTo(pack,t,c.getContext('2d'));
   const key=sizeKey||$('#out-size').value;
   if(key==='closeup'){const q=t.quad.map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
@@ -1449,7 +1545,7 @@ async function pfLoadProducts(){
   }catch(e){pfMsg(e.message);}
 }
 function b64Blob(b64,type){const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type});}
-async function pfFetchProduct(id,step){ // loads a product's artwork and Printify placement without touching the studio
+async function pfFetchProduct(id,step,opts){ // loads a product's artwork and Printify placement without touching the studio
   const p=await pfCall('product',{shop_id:PF.shop,product_id:id});
   const usable=p.placements.filter(x=>POS2SLOT[x.position]&&x.images.length&&x.area);
   const out={p,usable,linked:{shop_id:PF.shop,product_id:p.id,title:p.title,parts:[]},slots:{},preview:false};
@@ -1461,7 +1557,7 @@ async function pfFetchProduct(id,step){ // loads a product's artwork and Printif
     const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
     const pl2={inches:wPx/300,rot:+im.angle||0,curve:0,yaw:0,bend:0};
     if(slotName==='front'){pl2.top=(im.y*pl.area.height-hPx/2)/300;pl2.cx=(im.x-0.5)*pl.area.width/300;}
-    out.slots[slotName]={design:d,pl:pl2};
+    out.slots[slotName]={design:d,pl:pl2};if(!opts||!opts.noSave)libSave(file,d.orig);
     out.linked.parts.push({position:pl.position,slot:slotName,image_id:im.id,area:pl.area,imgW,imgH});
   }
   return out;}
@@ -1493,7 +1589,7 @@ $('#pf-kit').onclick=async()=>{
   const keep={designs:{...designs},PL:JSON.parse(JSON.stringify(PL)),ts:TS.on,slot,linked:PF.linked};
   busy(true);$('#pf-kit').disabled=true;const zip=new JSZip(),fails=[];let done=0,imgs=0;const list=[...PFSEL.entries()];
   try{for(const [id,title] of list){done++;const lab='Product '+done+' of '+list.length;
-      try{$('#busy').textContent=lab+' · loading artwork…';const r=await pfFetchProduct(id);
+      try{$('#busy').textContent=lab+' · loading artwork…';const r=await pfFetchProduct(id,null,{noSave:true});
         if(!r.usable.length||!r.slots.front&&!r.slots.left&&!r.slots.right){fails.push(title+' (no usable artwork)');continue;}
         pfApply(r);bindSlot('front');const folder=safeName(r.p.title)+'/';
         imgs+=await renderListing(zip,folder,lab);
@@ -1573,7 +1669,7 @@ async function cloudPull(){if(!CS.uid||!sb)return;CS.lastPull=Date.now();
   localStorage.setItem('ms__meta',JSON.stringify(m));
   if(changed)await applyCloudState();
   if(needPush)cloudQueue();else{CS.state='ok';syncUI();}}
-async function applyCloudState(){OVM=null;fitRes.clear();Object.assign(TS,LS.get('ts',{}));
+async function applyCloudState(){OVM=null;SHIRT=null;colorPacks.clear();smallPacks.clear();shirtUI();fitRes.clear();Object.assign(TS,LS.get('ts',{}));
   excluded.clear();for(const id of LS.get('excluded',[]))excluded.add(id);
   Object.assign(WM,LS.get('wm',{}));const wi=LS.get('wmimg',null);WM.img=wi?await loadImage(wi).catch(()=>null):null;wmUI();
   await reload();for(const v of ['front','left','right'])if(designs[v])loadPlacement(v);bindSlot(slot);syncSliders();tsUI();renderThumbs();scheduleRender();scheduleGrid();}
@@ -1609,6 +1705,16 @@ function buildPrompt(){
   const garment=k==='hoodie'
     ?`a plain blank ${c} pullover hoodie with a front kangaroo pocket, hood down, drawstrings hanging evenly`
     :`a plain blank ${c} crew-neck cotton t-shirt, regular fit`;
+  const SC={flat:`Overhead flat-lay product photo of ${garment}, laid perfectly flat and symmetrical, sleeves spread out to the sides, front facing up. The garment has no logos, text, tags, prints or graphics anywhere.
+
+Shot straight down from directly above, no perspective tilt. Smooth fabric with only light natural texture, no wrinkles across the chest. ${s.replace(/^[^.]*\./,'').trim()} Neutral surface around the shirt with a few simple props near the edges, nothing touching the shirt. Even soft light, true-to-life fabric color, high resolution, 4:5 portrait.`,
+    hanger:`Photorealistic product photo of ${garment} on a simple wooden hanger, hanging straight on a wall hook, front facing the camera directly. The garment has no logos, text, tags, prints or graphics anywhere.
+
+Camera level with the chest, no tilt. Fabric hangs smoothly with gentle natural folds. Plain wall behind, soft daylight, true-to-life fabric color, high resolution, 4:5 portrait.`,
+    folded:`Photorealistic product photo of ${garment}, neatly folded into a square retail fold with the chest panel on top facing up, on a clean table. The garment has no logos, text, tags, prints or graphics anywhere.
+
+Shot from above at a slight angle, the folded chest panel flat and fully visible. Soft daylight, true-to-life fabric color, high resolution, 4:5 portrait.`};
+  if(SC[m]){$('#g-out').textContent=SC[m];return;}
   const p=`Photorealistic e-commerce product photo of ${m} wearing ${garment}. The garment has no logos, text, tags, prints or graphics anywhere.
 
 Standing straight and facing the camera directly, shoulders square, arms relaxed at the sides. Nothing covers the chest: no crossed arms, hair behind the shoulders, no bag straps or jewelry over the shirt. Natural, gentle fabric folds, no deep creases across the chest.
