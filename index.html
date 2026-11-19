@@ -117,6 +117,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <button id="acct-btn" class="pill">Log in</button>
     <div class="acct-menu" id="acct-menu">
       <div class="who" id="acct-who"></div>
+      <div class="who small" id="sync-st" style="font-weight:400"></div>
       <button id="mi-printify">Printify connection</button>
       <button id="mi-photos">Model photos</button>
       <div class="sep"></div>
@@ -815,7 +816,10 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));}catch(e){}}};
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|place_.+)$/.test(k);
+const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
+function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
 let idb=null;
 function openIDB(){return new Promise(res=>{try{const r=indexedDB.open('mockup-studio',1);r.onupgradeneeded=()=>r.result.createObjectStore('templates',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
 function idbTx(mode,fn){return new Promise((res,rej)=>{if(!idb)return rej(new Error('nostore'));const tx=idb.transaction('templates',mode);const r=fn(tx.objectStore('templates'));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
@@ -1226,7 +1230,7 @@ $('#wm-on').onchange=e=>{WM.on=e.target.checked;wmSave();};
 $('#wm-pos').onchange=e=>{WM.pos=e.target.value;wmSave();};
 $('#wm-size').oninput=e=>{WM.size=+e.target.value/100;wmSave();wmUI();};
 $('#wm-op').oninput=e=>{WM.op=+e.target.value/100;wmSave();wmUI();};
-$('#wm-clear').onclick=()=>{WM.img=null;try{localStorage.removeItem('ms_wmimg');}catch(e){}wmUI();};
+$('#wm-clear').onclick=()=>{WM.img=null;LS.set('wmimg',null);wmUI();};
 function sizeTag(){const v=$('#out-size').value;return v==='orig'?'':'-'+v;}
 function baseName(){const d=designs.front||designs.left||designs.right;return d?d.name.replace(/\.[^.]+$/,''):'mockup';}
 function outName(t){return safeName(baseName()+'-'+t.name);}
@@ -1355,7 +1359,7 @@ function removeDesign(k){if(!designs[k])return;designs[k]=null;designCache.key='
 function acctUI(session){
   $('#acct-btn').textContent=session?'Account ▾':'Log in';
   $('#acct-who').textContent=session?'Signed in as '+session.user.email:'Not logged in';
-  $('#mi-signout').style.display=session?'flex':'none';
+  $('#mi-signout').style.display=session?'flex':'none';syncUI();
   $('#mi-units-v').textContent=TS.units==='px'?'Pixels':'Inches';$('#mi-ts-v').textContent=TS.on?'On':'Off';
 }
 $('#acct-btn').onclick=async e=>{e.stopPropagation();
@@ -1490,7 +1494,33 @@ $('#pf-shop').onchange=e=>{PF.shop=+e.target.value;PF.page=1;pfLoadProducts();};
 $('#pf-refresh').onclick=()=>pfLoadProducts();
 $('#pf-prev').onclick=()=>{if(PF.page>1){PF.page--;pfLoadProducts();}};
 $('#pf-next').onclick=()=>{if(PF.page<PF.last){PF.page++;pfLoadProducts();}};
-if(sb)sb.auth.onAuthStateChange(()=>{setTimeout(pfRefreshAuth,0);});
+if(sb)sb.auth.onAuthStateChange((ev,ses)=>{setTimeout(pfRefreshAuth,0);setTimeout(()=>cloudLogin(ses),0);});
+/* ---------- account sync: adjustments and settings follow your login to any computer ---------- */
+var CS={uid:null,state:'off',at:0,timer:null,busy:false,again:false,lastPull:0};
+function syncUI(){const el=$('#sync-st');if(!el)return;el.textContent=!CS.uid?'':CS.state==='saving'?'Saving to your account…':CS.state==='error'?'Couldn\'t reach your account. Changes are kept here and will save when it reconnects.':'✓ Adjustments saved to your account';}
+function cloudSnapshot(){const m=syncMeta(),d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('ms_')||k==='ms__meta')continue;const kk=k.slice(3);if(!SYNC_KEY(kk))continue;
+  let v;try{v=JSON.parse(localStorage.getItem(k));}catch(e){continue;}d[kk]={v,t:m[kk]||1};}return d;}
+function cloudQueue(){if(!CS.uid)return;clearTimeout(CS.timer);CS.state='saving';syncUI();CS.timer=setTimeout(cloudPush,1500);}
+async function cloudPush(){if(!CS.uid||!sb)return;if(CS.busy){CS.again=true;return;}CS.busy=true;
+  try{const {error}=await sb.from('user_settings').upsert({user_id:CS.uid,data:cloudSnapshot(),updated_at:new Date().toISOString()});CS.state=error?'error':'ok';}
+  catch(e){CS.state='error';}finally{CS.busy=false;syncUI();if(CS.again){CS.again=false;cloudQueue();}}}
+async function cloudPull(){if(!CS.uid||!sb)return;CS.lastPull=Date.now();
+  const {data,error}=await sb.from('user_settings').select('data').maybeSingle();if(error){CS.state='error';syncUI();return;}
+  const cloud=(data&&data.data)||{},local=cloudSnapshot(),m=syncMeta();let changed=false,needPush=false;
+  for(const k of new Set([...Object.keys(cloud),...Object.keys(local)])){const c=cloud[k],l=local[k];
+    if(c&&(!l||c.t>=l.t)){if(!l||JSON.stringify(c.v)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(c.v));changed=true;}m[k]=c.t;}
+    else if(l)needPush=true;}
+  localStorage.setItem('ms__meta',JSON.stringify(m));
+  if(changed)await applyCloudState();
+  if(needPush)cloudQueue();else{CS.state='ok';syncUI();}}
+async function applyCloudState(){OVM=null;fitRes.clear();Object.assign(TS,LS.get('ts',{}));
+  excluded.clear();for(const id of LS.get('excluded',[]))excluded.add(id);
+  Object.assign(WM,LS.get('wm',{}));const wi=LS.get('wmimg',null);WM.img=wi?await loadImage(wi).catch(()=>null):null;wmUI();
+  await reload();for(const v of ['front','left','right'])if(designs[v])loadPlacement(v);bindSlot(slot);syncSliders();tsUI();renderThumbs();scheduleRender();scheduleGrid();}
+async function cloudLogin(ses){const uid=ses&&ses.user?ses.user.id:null;if(uid===CS.uid)return;CS.uid=uid;if(!uid){CS.state='off';syncUI();return;}
+  try{await cloudPull();}catch(e){CS.state='error';syncUI();}}
+addEventListener('focus',()=>{if(CS.uid&&Date.now()-CS.lastPull>20000)cloudPull().catch(()=>{});});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&CS.uid&&CS.timer&&CS.state==='saving'){clearTimeout(CS.timer);cloudPush();}});
 pfRefreshAuth();
 
 /* ---------- templates tab ---------- */
