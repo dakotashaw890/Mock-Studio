@@ -483,7 +483,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-let curDM=0;
+let curTurn=0;
 function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
@@ -533,6 +533,8 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
   const od=out.data, op=P.opacity, sh=P.shade;
   const wth=(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
+  // turned torso: the chest is a rounder surface seen from the side, so the wrap strengthens with the turn
+  const sinWT=Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(curTurn)/.3)), wthT=Math.asin(sinWT), sinT=Math.sin(curTurn);
   const m0=Mi[0],m1=Mi[1],m2=Mi[2],m3=Mi[3],m4=Mi[4],m5=Mi[5],m6=Mi[6],m7=Mi[7],m8=Mi[8];
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null;
@@ -558,7 +560,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
         if(sm.front&&L[i]>fThr+.22)continue; // never print on skin or background
         const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
         du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}
-      else{let uu=u; if(wth>0.01){const sx2=2*(u-.5-curDM)*sinW; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-Math.asin(Math.max(-.99,Math.min(.99,-2*curDM*sinW))))/(2*wth);}
+      else{let uu=u; if(wth>0.01||curTurn){const sx2=2*(u-.5)*sinWT+sinT; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-curTurn)/(2*wthT);}
       du=(uu-u0)/fw;}
       const dv=(v+arc*cv-v0)/fh;
       if(du<=-.01||dv<=-.01||du>=1.01||dv>=1.01)continue;
@@ -595,10 +597,19 @@ function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curDM=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestDM==='number'?Math.max(-.3,Math.min(.3,t.chestDM)):0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s)}));}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s)}));}
   ctx.putImageData(out,0,0);
 }
 
+/* ---------- body pose (MediaPipe Pose, hosted with the site; only loaded for uploaded photos) ---------- */
+let poseP=null;
+function loadPose(){if(poseP)return poseP;poseP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='vendor/pose/pose.js';sc.onload=async()=>{try{const ps=new Pose({locateFile:f=>'vendor/pose/'+f});
+  ps.setOptions({modelComplexity:1,staticImageMode:true,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.5});let cb=null;ps.onResults(r=>{if(cb)cb(r);});await ps.initialize();
+  res({run:img=>new Promise(r2=>{cb=r2;ps.send({image:img});})});}catch(e){rej(e);}};sc.onerror=rej;document.head.append(sc);});return poseP;}
+async function detectBody(canvas){const ps=await loadPose();const r=await ps.run(canvas);if(!r||!r.poseLandmarks||!r.poseWorldLandmarks)return null;
+  const lm=r.poseLandmarks,w=r.poseWorldLandmarks,yaw=(a,b)=>Math.atan2(w[a].z-w[b].z,w[a].x-w[b].x)*180/Math.PI;
+  if(Math.min(lm[11].visibility,lm[12].visibility,lm[23].visibility||1,lm[24].visibility||1)<.5)return null;
+  return {axis:+((lm[11].x+lm[12].x+lm[23].x+lm[24].x)/4).toFixed(4),yaw:+((yaw(11,12)+yaw(23,24))/2).toFixed(1),sh:+Math.abs(lm[11].x-lm[12].x).toFixed(4)};}
 /* ---------- automatic sleeve fitting (same engine for built-in and uploaded photos) ---------- */
 const FIT={chestIn:{men:20.5,women:19},onBody:.82,sleeveIn:3.1,widthPerArm:.646};
 function fabModel(pack,qpx,strict){ // qpx: [[x,y]x4] region known to be shirt; returns {d(x,y), tol}
@@ -698,6 +709,8 @@ function refineFront(pack,seed,s,Wq){ // precise fit from a rough sleeve box: ou
   const tilt=Math.atan(a)*180/Math.PI, ok=L1.n>=8&&C.n>=3&&Math.abs(tilt)<40&&tilt*dS>-15&&Math.abs(BO[1]-yh)<Wq*.8&&C.res<Wq*.12&&k<.48&&k>-.1;
   return {quad:qd.map(([x,y])=>({x:+(x/w).toFixed(4),y:+(y/h).toFixed(4)})),conf:ok?'ok':'low',dbg:{tilt:Math.round(tilt),k:+k.toFixed(2),n:L1.n,hn:C.n,res:+C.res.toFixed(1)}};
 }
+function bodyTurn(t){ // torso yaw from the pose model, radians; small turns and the model's slight bias are ignored
+  if(!t.body||typeof t.body.yaw!=='number')return 0;const y=t.body.yaw-5;if(Math.abs(y)<4)return 0;return Math.max(-30,Math.min(30,y))*Math.PI/180;}
 const COLLAR_TO_AREA=1.8; // inches from the bottom of the neckline to the top of the studio's front area (same on every photo)
 function fitChest(t,pack){ // finds the neckline centre/bottom and the torso outline
   const {w,h}=pack, q=t.quad.map(p=>[p.x*w,p.y*h]);
@@ -716,7 +729,11 @@ function fitChest(t,pack){ // finds the neckline centre/bottom and the torso out
     const any=(xa,xb)=>{for(let x=xa;x<xb;x++)if(F.fab(x,y))return true;return false;};
     while(l>4&&any(l-4,l))l--;while(r<w-5&&any(r,r+4))r++;spans.push([l,r]);}
   const mid=spans.reduce((m,s)=>m+(s[0]+s[1])/2,0)/spans.length, tw=spans.reduce((m,s)=>m+s[1]-s[0],0)/spans.length;
-  return {cx:col.x/w,cy:col.y/h,mid:mid/w,tw:tw/w,ok:tw>qw*.8&&tw<qw*2&&Math.abs(col.x-mid)<tw*.35};
+  // body outline at bust height (rows where an arm touches the body are dropped)
+  const edge=(y,d)=>{let x=Math.round(col.x),miss=0,last=x;while(x>0&&x<w-1){x+=d;if(F.fab(x,y)){last=x;miss=0;}else if(++miss>2)break;}return last;};
+  const bs=[];for(let y=Math.round(col.y+qh*.3);y<col.y+qh*.6;y+=2){const l=edge(y,-1),r=edge(y,1);bs.push([l,r,r-l]);}
+  let bust=null;if(bs.length>4){const ws=bs.map(b=>b[2]).sort((a,b)=>a-b),mw=ws[ws.length>>1];const g=bs.filter(b=>b[2]<mw*1.12).map(b=>(b[0]+b[1])/2).sort((a,b)=>a-b);if(g.length)bust=g[g.length>>1]/w;}
+  return {cx:col.x/w,cy:col.y/h,mid:mid/w,tw:tw/w,bust,ok:tw>qw*.8&&tw<qw*2&&Math.abs(col.x-mid)<tw*.35};
 }
 function fitSide(t,pack){
   const {w,h}=pack, q=t.quad.map(p=>[p.x*w,p.y*h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
@@ -751,14 +768,16 @@ async function ensureFit(t){
           if(!t.builtin){const nw=c.tw*.92,cx0=(Math.min(...qx)+Math.max(...qx))/2,ty=Math.min(...qy),hw=nw*p.w/p.h;q=[{x:cx0-nw/2,y:ty},{x:cx0+nw/2,y:ty},{x:cx0+nw/2,y:ty+hw},{x:cx0-nw/2,y:ty+hw}];}
           const qw=(Math.max(...q.map(v=>v.x))-Math.min(...q.map(v=>v.x)))*p.w;
           const ain=t.builtin&&typeof t.areaIn==='number'?t.areaIn:(FIT.chestIn[t.group]||20)*FIT.onBody*(qw/(c.tw*p.w));
-          const ppi=qw/ain, dx=c.cx-(Math.min(...q.map(v=>v.x))+Math.max(...q.map(v=>v.x)))/2, dy=c.cy+COLLAR_TO_AREA*ppi/p.h-Math.min(...q.map(v=>v.y));
+          const cues=[c.cx];if(c.bust!=null&&Math.abs(c.bust-c.cx)<c.tw*.15)cues.push(c.bust);if(t.body&&Math.abs(t.body.axis-c.cx)<c.tw*.15)cues.push(t.body.axis);
+          cues.sort((a,b)=>a-b);const ctr=cues.length===2?(cues[0]+cues[1])/2:cues[cues.length>>1];
+          const ppi=qw/ain, dx=ctr-(Math.min(...q.map(v=>v.x))+Math.max(...q.map(v=>v.x)))/2, dy=c.cy+COLLAR_TO_AREA*ppi/p.h-Math.min(...q.map(v=>v.y));
           t.quad=q.map(v=>({x:+(v.x+dx).toFixed(4),y:+(v.y+dy).toFixed(4)}));
-          t.chestDM=(c.mid-c.cx)*p.w/qw; if(!t.builtin)t.areaIn=ain;
+          t.chestTurn=bodyTurn(t); if(!t.builtin)t.areaIn=ain;
         }
-        r=fitFront(t,p);r.quad=t.quad;r.chestDM=t.chestDM;
+        r=fitFront(t,p);r.quad=t.quad;r.chestTurn=t.chestTurn;
       }else r={side:fitSide(t,p)};
       fitRes.set(t.id,r);}
-    else if(viewOf(t)==='front'&&r.quad&&!isManual(t,'front')){t.quad=r.quad;t.chestDM=r.chestDM;}
+    else if(viewOf(t)==='front'&&r.quad&&!isManual(t,'front')){t.quad=r.quad;t.chestTurn=r.chestTurn;}
     t.fit={};
     if(viewOf(t)==='front'){
       if(!t.builtin&&r.areaIn)t.areaIn=r.areaIn;
@@ -802,7 +821,7 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -815,6 +834,7 @@ async function addTemplate(file,name,kind,view){
   const id='u'+Date.now();
   const rec={id,name:name||file.name.replace(/\.[^.]+$/,''),kind,view:view||'front',quad:view&&view!=='front'?[{x:.4,y:.35},{x:.55,y:.35},{x:.55,y:.47},{x:.4,y:.47}]:defaultQuad(kind),createdAt:Date.now()};
   localImgs.set(id,URL.createObjectURL(blob));
+  if(rec.view==='front'){try{toast('Reading the body position…');rec.body=await detectBody(c);}catch(e){rec.body=null;}}
   if(memoryMode)memMine.push({...rec,group:'mine'});
   else await idbTx('readwrite',st=>st.put({...rec,blob}));
   await reload(); curId=id; const nt=curT(); if(nt)await ensureFit(nt); renderThumbs(); startEdit();
