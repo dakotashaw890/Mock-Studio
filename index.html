@@ -41,7 +41,8 @@ label.file{display:flex;flex-direction:column;align-items:center;justify-content
 label.file input{display:none}
 label.file strong{font-size:14px}
 .studio{display:grid;gap:12px}
-@media(min-width:900px){.studio{grid-template-columns:minmax(0,1fr) 340px;align-items:start}}
+@media(min-width:900px){.studio{grid-template-columns:minmax(0,1fr) 340px;align-items:start}
+.studio>div:last-child{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px;border-radius:var(--radius)}}
 .stage{position:relative;background:var(--soft);border-radius:12px;overflow:hidden;display:flex;justify-content:center}
 #view{display:block;max-width:100%;height:auto;max-height:78vh}
 .stage .hint{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.7);color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;pointer-events:none}
@@ -174,6 +175,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <h2>2. Placement <span class="muted small" id="pl-slot" style="font-weight:500">· Front</span></h2>
         <div class="ctl"><label class="row small" style="font-weight:600"><input type="checkbox" id="ts-on"> True-to-size printing</label></div>
         <div class="ctl" id="ts-ctl" style="display:none"><div class="lab">Print width (inches) <span class="muted">art width, as set in Printify</span></div><input type="text" id="ts-in" inputmode="decimal" style="max-width:120px"></div>
+        <div class="ctl" id="ts-collar-ctl" style="display:none"><div class="lab">Top of design below collar (inches) <span class="muted">Printify's vertical position</span></div><input type="text" id="ts-collar" inputmode="decimal" style="max-width:120px"></div>
         <div class="ctl" id="size-ctl"><div class="lab">Size <span id="v-size"></span></div><input type="range" id="size" min="20" max="100" value="85"></div>
         <div class="ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
         <div class="ctl"><div class="lab">Left / right <span id="v-x"></span></div><input type="range" id="px" min="-100" max="100" value="0"></div>
@@ -319,7 +321,7 @@ const imgCache=new Map(), packCache=new Map(), localImgs=new Map();
 let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
 const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
-const PL={front:{size:.85,y:.04,x:0,wrap:.35,inches:10},left:{size:.95,y:.5,x:0,wrap:.7,inches:3},right:{size:.95,y:.5,x:0,wrap:.7,inches:3}};
+const PL={front:{size:.85,y:.1,x:0,wrap:.35,inches:10,collar:3},left:{size:.95,y:.5,x:0,wrap:.7,inches:3},right:{size:.95,y:.5,x:0,wrap:.7,inches:3}};
 let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
@@ -405,7 +407,8 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
   const A=(topW+botW)/(lH+rH), D=design.w/design.h, s=P.size;
   let fw,fh; if(D>A){fw=s;fh=s*A/D;}else{fh=s;fw=s*D/A;}
   if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}
-  const u0=(1-fw)/2*(1+P.x), v0=(1-fh)*P.y;
+  const u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
+  if(TS.on&&areaIn&&slot==='front'&&typeof P.collar==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=Math.min(1-fh,Math.max(0,((P.collar-COLLAR_GAP)*ppi)/ah));}
   const tw=Math.max(2,Math.round((topW+botW)/2*fw*1.2)), th=Math.max(2,Math.round((lH+rH)/2*fh*1.2));
   const ds=designSampled(tw,th), pm=ds.pm, dw=ds.w, dh=ds.h;
   // mean luminance over the print area
@@ -450,6 +453,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
 
 /* ---------- print areas & layers ---------- */
 const TS={on:false};
+const COLLAR_GAP=1.75; // print-area top sits about this many inches below the collar seam
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
 function areaInches(t,s){if(s==='front')return t.group==='women'?10:12;return 3.5;}
 function layersOf(t){const v=viewOf(t);if(v!=='front')return [[v,t.quad,t.arc]];
@@ -690,16 +694,19 @@ const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['
 const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.04,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
 function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';$('#size-ctl').style.opacity=TS.on?.4:1;$('#size').disabled=TS.on;
-  if(document.activeElement!==$('#ts-in'))$('#ts-in').value=PL[slot].inches;dpiUI();}
+  if(document.activeElement!==$('#ts-in'))$('#ts-in').value=PL[slot].inches;
+  $('#ts-collar-ctl').style.display=TS.on&&slot==='front'?'block':'none';if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=PL.front.collar;
+  $('#py').disabled=TS.on&&slot==='front';dpiUI();}
 function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
   const inch=PL[slot].inches||1,dpi=Math.round(design.artPx/inch);
   const [lab,col]=dpi>=300?['Great for print','var(--ok)']:dpi>=200?['Good','var(--ok)']:dpi>=150?['Fair, may print slightly soft','var(--warn)']:['Too low, will print blurry','#b91c1c'];
   el.style.color=col;el.textContent='≈ '+dpi+' DPI at '+inch+'" wide · '+lab;}
 $('#ts-on').onchange=e=>{TS.on=e.target.checked;LS.set('ts',TS);tsUI();scheduleRender();scheduleGrid();};
+$('#ts-collar').oninput=e=>{const v=parseFloat(e.target.value);if(v>=0&&v<20){PL.front.collar=v;if(slot==='front')P.collar=v;savePlacement();scheduleRender();scheduleGrid();}};
 $('#ts-in').oninput=e=>{const v=parseFloat(e.target.value);if(v>0&&v<30){PL[slot].inches=v;P.inches=v;dpiUI();savePlacement();scheduleRender();scheduleGrid();}};
 
 /* ---------- remembered placement ---------- */
@@ -707,7 +714,7 @@ function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap','inches'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches','collar'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
