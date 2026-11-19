@@ -214,7 +214,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <p class="small muted" style="margin:0">Copy these from Printify's editor. Pixels ÷ 300 = inches.</p>
         </div>
         <div class="ctl" id="size-ctl"><div class="lab">Size <span id="v-size"></span></div><input type="range" id="size" min="20" max="100" value="85"></div>
-        <div class="ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
+        <div class="ctl" id="hem-ctl" style="display:none"><div class="lab">Distance above sleeve hem <span class="muted" id="hem-u">px</span></div><input type="text" id="hem-in" inputmode="decimal" style="max-width:140px"><div class="small muted">From the hem to the bottom of the design. Same on every photo.</div></div>
+        <div class="ctl" id="py-ctl"><div class="lab">Up / down <span id="v-y"></span></div><input type="range" id="py" min="0" max="100" value="4"></div>
         <div class="ctl"><div class="lab">Left / right <span id="v-x"></span></div><input type="range" id="px" min="-100" max="100" value="0"></div>
         <h2 style="margin-top:16px">3. Realism</h2>
         <div class="ctl"><div class="lab">Wrap around body <span id="v-wrap"></span></div><input type="range" id="wrap" min="0" max="100" value="35"></div>
@@ -397,11 +398,12 @@ const imgCache=new Map(), packCache=new Map(), localImgs=new Map();
 let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
 const SLOT_NAMES={front:'Front',left:'Left sleeve',right:'Right sleeve'};
-const PL={front:{size:.85,y:.1,x:0,wrap:.35,inches:10,top:1.25},left:{size:.95,y:.5,x:0,wrap:.7,inches:3},right:{size:.95,y:.5,x:0,wrap:.7,inches:3}};
+const HEM_IN=1;
+const PL={front:{size:.85,y:.1,x:0,wrap:.35,inches:10,top:1.25},left:{size:.95,y:.5,x:0,wrap:.7,inches:3,hem:HEM_IN},right:{size:.95,y:.5,x:0,wrap:.7,inches:3,hem:HEM_IN}};
 let curArc=0;
 let slot='front', verSeq=0;
 const viewOf=t=>t&&t.view||'front';
-function bindSlot(v){slot=v;design=designs[v];delete P.cx;delete P.top;Object.assign(P,PL[v]);}
+function bindSlot(v){slot=v;design=designs[v];delete P.cx;delete P.top;delete P.hem;Object.assign(P,PL[v]);}
 function withSlot(v,fn){const ps=slot;bindSlot(v);try{return fn();}finally{bindSlot(ps);}}
 function setSlot(v){
   bindSlot(v);
@@ -495,10 +497,27 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // bounding box of design region
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
-  const corners=(sm?[[-.3,v0],[1.3,v0],[1.3,v0+fh],[-.3,v0+fh]]:[[u0,v0],[u0+fw,v0],[u0+fw,v0+fh],[u0,v0+fh]]).map(([u,v])=>apply(M,u,v));
   const AR=.774, dS=slot==='left'?1:-1, hC=u0+fw/2-.5, aC=sm?sm.turn*Math.PI/180:0, iP=new Float32Array(513);
   if(sm){const K=sm.front?.8:.15,N=2048,E=[];for(let k=0;k<=N;k++){const al=-Math.PI/2+Math.PI*k/N;E.push((1-K)*Math.sin(al)+K*2*al/Math.PI);}
     let k=0;for(let j=0;j<=512;j++){const e=-1+2*j/512;while(k<N&&E[k+1]<e)k++;const lo=E[k],hi=E[Math.min(N,k+1)];iP[j]=-Math.PI/2+Math.PI*(k+(hi>lo?(e-lo)/(hi-lo):0))/N;}}
+  // fabric brightness inside the area (used to find the hem and the arm's edge)
+  let fThr=.2;{let fs=0,fc=0;for(let a=0;a<10;a++)for(let b=0;b<10;b++){const [x,y]=apply(M,.2+.6*(a+.5)/10,.2+.6*(b+.5)/10);const xi=Math.round(x),yi=Math.round(y);if(xi>=0&&yi>=0&&xi<w&&yi<h){fs+=L[yi*w+xi];fc++;}}fThr=(fc?fs/fc:.1)+.12;}
+  // sleeves: sit the design a fixed distance above the sleeve hem, found in the photo
+  if(sm&&typeof P.hem==='number'){
+    const qwP=(topW+botW)/2,qhP=(lH+rH)/2,inV=(qwP/3.1)/qhP;
+    let sn=sm.front?.6:Math.max(-.8,Math.min(.8,Math.sin(aC))), uc=.5;
+    if(sm.front){ // find outer edge on the area's middle row
+      const [mx,my]=apply(M,.5,.5);const run=Math.max(2,Math.round(qwP*.03));let ue=1;
+      for(let k=0;k<qwP*1.2;k++){const x=Math.round(mx)+dS*k,y=Math.round(my);if(x<1||x>=w-run-1)break;let ok=true;for(let r=0;r<run;r++){if(L[y*w+x+dS*r]<=fThr){ok=false;break;}}if(ok){const z=Mi[6]*x+Mi[7]*y+Mi[8];ue=(Mi[0]*x+Mi[1]*y+Mi[2])/z;break;}}
+      uc=dS>0?ue-AR:ue+AR;}
+    const uH=uc+dS*AR*sn; let vH=null;
+    for(let v=.05;v<3;v+=.01){let ok=true;for(let r=0;r<3;r++){const [x,y]=apply(M,uH,v+r*.012);const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=w||yi>=h||L[yi*w+xi]<=fThr){ok=false;break;}}if(ok){vH=v;break;}}
+    if(vH!==null&&vH>.2){const jf=(sn+1)*256,j0=Math.floor(jf),alH=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);
+      v0=vH+(curArc||0)*Math.cos(alH)-P.hem*inV-fh;}
+  }
+  // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
+  // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
+  const corners=(sm?[[-.3,v0],[1.3,v0],[1.3,v0+fh],[-.3,v0+fh]]:[[u0,v0],[u0+fw,v0],[u0+fw,v0+fh],[u0,v0+fh]]).map(([u,v])=>apply(M,u,v));
   const pad=Math.ceil(amt*.6)+2;
   const minX=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[0])))-pad),maxX=Math.min(w-1,Math.ceil(Math.max(...corners.map(c=>c[0])))+pad);
   const minY=Math.max(0,Math.floor(Math.min(...corners.map(c=>c[1])))-pad),maxY=Math.min(h-1,Math.ceil(Math.max(...corners.map(c=>c[1])))+pad);
@@ -508,8 +527,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null;
   if(sm&&sm.front){
-    let fs=0,fc=0;for(let a=0;a<10;a++)for(let b=0;b<10;b++){const [x,y]=apply(M,.2+.6*(a+.5)/10,.2+.6*(b+.5)/10);const xi=Math.round(x),yi=Math.round(y);if(xi>=0&&yi>=0&&xi<w&&yi<h){fs+=L[yi*w+xi];fc++;}}
-    const thr=(fc?fs/fc:.1)+.12, qw=(topW+botW)/2, run=Math.max(2,Math.round(qw*.03)), raw=new Float32Array(maxY-minY+1).fill(NaN);
+    const thr=fThr, qw=(topW+botW)/2, run=Math.max(2,Math.round(qw*.03)), raw=new Float32Array(maxY-minY+1).fill(NaN);
     const xAt=v=>apply(M,.5,v)[0];
     for(let y=minY;y<=maxY;y++){const sy=y+.5;
       const vRow=(()=>{const qx=xAt(.5);const z=m6*qx+m7*sy+m8;return (m3*qx+m4*sy+m5)/z;})();
@@ -802,14 +820,17 @@ const sliders=[['size','size',v=>v/100,v=>v+'%'],['py','y',v=>v/100,v=>v+'%'],['
 const labelId={size:'v-size',py:'v-y',px:'v-x',fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){for(const [id,key,,fmt] of sliders){const el=$('#'+id);el.value=Math.round(P[key]*100);$('#'+labelId[id]).textContent=fmt(+el.value);} $('#v-tol').textContent=design?design.tol:30;}
 for(const [id,key,conv,fmt] of sliders){$('#'+id).addEventListener('input',e=>{P[key]=conv(+e.target.value);if(key==='x'){delete PL[slot].cx;delete P.cx;}if(key in PL[slot])PL[slot][key]=P[key];$('#'+labelId[id]).textContent=fmt(+e.target.value);scheduleRender();savePlacement();scheduleGrid();});}
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN};Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
 function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';$('#size-ctl').style.opacity=TS.on?.4:1;$('#size').disabled=TS.on;
   $('#ts-units').value=TS.units;$('#ts-in-u').textContent=$('#ts-top-u').textContent=TS.units==='px'?'px':'inches';
   if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);
   $('#ts-collar-ctl').style.display=TS.on&&slot==='front'?'block':'none';if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
-  $('#py').disabled=TS.on&&slot==='front';dpiUI();}
+  $('#py').disabled=TS.on&&slot==='front';
+  const sl=slot!=='front';$('#hem-ctl').style.display=sl?'block':'none';$('#py-ctl').style.display=sl?'none':'block';$('#hem-u').textContent=TS.units==='px'?'px':'inches';
+  if(sl&&document.activeElement!==$('#hem-in'))$('#hem-in').value=toU(typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN);dpiUI();}
+$('#hem-in').oninput=e=>{const v=fromU(parseFloat(e.target.value));if(slot!=='front'&&v>=0&&v<6){PL[slot].hem=v;P.hem=v;savePlacement();scheduleRender();scheduleGrid();}};
 function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
   const inch=PL[slot].inches||1,dpi=Math.round(design.artPx/inch);
   const [lab,col]=dpi>=300?['Great for print','var(--ok)']:dpi>=200?['Good','var(--ok)']:dpi>=150?['Fair, may print slightly soft','var(--warn)']:['Too low, will print blurry','#b91c1c'];
