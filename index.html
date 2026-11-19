@@ -530,7 +530,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn){curArc=arcIn||0;
 const TS={on:false,units:'px'};
 const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units==='px'?v/300:v;
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
-function areaInches(t,s){if(s==='front')return t.group==='women'?10:12;return 3.5;}
+function areaInches(t,s){if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
 function layersOf(t){const v=viewOf(t);if(v!=='front')return [[v,t.quad,t.arc]];
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
@@ -1060,9 +1060,9 @@ async function pfLoadProduct(id,btn){
     for(const pl of usable){
       const im=pl.images[0],slotName=POS2SLOT[pl.position];
       btn.textContent='Loading '+pl.position.replace('_',' ')+'…';
-      const art=await pfCall('image',{shop_id:PF.shop,image_id:im.id});
+      const art=await pfCall('image',{shop_id:PF.shop,image_id:im.id,src:im.src||''});
       const file=new File([b64Blob(art.data,art.type)],art.name||'printify-art.png',{type:art.type});
-      const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;
+      const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;if(art.preview)toast('Printify only shared a preview of this artwork, so the mockup may look soft. Upload the original file in the Front slot for full quality.',6000);
       designs[slotName]=d;
       const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
       PL[slotName].inches=wPx/300;

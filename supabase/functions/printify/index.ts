@@ -88,7 +88,9 @@ Deno.serve(async (req) => {
       // print area pixel sizes for this blueprint + provider
       const v = await pf(token, `/catalog/blueprints/${p.blueprint_id}/print_providers/${p.print_provider_id}/variants.json`);
       const sizes: Record<string, { width: number; height: number }> = {};
-      for (const vr of v.variants || []) for (const ph of vr.placeholders || []) if (!sizes[ph.position]) sizes[ph.position] = { width: ph.width, height: ph.height };
+      // print areas can differ by size; Printify's editor works on the largest one
+      const used = new Set(((p.print_areas || [])[0]?.variant_ids) || []);
+      for (const vr of v.variants || []) { if (used.size && !used.has(vr.id)) continue; for (const ph of vr.placeholders || []) { const cur = sizes[ph.position]; if (!cur || ph.width > cur.width) sizes[ph.position] = { width: ph.width, height: ph.height }; } }
       const area = (p.print_areas || [])[0] || { placeholders: [] };
       const placements = (area.placeholders || []).filter((ph: any) => ph.images?.length).map((ph: any) => ({
         position: ph.position, area: sizes[ph.position] || null,
@@ -99,13 +101,15 @@ Deno.serve(async (req) => {
     if (action === "image") {
       const id = String(body.image_id || "").replace(/[^a-zA-Z0-9]/g, "");
       const up = await pf(token, `/uploads/${id}.json`);
-      const url = new URL(up.preview_url);
+      // prefer the full-resolution source from the product; fall back to Printify's preview
+      let preview = true, url = new URL(up.preview_url);
+      if (body.src) { try { const s = new URL(String(body.src)); url = s; preview = false; } catch { /* keep preview */ } }
       if (!/(^|\.)printify\.(com|me)$|(^|\.)amazonaws\.com$|(^|\.)cloudfront\.net$/.test(url.hostname)) throw new HttpError(400, "Unexpected image host.");
       const r = await fetch(url.toString());
       if (!r.ok) throw new HttpError(502, "Couldn't download the artwork.");
       const buf = await r.arrayBuffer();
       if (buf.byteLength > 40e6) throw new HttpError(413, "Artwork is too large to load.");
-      return json({ name: up.file_name, width: up.width, height: up.height, type: r.headers.get("content-type") || "image/png", data: b64(buf) });
+      return json({ name: up.file_name, width: up.width, height: up.height, preview, type: r.headers.get("content-type") || "image/png", data: b64(buf) });
     }
     if (action === "update_placement") {
       const changes = Array.isArray(body.changes) ? body.changes : [];
