@@ -358,6 +358,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="card" id="pf-products-card" style="display:none">
       <h2>Products</h2>
       <p class="small muted" style="margin:0 0 10px">Load a product to pull its artwork, print-area size and exact placement into the studio.</p>
+      <div class="row" style="margin:4px 0 10px;gap:8px;align-items:center;flex-wrap:wrap"><button class="primary" id="pf-kit" disabled>Make listing kits</button><button class="small" id="pf-selall">Select all on this page</button><button class="small" id="pf-selnone">Clear selection</button>
+        <span class="small muted" style="flex-basis:100%">Tick products, then make kits: each gets a folder of finished images in Etsy listing order (main photo, print close-up, side views, models, a 9:16 for TikTok), using that product's Printify placement and your per-photo adjustments. Pick the photos to use in the studio's Model photos list.</span></div>
       <div class="tlist" id="pf-products"></div>
       <div class="row" style="margin-top:10px;justify-content:center"><button id="pf-prev" class="small">Previous</button><span class="small muted" id="pf-page"></span><button id="pf-next" class="small">Next</button></div>
     </div>
@@ -524,7 +526,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // bounding box of design region
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
-  const AR=.774, dS=slot==='left'?1:-1, hC=u0+fw/2-.5, aC=sm?sm.turn*Math.PI/180+(P.yaw||0)*Math.PI/180:0, iP=new Float32Array(513);
+  const AR=.774, dS=sm&&sm.dS?sm.dS:(slot==='left'?1:-1), hC=u0+fw/2-.5, aC=sm?sm.turn*Math.PI/180+(P.yaw||0)*Math.PI/180:0, iP=new Float32Array(513);
   if(sm){const K=sm.front?.8:.15,N=2048,E=[];for(let k=0;k<=N;k++){const al=-Math.PI/2+Math.PI*k/N;E.push((1-K)*Math.sin(al)+K*2*al/Math.PI);}
     let k=0;for(let j=0;j<=512;j++){const e=-1+2*j/512;while(k<N&&E[k+1]<e)k++;const lo=E[k],hi=E[Math.min(N,k+1)];iP[j]=-Math.PI/2+Math.PI*(k+(hi>lo?(e-lo)/(hi-lo):0))/N;}}
   // fabric brightness inside the area (used to find the hem and the arm's edge)
@@ -580,6 +582,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       let du,cv=1-(2*u-1)*(2*u-1);
       if(sm){let uc=.5;if(hE){const ed=hE[y-minY],eo=isNaN(ed)?1:Math.min(1.04,Math.max(.8,ed));uc=dS>0?eo-AR:1-eo+AR;}
         if(sm.front&&L[i]>fThr+.22)continue; // never print on skin or background
+        if(sm.clip&&(x-sm.clip.x)*sm.clip.d<=0)continue; // chest seen from the side: hidden behind the arm
         const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
         du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}
       else{let uu=u; if(wth>0.01||TT){const sx2=2*(u-.5)*sinWT+sinT; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-TT)/(2*wthT);}
@@ -613,16 +616,16 @@ const TS={on:false,units:'px'};
 const AREA_TOP_SHIFT=0.5; // inches: Printify's print area starts this far below the studio's front area top
 const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units==='px'?v/300:v;
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
-function turnDefault(t,s){if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
+function turnDefault(t,s){if(s==='front'&&viewOf(t)!=='front')return 90+(typeof t.turn==='number'?t.turn:0);if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
 function turnOf(t,s){const o=LS.get('turns',{})[t.id+':'+s];return typeof o==='number'?o:turnDefault(t,s);}
-function areaInches(t,s){if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
-function layersOf(t){const v=viewOf(t);if(v!=='front')return [[v,t.quad,t.arc]];
+function areaInches(t,s){if(s==='front'&&viewOf(t)!=='front')return t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
+function layersOf(t){const v=viewOf(t);if(v!=='front')return t.chestQ?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?null:{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
   ctx.putImageData(out,0,0);
 }
 
@@ -760,6 +763,28 @@ function fitChest(t,pack){ // finds the neckline centre/bottom and the torso out
   let bust=null;if(bs.length>4){const ws=bs.map(b=>b[2]).sort((a,b)=>a-b),mw=ws[ws.length>>1];const g=bs.filter(b=>b[2]<mw*1.12).map(b=>(b[0]+b[1])/2).sort((a,b)=>a-b);if(g.length)bust=g[g.length>>1]/w;}
   return {cx:col.x/w,cy:col.y/h,mid:mid/w,tw:tw/w,bust,ok:tw>qw*.8&&tw<qw*2&&Math.abs(col.x-mid)<tw*.35};
 }
+function fitSideChest(t,pack){ // front print seen from the side: find the chest's front edge and the collar, size from the sleeve's true-size scale
+  const {w,h}=pack, sq=t.quad.map(p=>[p.x*w,p.y*h]); const xs=sq.map(p=>p[0]),ys=sq.map(p=>p[1]);
+  const qw=Math.max(...xs)-Math.min(...xs), cx=(Math.min(...xs)+Math.max(...xs))/2, top=Math.min(...ys), bot=Math.max(...ys), ppi=qw/3.1, dF=viewOf(t)==='left'?-1:1;
+  const F=fabModel(pack,sq); if(!F.fab(cx,(top+bot)/2))return null;
+  const gap=Math.max(3,Math.round(qw*.25)); // jump the light crease between arm and chest
+  const edgeAt=y=>{let last=null,miss=0,run=0;for(let x=Math.round(cx);x>=0&&x<w&&Math.abs(x-cx)<qw*6;x+=dF){if(F.fab(x,y)){if(++run>=3)last=x;miss=0;}else{run=0;if(last!==null&&++miss>gap)break;}}return last;};
+  // the chest's front edge, measured just above the sleeve and down its length, taking the forward-most steady value
+  const es=[];for(let y=Math.round(top-qw*.9);y<=bot;y+=3){const e=edgeAt(y);if(e!==null)es.push(e*dF);}
+  if(es.length<5)return null;es.sort((a,b)=>b-a);const xe=es[Math.floor(es.length*.2)]*dF;
+  const reach=(xe-cx)*dF;if(reach<qw*.3||reach>qw*4)return null;
+  // front of the collar: first shirt row from the top, just inside the chest edge
+  // walk up from the sleeve top along the chest; the shirt ends at the neck (hair above can't fool this)
+  let col=null;
+  let miss=0;
+  for(let y=Math.round(top);y>Math.max(1,top-qw*4);y--){const e=edgeAt(y);let gone=e===null||(e-cx)*dF<qw*.15;
+    if(!gone){let k=0;for(let j=1;j<=8;j++)if(F.fab(Math.round(e-dF*qw*.05*j),y))k++;gone=k<4;} // shirt continues inward from the edge
+    if(gone){if(++miss>=Math.max(4,Math.round(qw*.08))){col=y+miss;break;}}else miss=0;}
+  if(col===null||top-col<qw*.2)return null;
+  const R=(t.group==='women'?4.5:4.75)*ppi, qW=R*1.3, y0=col+COLLAR_TO_AREA*ppi;
+  const xa=dF<0?xe:xe-qW, xb=dF<0?xe+qW:xe;
+  return {quad:[{x:xa/w,y:y0/h},{x:xb/w,y:y0/h},{x:xb/w,y:(y0+qW)/h},{x:xa/w,y:(y0+qW)/h}],areaIn:qW/ppi,armX:(cx+dF*.86*qw)/w,hemY:(bot+.12*qw)/h};
+}
 function fitSide(t,pack){
   const {w,h}=pack, q=t.quad.map(p=>[p.x*w,p.y*h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
   const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),qw=x1-x0,cx=Math.round((x0+x1)/2);
@@ -810,7 +835,8 @@ async function ensureFit(t){
       for(const s of ['left','right']){const f=r.sleeves&&r.sleeves[s];if(!f)continue;t.fit[s]=isManual(t,s)?'manual':f.conf;
         if(!isManual(t,s)&&f.quad&&f.conf==='ok')t.sleeves[s]={...(t.sleeves[s]||{}),quad:f.quad};}
     }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
-      if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;}
+      if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;
+      if(!r.chest)r.chest=fitSideChest(t,await previewPack(t))||{};if(r.chest.quad){t.chestQ=r.chest.quad;t.chestAreaIn=r.chest.areaIn;t.chestClip={x:r.chest.armX,y:r.chest.hemY};}}
   }catch(e){}
 }
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
@@ -885,7 +911,7 @@ async function saveQuad(t,quad){
     else{const m=memMine.find(x=>x.id===t.id);if(m){m.quad=t.quad;m.manual=t.manual;}}}
   renderList();
 }
-async function resetQuad(t){const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
+async function resetQuad(t){const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':front'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
 async function renameTemplate(t,name){
   t.name=name;
   if(t.builtin){const n=LS.get('names',{});n[t.id]=name;LS.set('names',n);}
@@ -910,7 +936,7 @@ async function renderView(){
   const t=curT(); if(!t)return;
   let pack; try{pack=await previewPack(t);await ensureFit(t);}catch(e){toast('Couldn\'t load that photo.');return;}
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
-  if(viewOf(t)!=='front'&&viewOf(t)!==slot)setSlot(viewOf(t));
+  if(slotPhoto!==t.id&&viewOf(t)!=='front'&&viewOf(t)!==slot&&!editMode)setSlot(viewOf(t));
   else if(slotPhoto!==t.id&&viewOf(t)==='front'&&slot!=='front'&&!editMode)setSlot('front'); // new front photo: edit the chest design by default
   slotPhoto=t.id;
   renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);
@@ -1103,8 +1129,8 @@ function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.r
     fold:K('fold',{lab:'Follow folds',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
     shade:K('shade',{lab:'Fabric shading',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
     op:K('opacity',{lab:'Ink opacity',min:.4,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
-    ...(sl?{fshow:{lab:'How much shows on this photo',min:-30,max:60,step:1,get:()=>{const t=curT();return t&&viewOf(t)==='front'?turnDefault(t,slot)-turnOf(t,slot):0;},set:v=>{const t=curT();if(t&&viewOf(t)==='front')saveTurn(t,slot,turnDefault(t,slot)-v);},fmt:v=>v===0?'half (default)':v>0?'more (+'+v+'°)':'less ('+v+'°)'}}:{})};}
-function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.display=slot!=='front'&&t&&viewOf(t)==='front'?'block':'none';}for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();const lb=$('#'+id+'-lab');if(lb)lb.textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}ovUI();
+    ...((sl||curT()&&viewOf(curT())!=='front')?{fshow:{lab:'How much shows on this photo',min:-30,max:60,step:1,get:()=>{const t=curT();return t&&(viewOf(t)==='front')===sl?turnDefault(t,slot)-turnOf(t,slot):0;},set:v=>{const t=curT();if(t&&(viewOf(t)==='front')===sl)saveTurn(t,slot,turnDefault(t,slot)-v);},fmt:v=>v===0?'half (default)':v>0?'more (+'+v+'°)':'less ('+v+'°)'}}:{})};}
+function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.display=t&&((slot!=='front'&&viewOf(t)==='front')||(slot==='front'&&viewOf(t)!=='front'&&t.chestQ))?'block':'none';}for(const [id,d] of Object.entries(D)){const el=$('#'+id);el.min=d.min;el.max=d.max;el.step=d.step;el.value=d.get();const lb=$('#'+id+'-lab');if(lb)lb.textContent=d.lab;$('#v-'+id).textContent=d.fmt(d.get());}ovUI();
   if(document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);}
 function fineSet(id,v){const d=fineDefs()[id];v=Math.max(d.min,Math.min(d.max,v));d.set(v);$('#'+id).value=v;$('#v-'+id).textContent=d.fmt(v);
   if(id==='size'||id==='py')dpiUI();if(id==='size'&&document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(id==='py'&&slot==='front'&&document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
@@ -1257,31 +1283,35 @@ $('#btn-dl-all').onclick=async()=>{
 };
 
 /* ---------- Etsy listing set ---------- */
-$('#btn-set').onclick=async()=>{
-  if(editMode){toast('Save or cancel the print area first.');return;}
-  if(!designs.front){toast('Upload a front design first.');return;}
-  if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
+function listingSteps(){
   const cur=curT();const baseId=cur&&cur.builtin?cur.id.replace(/[lr]$/,''):cur&&cur.id;
   let hero=templates.find(x=>x.id===baseId&&viewOf(x)==='front')||shown().find(x=>viewOf(x)==='front'&&!excluded.has(x.id));
-  if(!hero){toast('Pick a front photo first.');return;}
+  if(!hero)return null;
   const byId=id=>templates.find(x=>x.id===id);
   const L=byId(hero.id+'l'),R=byId(hero.id+'r');
   const steps=[[hero,'sq','hero'],[hero,'closeup','print-closeup']];
-  if(L&&designs.left)steps.push([L,'sq','left-sleeve']);
-  if(R&&designs.right)steps.push([R,'sq','right-sleeve']);
+  if(L&&(designs.left||designs.front))steps.push([L,'sq','left-side']);
+  if(R&&(designs.right||designs.front))steps.push([R,'sq','right-side']);
   if(L&&designs.left)steps.push([L,'closeup','sleeve-closeup']);
   const pool=shown().filter(x=>viewOf(x)==='front'&&x.id!==hero.id&&!excluded.has(x.id));
   const other=pool.filter(x=>x.group!==hero.group),same=pool.filter(x=>x.group===hero.group),mix=[];
   while((other.length||same.length)&&mix.length<9){if(other.length)mix.push(other.shift());if(same.length)mix.push(same.shift());}
   for(const x of mix){if(steps.length>=9)break;steps.push([x,'sq','model']);}
   steps.push([hero,'story','tiktok-9x16']);
+  return steps;}
+async function renderListing(zip,folder,label){const steps=listingSteps();if(!steps)throw new Error('Pick a front photo first.');let n=0;
+  for(const [t,k,lab] of steps){n++;$('#busy').textContent=(label?label+' · ':'')+'image '+n+' of '+steps.length+'…';const b=await renderFull(t,k);
+    zip.file(folder+String(n).padStart(2,'0')+'-'+lab+'-'+safeName(t.name)+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
+  return steps.length;}
+$('#btn-set').onclick=async()=>{
+  if(editMode){toast('Save or cancel the print area first.');return;}
+  if(!designs.front){toast('Upload a front design first.');return;}
+  if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
   busy(true);
-  try{const zip=new JSZip();let n=0;
-    for(const [t,k,label] of steps){n++;$('#busy').textContent='Rendering '+n+' of '+steps.length+'…';const b=await renderFull(t,k);
-      zip.file(String(n).padStart(2,'0')+'-'+label+'-'+safeName(t.name)+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
+  try{const zip=new JSZip();const n=await renderListing(zip,'');
     $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});await saveFile(safeName(baseName())+'-etsy-listing-set.zip',z);
-    toast(steps.length+' images, numbered in listing order.');
-  }catch(e){toast('Listing set failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
+    toast(n+' images, numbered in listing order.');
+  }catch(e){toast(e.message||'Listing set failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
 };
 
 /* ---------- batch designs ---------- */
@@ -1412,38 +1442,68 @@ async function pfLoadProducts(){
       const t=document.createElement('div');t.className='small';t.style.fontWeight='600';t.textContent=p.title;
       const pos=document.createElement('div');pos.className='small muted';pos.textContent=p.positions.map(x=>x.replace('_',' ')).join(', ')||'No artwork';
       const btn=document.createElement('button');btn.className='small primary';btn.textContent='Load into studio';btn.onclick=()=>pfLoadProduct(p.id,btn);
-      b.append(t,pos,btn);d.append(im,b);box.append(d);
+      const cb=document.createElement('label');cb.className='row small';cb.style.gap='6px';const ck=document.createElement('input');ck.type='checkbox';ck.checked=PFSEL.has(p.id);
+      ck.onchange=()=>{if(ck.checked)PFSEL.set(p.id,p.title);else PFSEL.delete(p.id);pfSelUI();};cb.append(ck,'Include in listing kits');
+      b.append(t,pos,btn,cb);d.append(im,b);box.append(d);
     }
   }catch(e){pfMsg(e.message);}
 }
 function b64Blob(b64,type){const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type});}
+async function pfFetchProduct(id,step){ // loads a product's artwork and Printify placement without touching the studio
+  const p=await pfCall('product',{shop_id:PF.shop,product_id:id});
+  const usable=p.placements.filter(x=>POS2SLOT[x.position]&&x.images.length&&x.area);
+  const out={p,usable,linked:{shop_id:PF.shop,product_id:p.id,title:p.title,parts:[]},slots:{},preview:false};
+  for(const pl of usable){
+    const im=pl.images[0],slotName=POS2SLOT[pl.position];if(step)step(pl.position.replace('_',' '));
+    const art=await pfCall('image',{shop_id:PF.shop,image_id:im.id,src:im.src||''});
+    const file=new File([b64Blob(art.data,art.type)],art.name||'printify-art.png',{type:art.type});
+    const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;if(art.preview)out.preview=true;
+    const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
+    const pl2={inches:wPx/300,rot:+im.angle||0,curve:0,yaw:0,bend:0};
+    if(slotName==='front'){pl2.top=(im.y*pl.area.height-hPx/2)/300;pl2.cx=(im.x-0.5)*pl.area.width/300;}
+    out.slots[slotName]={design:d,pl:pl2};
+    out.linked.parts.push({position:pl.position,slot:slotName,image_id:im.id,area:pl.area,imgW,imgH});
+  }
+  return out;}
+function pfApply(r){designs.front=designs.left=designs.right=null;
+  for(const [sl,v] of Object.entries(r.slots)){designs[sl]=v.design;Object.assign(PL[sl],v.pl);if(sl!=='front')delete PL[sl].cx;}
+  TS.on=true;designCache.key='';}
 async function pfLoadProduct(id,btn){
   btn.disabled=true;const old=btn.textContent;btn.textContent='Loading…';
   try{
-    const p=await pfCall('product',{shop_id:PF.shop,product_id:id});
-    const usable=p.placements.filter(x=>POS2SLOT[x.position]&&x.images.length&&x.area);
-    if(!usable.length){toast('This product has no front or sleeve artwork the studio can use.',4000);return;}
-    const linked={shop_id:PF.shop,product_id:p.id,title:p.title,parts:[]};
-    for(const pl of usable){
-      const im=pl.images[0],slotName=POS2SLOT[pl.position];
-      btn.textContent='Loading '+pl.position.replace('_',' ')+'…';
-      const art=await pfCall('image',{shop_id:PF.shop,image_id:im.id,src:im.src||''});
-      const file=new File([b64Blob(art.data,art.type)],art.name||'printify-art.png',{type:art.type});
-      const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;if(art.preview)toast('Printify only shared a preview of this artwork, so the mockup may look soft. Upload the original file in the Front slot for full quality.',6000);
-      designs[slotName]=d;
-      const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
-      PL[slotName].inches=wPx/300;PL[slotName].rot=+im.angle||0;PL[slotName].curve=0;PL[slotName].yaw=0;PL[slotName].bend=0;
-      if(slotName==='front'){PL.front.top=(im.y*pl.area.height-hPx/2)/300;PL.front.cx=(im.x-0.5)*pl.area.width/300;}
-      linked.parts.push({position:pl.position,slot:slotName,image_id:im.id,area:pl.area,imgW,imgH});
-    }
-    TS.on=true;LS.set('ts',TS);PF.linked=linked;pfLinkedUI();
-    setSlot(usable.some(x=>x.position==='front')?'front':POS2SLOT[usable[0].position]);designCache.key='';
+    const r=await pfFetchProduct(id,pos=>{btn.textContent='Loading '+pos+'…';});
+    if(!r.usable.length){toast('This product has no front or sleeve artwork the studio can use.',4000);return;}
+    if(r.preview)toast('Printify only shared a preview of this artwork, so the mockup may look soft. Upload the original file in the Front slot for full quality.',6000);
+    pfApply(r);LS.set('ts',TS);PF.linked=r.linked;pfLinkedUI();
+    setSlot(r.usable.some(x=>x.position==='front')?'front':POS2SLOT[r.usable[0].position]);
     go('studio');scheduleRender();scheduleGrid();updateDlCount();
-    const skipped=p.placements.filter(x=>!POS2SLOT[x.position]).map(x=>x.position.replace('_',' '));
-    toast('Loaded “'+p.title+'” with Printify placement.'+(skipped.length?' Not shown: '+skipped.join(', ')+'.':''),4500);
+    const skipped=r.p.placements.filter(x=>!POS2SLOT[x.position]).map(x=>x.position.replace('_',' '));
+    toast('Loaded “'+r.p.title+'” with Printify placement.'+(skipped.length?' Not shown: '+skipped.join(', ')+'.':''),4500);
   }catch(e){toast(e.message,5000);}
   finally{btn.disabled=false;btn.textContent=old;}
 }
+/* ---------- listing kits for many Printify products at once ---------- */
+const PFSEL=new Map();
+$('#pf-selall').onclick=()=>{$$('#pf-products input[type=checkbox]').forEach(c=>{if(!c.checked){c.checked=true;c.onchange();}});};
+$('#pf-selnone').onclick=()=>{PFSEL.clear();$$('#pf-products input[type=checkbox]').forEach(c=>c.checked=false);pfSelUI();};
+function pfSelUI(){$('#pf-kit').disabled=!PFSEL.size;$('#pf-kit').textContent=PFSEL.size?'Make listing kits for '+PFSEL.size+' product'+(PFSEL.size>1?'s':''):'Make listing kits';}
+$('#pf-kit').onclick=async()=>{
+  if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
+  if(!shown().some(x=>viewOf(x)==='front'&&!excluded.has(x.id))){toast('Pick at least one front photo in the studio first.');return;}
+  const keep={designs:{...designs},PL:JSON.parse(JSON.stringify(PL)),ts:TS.on,slot,linked:PF.linked};
+  busy(true);$('#pf-kit').disabled=true;const zip=new JSZip(),fails=[];let done=0,imgs=0;const list=[...PFSEL.entries()];
+  try{for(const [id,title] of list){done++;const lab='Product '+done+' of '+list.length;
+      try{$('#busy').textContent=lab+' · loading artwork…';const r=await pfFetchProduct(id);
+        if(!r.usable.length||!r.slots.front&&!r.slots.left&&!r.slots.right){fails.push(title+' (no usable artwork)');continue;}
+        pfApply(r);bindSlot('front');const folder=safeName(r.p.title)+'/';
+        imgs+=await renderListing(zip,folder,lab);
+        zip.file(folder+'listing.txt','Product: '+r.p.title+'\nPrintify product ID: '+r.p.id+'\nImages are numbered in Etsy listing order. 01 is the main photo.\n');
+      }catch(e){fails.push(title+' ('+(e.message||'failed')+')');}}
+    if(imgs){$('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});await saveFile('listing-kits-'+new Date().toISOString().slice(0,10)+'.zip',z);}
+    toast((done-fails.length)+' listing kit'+(done-fails.length===1?'':'s')+', '+imgs+' images.'+(fails.length?' Skipped: '+fails.join('; '):''),fails.length?8000:4500);
+  }finally{Object.assign(designs,keep.designs);for(const k of ['front','left','right'])PL[k]=keep.PL[k];TS.on=keep.ts;PF.linked=keep.linked;designCache.key='';setSlot(keep.slot);
+    $('#busy').textContent='Rendering…';busy(false);pfSelUI();scheduleRender();scheduleGrid();}
+};
 (()=>{const sp=$('#split');if(!sp)return;const rw=LS.get('rw',340);document.documentElement.style.setProperty('--rw',rw+'px');
   sp.addEventListener('pointerdown',e=>{e.preventDefault();sp.setPointerCapture(e.pointerId);sp.classList.add('drag');
     const mv=ev=>{const st=$('#studio-main').getBoundingClientRect();const w=Math.round(Math.max(280,Math.min(st.width-360,st.right-ev.clientX-2)));document.documentElement.style.setProperty('--rw',w+'px');};
