@@ -20,7 +20,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,sans-serif}
 h1,h2,h3{font-family:"Space Grotesk",Inter,sans-serif;margin:0;letter-spacing:-.01em}
-header{padding:18px 16px 8px;max-width:1180px;margin:0 auto;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+header{padding:18px 16px 8px;max-width:var(--appw,1180px);margin:0 auto;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .acct{margin-left:auto;position:relative;align-self:center}
 .acct-menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.15);min-width:240px;padding:6px;z-index:40;display:none}
 .acct-menu.on{display:block}
@@ -36,9 +36,9 @@ header{padding:18px 16px 8px;max-width:1180px;margin:0 auto;display:flex;align-i
 .dlist .di button{padding:5px 9px;font-size:12px}
 header h1{font-size:24px}
 header p{margin:0;color:var(--muted);font-size:13px}
-nav{max-width:1180px;margin:0 auto;padding:6px 16px 0;display:flex;gap:6px;overflow-x:auto}
+nav{max-width:var(--appw,1180px);margin:0 auto;padding:6px 16px 0;display:flex;gap:6px;overflow-x:auto}
 nav button{flex:0 0 auto}
-main{max-width:1180px;margin:0 auto;padding:12px 16px 60px}
+main{max-width:var(--appw,1180px);margin:0 auto;padding:12px 16px 60px}
 .tab{display:none}.tab.on{display:block}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
 .card+.card{margin-top:12px}
@@ -56,7 +56,7 @@ label.file input{display:none}
 label.file strong{font-size:14px}
 .studio{display:grid;gap:12px}
 @media(min-width:900px){.studio{grid-template-columns:minmax(0,1fr) 340px;align-items:start}
-.studio.panes{height:calc(100vh - var(--studio-top,0px) - 12px);grid-template-columns:minmax(0,1fr) 10px var(--rw,340px);gap:4px}
+.studio.panes{height:calc(100vh - var(--studio-top,0px) - 12px);grid-template-columns:10px minmax(0,1fr) 10px var(--rw,340px) 10px;gap:4px}
 .studio.panes>.split{cursor:col-resize;overflow:hidden;border-radius:5px;display:flex;align-items:center;justify-content:center}
 .studio.panes>.split::after{content:'';width:4px;height:48px;border-radius:2px;background:var(--line,#ccc)}
 .studio.panes>.split:hover::after,.studio.panes>.split.drag::after{background:var(--accent,#2563eb)}
@@ -148,6 +148,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     </div>
   </div>
   <div id="studio-main" class="studio" style="display:none">
+    <div class="split edge" id="edgeL" title="Drag to widen the studio · double-click for full width"></div>
     <div>
       <div class="card" style="padding:10px">
         <div class="stage">
@@ -286,6 +287,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="note" id="vid-note" style="display:none"></div>
       </div>
     </div>
+    <div class="split edge" id="edgeR" title="Drag to widen the studio · double-click for full width"></div>
   </div>
 </section>
 
@@ -1424,7 +1426,17 @@ async function pfLoadProduct(id,btn){
     const mv=ev=>{const st=$('#studio-main').getBoundingClientRect();const w=Math.round(Math.max(280,Math.min(st.width-360,st.right-ev.clientX-2)));document.documentElement.style.setProperty('--rw',w+'px');};
     const up=ev=>{sp.classList.remove('drag');sp.removeEventListener('pointermove',mv);sp.removeEventListener('pointerup',up);LS.set('rw',parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rw')));scheduleRender();};
     sp.addEventListener('pointermove',mv);sp.addEventListener('pointerup',up);});
-  sp.addEventListener('dblclick',()=>{document.documentElement.style.setProperty('--rw','340px');LS.set('rw',340);});})();
+  sp.addEventListener('dblclick',()=>{document.documentElement.style.setProperty('--rw','340px');LS.set('rw',340);});
+  // outer edges widen the whole studio (the page is centred, so it grows on both sides)
+  const de=document.documentElement,setW=w=>{w=Math.round(Math.max(900,Math.min(innerWidth,w)));de.style.setProperty('--appw',w>=innerWidth-4?'100vw':w+'px');return w;};
+  const aw=LS.get('appw',1180);setW(aw>=99999?innerWidth:aw);
+  for(const id of ['edgeL','edgeR']){const ed=$('#'+id);
+    ed.addEventListener('pointerdown',e=>{e.preventDefault();ed.setPointerCapture(e.pointerId);ed.classList.add('drag');let last=null;
+      const mv=ev=>{last=setW(Math.abs(ev.clientX-innerWidth/2)*2+40);requestAnimationFrame(sizePanes);};
+      const up=()=>{ed.classList.remove('drag');ed.removeEventListener('pointermove',mv);ed.removeEventListener('pointerup',up);if(last)LS.set('appw',last>=innerWidth-4?99999:last);scheduleRender();};
+      ed.addEventListener('pointermove',mv);ed.addEventListener('pointerup',up);});
+    ed.addEventListener('dblclick',()=>{const full=getComputedStyle(de).getPropertyValue('--appw').trim()==='100vw';const w=full?1180:innerWidth;setW(w);LS.set('appw',full?1180:99999);requestAnimationFrame(sizePanes);scheduleRender();});}
+})();
 function sizePanes(){const st=$('#studio-main');if(!st)return;const on=innerWidth>=900;st.classList.toggle('panes',on);
   if(on&&st.offsetParent){const de=document.documentElement,top=st.getBoundingClientRect().top+scrollY;de.style.setProperty('--studio-top',top+'px');
     const over=de.scrollHeight-innerHeight;if(over>0)de.style.setProperty('--studio-top',(top+over)+'px');}}
