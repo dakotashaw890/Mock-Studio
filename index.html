@@ -408,6 +408,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".4" max="1" step=".05" value=".85" style="width:110px"></label>
+      <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
       <label class="row small" style="gap:4px" title="Writes a new person description (age, ethnicity, build, hair, facial hair) for every photo, so models don't all look alike"><input type="checkbox" id="cf-vary" checked> Different person each photo</label>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
@@ -945,7 +946,7 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,setId:m.setId||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -1392,18 +1393,20 @@ function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
   const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
   return woman?`${an(pick(VARY.bodyW))} ${eth==='Latino'?'Latina':eth} woman in her ${age} with ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
-function cfText(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
-  const m=$('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
+function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
+  return $('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));}
+function cfText(ref,person){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
+  const m=person||$('#cf-vary').checked?(person||randomPerson(want==='woman')):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
   let p=buildPrompt(m);
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
   const side=viewOf(ref)!=='front';
   return p+(side?'\n\nShown in profile from the side, the short sleeve and the side of the chest clearly visible.':'\n\nNothing covers the chest.');}
-async function cfOne(ref,str,n){const base=cfBase();
+async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   const pb=await (await fetch('vendor/poses/'+ref.id+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+ref.id+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the pose image.');const u=await up.json();
-  const seed=Math.floor(Math.random()*2**48);
-  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
+  const seed=o.seed||Math.floor(Math.random()*2**48);
+  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
   const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
   const id=j.prompt_id;let out=null;
   for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
@@ -1411,15 +1414,23 @@ async function cfOne(ref,str,n){const base=cfBase();
     if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
   if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
   const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
-  const name=(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
+  const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?'front':viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
   const f=new File([ib],out.filename,{type:ib.type||'image/png'});
   const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=ref.sleeves[k].quad;
-  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:ref.quad.map(q=>({...q})),seedSleeves:sl,sex:ref.group,pose:ref.id,quiet:true});
+  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:ref.quad.map(q=>({...q})),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,quiet:true});
   return {newId,url:URL.createObjectURL(ib),name};}
 $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#cf-go').disabled=true;$('#cf-stop').style.display='';
-  const refs=[...CF.sel].map(id=>templates.find(t=>t.id===id)).filter(Boolean),per=+$('#cf-per').value,str=+$('#cf-str').value,total=refs.length*per;let done=0,fails=0;
-  try{for(const ref of refs)for(let k=1;k<=per;k++){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
-      try{const r=await cfOne(ref,str,k);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
+  const per=+$('#cf-per').value,str=+$('#cf-str').value,setMode=$('#cf-set').checked;
+  const jobs=[];// [ref, opts]
+  if(setMode){const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))];
+    for(const b0 of bases)for(let k=1;k<=per;k++){const front=templates.find(t=>t.id===b0);if(!front)continue;
+      const o={person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
+      o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
+      for(const id of [b0,b0+'l',b0+'r']){const r=templates.find(t=>t.id===id);if(r)jobs.push([r,o,k]);}}}
+  else for(const id of CF.sel){const r=templates.find(t=>t.id===id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{},k]);}
+  const total=jobs.length;let done=0,fails=0;
+  try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
+      try{const r=await cfOne(ref,str,k,o);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
         const sp=document.createElement('span');sp.textContent=r.name;d.append(im,sp);d.onclick=()=>{curId=r.newId;go('studio');renderThumbs();scheduleRender();};$('#cf-out').prepend(d);}
       catch(e){fails++;CF.lastErr=e.message;$('#cf-log').textContent=e.message;if(/reach|fetch/i.test(e.message))break;}}
     $('#cf-log').textContent=(done-fails)+' new model photo'+(done-fails===1?'':'s')+' added to Model photos'+(fails?', '+fails+' failed ('+CF.lastErr+')':'')+'.'+(done-fails?' Click one to open it in the studio.':'');
@@ -1495,7 +1506,8 @@ function listingSteps(){
   let hero=templates.find(x=>x.id===baseId&&viewOf(x)==='front')||shown().find(x=>viewOf(x)==='front'&&!excluded.has(x.id));
   if(!hero)return null;
   const byId=id=>templates.find(x=>x.id===id);
-  const L=byId(hero.id+'l'),R=byId(hero.id+'r');
+  const sib=v=>hero.setId?templates.find(x=>x.setId===hero.setId&&viewOf(x)===v):null;
+  const L=sib('left')||byId(hero.id+'l'),R=sib('right')||byId(hero.id+'r');
   const steps=[[hero,'sq','hero'],[hero,'closeup','print-closeup']];
   if(L&&(designs.left||designs.front))steps.push([L,'sq','left-side']);
   if(R&&(designs.right||designs.front))steps.push([R,'sq','right-side']);
