@@ -410,7 +410,6 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".5" max="1.2" step=".05" value="1" style="width:110px"> <span id="cf-strv">1.00</span></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
-      <label class="row small" style="gap:4px" title="Writes a new person description (age, ethnicity, build, hair, facial hair) for every photo, so models don't all look alike"><input type="checkbox" id="cf-vary" checked> Different person each photo</label>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
     <div class="small muted" id="cf-log" style="margin-top:8px"></div>
@@ -1354,7 +1353,8 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
     $('#cf-st').textContent=names.includes('Z-Image-Turbo-Fun-Controlnet')?'✓ Connected to ComfyUI':'Connected, but the pose model (Z-Image-Turbo-Fun-Controlnet-Union) wasn\'t found in model_patches';}
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
-for(const id of ['cf-vary','cf-set','cf-str','cf-per','cf-arms']){const el=$('#'+id),k='cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
+try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
+for(const id of ['cf-set','cf-str','cf-per','cf-arms']){const el=$('#'+id),k='cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -1399,9 +1399,9 @@ function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
 function cfArms(){const v=$('#cf-arms').value;return v==='mix'?['','hips','hip','pocket','hair','hip','pocket'][Math.floor(Math.random()*7)]:v;}
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
-  return $('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));}
+  return randomPerson(want==='woman');}
 function cfText(ref,person){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
-  const m=person||$('#cf-vary').checked?(person||randomPerson(want==='woman')):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
+  const m=person||randomPerson(want==='woman');const _unused=(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
   let p=buildPrompt(m);
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
@@ -1425,8 +1425,9 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
   const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?'front':viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
   const f=new File([ib],out.filename,{type:ib.type||'image/png'});
-  const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=ref.sleeves[k].quad;
-  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:ref.quad.map(q=>({...q})),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,quiet:true});
+  const PS=.9,tq=q=>q.map(v=>({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre
+  const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=tq(ref.sleeves[k].quad);
+  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:tq(ref.quad),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,quiet:true});
   return {newId,url:URL.createObjectURL(ib),name};}
 $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#cf-go').disabled=true;$('#cf-stop').style.display='';
   const per=+$('#cf-per').value,str=+$('#cf-str').value,setMode=$('#cf-set').checked;
