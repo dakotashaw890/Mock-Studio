@@ -116,7 +116,11 @@ Deno.serve(async (req) => {
         position: ph.position, area: sizes[ph.position] || null,
         images: ph.images.map((im: any) => ({ id: im.id, name: im.name, width: im.width, height: im.height, x: im.x, y: im.y, scale: im.scale, angle: im.angle, src: im.src || null })),
       }));
-      return json({ id: p.id, title: p.title, blueprint_id: p.blueprint_id, print_provider_id: p.print_provider_id, is_locked: !!p.is_locked, placements });
+      // shirt colors this listing actually sells (enabled variants only)
+      const colorOpt = (p.options || []).find((o: any) => o.type === "color");
+      const enabledOpt = new Set((p.variants || []).filter((x: any) => x.is_enabled).flatMap((x: any) => x.options || []));
+      const colors = colorOpt ? (colorOpt.values || []).filter((c: any) => enabledOpt.has(c.id)).map((c: any) => ({ name: c.title, hex: (c.colors || [])[0] || null })) : [];
+      return json({ id: p.id, title: p.title, blueprint_id: p.blueprint_id, print_provider_id: p.print_provider_id, is_locked: !!p.is_locked, placements, colors });
     }
     if (action === "image") {
       const id = String(body.image_id || "").replace(/[^a-zA-Z0-9]/g, "");

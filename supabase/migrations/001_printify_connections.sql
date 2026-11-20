@@ -36,3 +36,6 @@ create table if not exists public.design_library (
   created_at timestamptz not null default now(), unique (user_id, name));
 alter table public.design_library enable row level security;
 -- policies: own rows only (select/insert/update/delete); storage bucket 'designs' private, files under <user id>/
+
+-- model photo sync: user-added/generated model photos and per-color shirt versions (private bucket 'models', files under <user id>/)
+-- tables model_photos (user_id,id,meta,path,deleted,updated_at) and model_colors (user_id,model_id,hex,path); RLS own rows only

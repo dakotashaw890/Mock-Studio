@@ -72,7 +72,7 @@ label.file strong{font-size:14px}
 .gtile.on{border-color:var(--accent)}.gtile.off canvas{opacity:.35}
 .gtile canvas{width:100%;display:block;aspect-ratio:4/5;object-fit:cover}
 .gtile label{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;border-radius:7px;padding:3px 6px;font-size:12px;display:flex;gap:4px;align-items:center}
-.swrow{display:flex;flex-wrap:wrap;gap:6px}.sw{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid var(--line,#ccc);cursor:pointer}.sw.on{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+.swrow{display:flex;flex-wrap:wrap;gap:6px}.sw{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid var(--line,#ccc);cursor:pointer}.sw.on{outline:2px solid var(--accent,#2563eb);outline-offset:2px}.sw{position:relative}.sw.real::after{content:'';position:absolute;right:-3px;bottom:-3px;width:9px;height:9px;border-radius:50%;background:#16a34a;border:2px solid #fff}.sw.sells::before{content:'▲';position:absolute;left:50%;top:-11px;transform:translateX(-50%);font-size:8px;color:var(--accent,#2563eb)}
 .frow{display:flex;gap:6px;align-items:center}.frow input[type=range]{flex:1}.nb{padding:2px 9px;min-width:30px;font-weight:700}
 .qtile .qb{position:absolute;top:6px;left:6px;border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600;color:#fff}
 .gtile span{display:block;font-size:11px;color:var(--muted);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -197,6 +197,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <h2>Shirt color</h2>
         <div class="swrow" id="shirt-sw"></div>
         <div class="row small" style="gap:8px;align-items:center;margin-top:6px"><span id="shirt-name" class="muted"></span><label class="row small" style="gap:4px;margin-left:auto">Custom <input type="color" id="shirt-custom" value="#3355aa" style="width:34px;height:24px;padding:0;border:0"></label></div>
+        <div class="row small" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button class="small" id="shirt-make" title="Uses ComfyUI on your PC to repaint this model's shirt (front and both sides) in your core colors. Real photos look better than the recolor preview.">Make real colors for this model</button><button class="small" id="shirt-stop" style="display:none">Cancel</button><span id="shirt-gen" class="muted"></span></div>
+        <p class="small muted" style="margin:4px 0 0">Swatches with a dot have a real photo for this model. Others show a recolor preview. ▲ = a color on your loaded Printify listing.</p>
       </div>
       <div class="card">
         <h2>1. Your designs</h2>
@@ -408,6 +410,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
+      <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors" checked> Also make real shirt colors</label>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
     <div class="small muted" id="cf-log" style="margin-top:8px"></div>
@@ -450,6 +453,8 @@ const PREVIEW_MAX = 900, FULL_MAX = 2000, UPLOAD_MAX = 2400;
 const DEFAULTS = {size:.85, y:.04, x:0, fold:.45, shade:.75, opacity:.94};
 
 let memoryMode=false;
+var colorUrls=new Map(),colorImgCache=new Map();const colKey=(id,hex)=>id+'|'+hex;
+var CQ=window.CQ={list:[],run:false,cur:null,done:0,fail:0,err:'',cancel:false,paused:false};
 let templates=[]; let curId=null; let kindFilter='all';
 const imgCache=new Map(), packCache=new Map(), localImgs=new Map(), colorPacks=new Map(), maskImgs=new Map();
 let design=null; // active slot's design
@@ -510,10 +515,16 @@ function makePack(img,max,rc){
 const SHIRT_COLORS=[['Black',''],['White','#f3f3f0'],['Athletic Heather','#b4b3b0'],['Dark Grey Heather','#48494d'],['Asphalt','#3c3d41'],['Navy','#1e2843'],['Royal','#2a4c9e'],['Red','#b11f2b'],['Maroon','#5a1f2b'],['Military Green','#4b5338'],['Forest','#24382a'],['Natural','#e8ddc6'],['Pink','#f0b4c3'],['Mustard','#d39b2a']];
 let SHIRT=null;
 function shirtHex(){if(!SHIRT)SHIRT=LS.get('shirt',{hex:''});return SHIRT.hex||'';}
-function setShirt(hex,name){SHIRT={hex:hex||'',name:name||''};LS.set('shirt',SHIRT);colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();}
-function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';
-  for(const [n,hex] of SHIRT_COLORS){const b=document.createElement('button');b.className='sw'+(cur===hex?' on':'');b.title=n;b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
-  $('#shirt-name').textContent=(SHIRT_COLORS.find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];if(cur)$('#shirt-custom').value=cur;}
+function setShirt(hex,name){SHIRT={hex:hex||'',name:name||''};LS.set('shirt',SHIRT);colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();
+  const t=curT();if(hex&&t&&!colorUrls.has(colKey(t.id,hex))&&!t.scene)cfAlive().then(ok=>{if(ok)colEnqueue(setMates(t),[{hex,name:name||hex}]);else if(!CQ.list.length&&!CQ.run){CQ.paused=true;colUI();}});}
+function allColors(){const out=SHIRT_COLORS.map(c=>[...c]);for(const c of LS.get('pfcolors',[])){const hx=normHex(c.hex);if(hx===null)continue;
+    const ex=out.find(o=>o[1]===hx||o[0].toLowerCase()===String(c.name).toLowerCase());if(!ex)out.push([c.name,hx]);}return out;}
+function normHex(h){if(!h||!/^#?[0-9a-f]{6}$/i.test(h))return null;h='#'+h.replace('#','').toLowerCase();const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return (.299*r+.587*g+.114*b)/255<.09?'':h;}
+function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';const t=curT(),sells=new Set(LS.get('pfcolors',[]).map(c=>normHex(c.hex)));
+  for(const [n,hex] of allColors()){const b=document.createElement('button');const real=!hex||(t&&colorUrls.has(colKey(t.id,hex)));
+    b.className='sw'+(cur===hex?' on':'')+(real?' real':'')+(sells.has(hex)?' sells':'');b.title=n+(hex&&real?' (real photo)':hex?' (preview: recolored)':'')+(sells.has(hex)?' · on your listing':'');b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
+  const nm=(allColors().find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];
+  $('#shirt-name').textContent=nm+(cur&&t?(colorUrls.has(colKey(t.id,cur))?' · real photo':' · recolor preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
 async function maskImage(t){if(maskImgs.has(t.id))return maskImgs.get(t.id);let m=null;
   if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}}maskImgs.set(t.id,m);return m;}
 async function recolorSpec(t,hex){return {hex,mask:await maskImage(t),t};}
@@ -917,17 +928,19 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
 let idb=null;
-function openIDB(){return new Promise(res=>{try{const r=indexedDB.open('mockup-studio',1);r.onupgradeneeded=()=>r.result.createObjectStore('templates',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
-function idbTx(mode,fn){return new Promise((res,rej)=>{if(!idb)return rej(new Error('nostore'));const tx=idb.transaction('templates',mode);const r=fn(tx.objectStore('templates'));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
+function openIDB(){return new Promise(res=>{try{const r=indexedDB.open('mockup-studio',2);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('templates'))d.createObjectStore('templates',{keyPath:'id'});if(!d.objectStoreNames.contains('colors'))d.createObjectStore('colors',{keyPath:'k'});};r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
+function idbTx(mode,fn,store){store=store||'templates';return new Promise((res,rej)=>{if(!idb)return rej(new Error('nostore'));const tx=idb.transaction(store,mode);const r=fn(tx.objectStore(store));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
+const colTx=(mode,fn)=>idbTx(mode,fn,'colors');
+async function tplPatch(id,patch){const r=await idbTx('readonly',st=>st.get(id));if(!r)return;await idbTx('readwrite',st=>st.put({...r,...patch,updatedAt:Date.now()}));mdlQueue(id);}
 function tplSrc(t){ if(localImgs.has(t.id))return localImgs.get(t.id); return t.file; }
 async function tplImage(t){ if(imgCache.has(t.id))return imgCache.get(t.id); const img=await loadImage(tplSrc(t)); imgCache.set(t.id,img); return img; }
 async function viewPack(t){const col=shirtHex();if(!col)return previewPack(t);const k=t.id+col;if(colorPacks.has(k))return colorPacks.get(k);
-  const p=makePack(await tplImage(t),PREVIEW_MAX,await recolorSpec(t,col));colorPacks.set(k,p);return p;}
+  const s=await shirtSrc(t);const p=makePack(s.img,PREVIEW_MAX,s.rc);colorPacks.set(k,p);return p;}
 async function previewPack(t){ if(packCache.has(t.id))return packCache.get(t.id); const p=makePack(await tplImage(t),PREVIEW_MAX); packCache.set(t.id,p); return p; }
 function defaultQuad(kind){
   const x0=kind==='hoodie'?.34:.32, x1=kind==='hoodie'?.66:.68, y0=kind==='hoodie'?.33:.3, y1=kind==='hoodie'?.6:.64;
@@ -941,6 +954,7 @@ async function initStore(){
   Object.assign(TS,LS.get('ts',{}));tsUI();
   try{const r=await fetch('models/models.json');builtins=await r.json();}catch(e){builtins=[];toast('Couldn\'t load the built-in models.');}
   idb=await openIDB();
+  if(idb)await colLoad();
   if(!idb){memoryMode=true;setStoreStatus('This browser won\'t save photos you add. They\'ll disappear when you close the page.');}
   await reload();
 }
@@ -969,7 +983,7 @@ async function addTemplate(file,name,kind,view,extra){
   localImgs.set(id,URL.createObjectURL(blob));
   if(rec.view==='front'&&!scene){try{toast('Reading the body position…');rec.body=await detectBody(c);}catch(e){rec.body=null;}}
   if(memoryMode)memMine.push({...rec,group:'mine'});
-  else await idbTx('readwrite',st=>st.put({...rec,blob}));
+  else{await idbTx('readwrite',st=>st.put({...rec,blob,updatedAt:Date.now()}));mdlQueue(id,true);}
   if(extra&&extra.quiet){await reload();const nt=templates.find(x=>x.id===id);if(nt)await ensureFit(nt);return id;}
   await reload(); curId=id; const nt=curT(); if(nt)await ensureFit(nt); renderThumbs(); startEdit();
 }
@@ -979,7 +993,7 @@ async function saveArea(t,s,quad){
   const q=quad.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));t.sleeves=t.sleeves||{};t.sleeves[s]={quad:q};
   if(t.builtin){const o=LS.get('quads',{});o[t.id+':'+s]=q;LS.set('quads',o);t.custom=true;}
   else{t.manual={...(t.manual||{}),[s]:true};
-    if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,sleeves:t.sleeves,manual:t.manual}));}
+    if(!memoryMode)await tplPatch(t.id,{sleeves:t.sleeves,manual:t.manual});
     else{const m=memMine.find(x=>x.id===t.id);if(m){m.sleeves=t.sleeves;m.manual=t.manual;}}}
 }
 async function saveQuad(t,quad){
@@ -987,7 +1001,7 @@ async function saveQuad(t,quad){
   if(viewOf(t)==='front'){fitRes.delete(t.id);t._fitted=false;}
   if(t.builtin){const q=LS.get('quads',{});q[t.id]=t.quad;LS.set('quads',q);t.custom=true;}
   else{t.manual={...(t.manual||{}),[viewOf(t)==='front'?'front':viewOf(t)]:true};
-    if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,quad:t.quad,manual:t.manual}));}
+    if(!memoryMode)await tplPatch(t.id,{quad:t.quad,manual:t.manual});
     else{const m=memMine.find(x=>x.id===t.id);if(m){m.quad=t.quad;m.manual=t.manual;}}}
   renderList();
 }
@@ -995,13 +1009,13 @@ async function resetQuad(t){const tu=LS.get('turns',{});delete tu[t.id+':left'];
 async function renameTemplate(t,name){
   t.name=name;
   if(t.builtin){const n=LS.get('names',{});n[t.id]=name;LS.set('names',n);}
-  else if(!memoryMode){const r=await idbTx('readonly',st=>st.get(t.id));if(r)await idbTx('readwrite',st=>st.put({...r,name}));}
+  else if(!memoryMode)await tplPatch(t.id,{name});
   else{const m=memMine.find(x=>x.id===t.id);if(m)m.name=name;}
   renderThumbs();
 }
 async function deleteTemplate(t){
   if(t.builtin){const h=LS.get('hidden',[]);h.push(t.id);LS.set('hidden',h);}
-  else if(!memoryMode)await idbTx('readwrite',st=>st.delete(t.id));
+  else if(!memoryMode){await idbTx('readwrite',st=>st.delete(t.id));await colDropModel(t.id);mdlTomb(t.id);}
   else memMine=memMine.filter(x=>x.id!==t.id);
   localImgs.delete(t.id); if(curId===t.id)curId=null; await reload();
 }
@@ -1242,7 +1256,7 @@ function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)re
 const excluded=new Set(LS.get('excluded',[]));
 let gridOn=false, gridJob=0, gridT;
 const smallPacks=new Map();
-async function smallPack(t){if(smallPacks.has(t.id))return smallPacks.get(t.id);const p=makePack(await tplImage(t),360,shirtHex()?await recolorSpec(t,shirtHex()):null);smallPacks.set(t.id,p);return p;}
+async function smallPack(t){if(smallPacks.has(t.id))return smallPacks.get(t.id);const s=await shirtSrc(t);const p=makePack(s.img,360,s.rc);smallPacks.set(t.id,p);return p;}
 function updateDlCount(){const n=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id)).length;$('#btn-dl-all').textContent='Download selected ('+n+') .zip';}
 function scheduleGrid(){if(!gridOn)return;clearTimeout(gridT);gridT=setTimeout(renderGrid,350);}
 async function renderGrid(){
@@ -1360,7 +1374,7 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
-for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg']){const el=$('#'+id),k='cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
+for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg','cf-colors']){const el=$('#'+id),k='cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -1452,11 +1466,12 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
       o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
       for(const id of [b0,b0+'l',b0+'r']){const r=templates.find(t=>t.id===id);if(r)jobs.push([r,o,k]);}}}
   else for(const id of CF.sel){const r=templates.find(t=>t.id===id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms()},k]);}
-  const total=jobs.length;let done=0,fails=0;
+  const total=jobs.length;let done=0,fails=0;const newIds=[];
   try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
-      try{const r=await cfOne(ref,str,k,o);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
+      try{const r=await cfOne(ref,str,k,o);newIds.push(r.newId);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
         const sp=document.createElement('span');sp.textContent=r.name;d.append(im,sp);d.onclick=()=>{curId=r.newId;go('studio');renderThumbs();scheduleRender();};$('#cf-out').prepend(d);}
       catch(e){fails++;CF.lastErr=e.message;$('#cf-log').textContent=e.message;if(/reach|fetch/i.test(e.message))break;}}
+    if($('#cf-colors').checked&&newIds.length){colEnqueue(newIds.map(id=>templates.find(t=>t.id===id)).filter(Boolean),coreColors());}
     $('#cf-log').textContent=(done-fails)+' new model photo'+(done-fails===1?'':'s')+' added to Model photos'+(fails?', '+fails+' failed ('+CF.lastErr+')':'')+'.'+(done-fails?' Click one to open it in the studio.':'');
   }finally{CF.busy=false;$('#cf-stop').style.display='none';renderThumbs();cfRenderPoses();}};
 $('#cf-stop').onclick=()=>{CF.stop=true;$('#cf-log').textContent='Stopping after the current photo…';};
@@ -1464,7 +1479,7 @@ $('#cf-stop').onclick=()=>{CF.stop=true;$('#cf-log').textContent='Stopping after
 const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
 async function renderFull(t,sizeKey){const o=await renderCanvas(t,sizeKey);return canvasBlob(o,'image/jpeg',.92);}
 async function renderCanvas(t,sizeKey){
-  await ensureFit(t);const img=await tplImage(t);const pack=makePack(img,FULL_MAX,shirtHex()?await recolorSpec(t,shirtHex()):null);
+  await ensureFit(t);const ss=await shirtSrc(t);const img=ss.img;const pack=makePack(img,FULL_MAX,ss.rc);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;renderTo(pack,t,c.getContext('2d'));
   const key=sizeKey||$('#out-size').value;
   if(key==='closeup'){const q=t.quad.map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
@@ -1717,7 +1732,7 @@ async function pfLoadProduct(id,btn){
     const r=await pfFetchProduct(id,pos=>{btn.textContent='Loading '+pos+'…';});
     if(!r.usable.length){toast('This product has no front or sleeve artwork the studio can use.',4000);return;}
     if(r.preview)toast('Printify only shared a preview of this artwork, so the mockup may look soft. Upload the original file in the Front slot for full quality.',6000);
-    pfApply(r);LS.set('ts',TS);PF.linked=r.linked;pfLinkedUI();
+    pfApply(r);LS.set('ts',TS);PF.linked=r.linked;pfLinkedUI();if(r.p.colors&&r.p.colors.length){LS.set('pfcolors',r.p.colors);shirtUI();}
     setSlot(r.usable.some(x=>x.position==='front')?'front':POS2SLOT[r.usable[0].position]);
     go('studio');scheduleRender();scheduleGrid();updateDlCount();
     const skipped=r.p.placements.filter(x=>!POS2SLOT[x.position]).map(x=>x.position.replace('_',' '));
@@ -1821,8 +1836,114 @@ async function applyCloudState(){OVM=null;SHIRT=null;colorPacks.clear();smallPac
   Object.assign(WM,LS.get('wm',{}));const wi=LS.get('wmimg',null);WM.img=wi?await loadImage(wi).catch(()=>null):null;wmUI();
   await reload();for(const v of ['front','left','right'])if(designs[v])loadPlacement(v);bindSlot(slot);syncSliders();tsUI();renderThumbs();scheduleRender();scheduleGrid();}
 async function cloudLogin(ses){const uid=ses&&ses.user?ses.user.id:null;if(uid===CS.uid)return;CS.uid=uid;if(!uid){CS.state='off';syncUI();return;}
-  try{await cloudPull();}catch(e){CS.state='error';syncUI();}}
-addEventListener('focus',()=>{if(CS.uid&&Date.now()-CS.lastPull>20000)cloudPull().catch(()=>{});});
+  try{await cloudPull();}catch(e){CS.state='error';syncUI();}
+  mdlSync();}
+
+/* ---------- real shirt colors: ComfyUI repaints the shirt; photos sync to the account ---------- */
+async function colLoad(){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(!colorUrls.has(c.k))colorUrls.set(c.k,URL.createObjectURL(c.blob));}catch(e){}}
+async function colorImg(id,hex){const k=colKey(id,hex);if(!colorUrls.has(k))return null;if(colorImgCache.has(k))return colorImgCache.get(k);
+  try{const im=await loadImage(colorUrls.get(k));colorImgCache.set(k,im);return im;}catch(e){return null;}}
+async function shirtSrc(t){const hex=shirtHex();if(hex){const im=await colorImg(t.id,hex);if(im)return {img:im,rc:null};}
+  return {img:await tplImage(t),rc:hex?await recolorSpec(t,hex):null};}
+async function colPut(id,hex,blob,push){const k=colKey(id,hex);await colTx('readwrite',st=>st.put({k,model_id:id,hex,blob}));
+  if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);
+  colorPacks.clear();smallPacks.clear();if(push)colPush({k,model_id:id,hex,blob});}
+async function colDropModel(id){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(c.model_id===id){await colTx('readwrite',st=>st.delete(c.k));colorUrls.delete(c.k);colorImgCache.delete(c.k);}}catch(e){}}
+function setMates(t){if(t.setId)return templates.filter(x=>x.setId===t.setId);
+  if(t.builtin){const b=t.id.replace(/[lr]$/,'');return templates.filter(x=>x.builtin&&x.id.replace(/[lr]$/,'')===b);}return [t];}
+const CORE_DEFAULT=[['White','#f3f3f0'],['Athletic Heather','#b4b3b0'],['Dark Grey Heather','#48494d'],['Navy','#1e2843'],['Military Green','#4b5338']];
+function coreColors(){const pf=LS.get('pfcolors',[]).map(c=>({name:c.name,hex:normHex(c.hex)})).filter(c=>c.hex);
+  const seen=new Set();const list=(pf.length?pf:CORE_DEFAULT.map(([name,hex])=>({name,hex}))).filter(c=>!seen.has(c.hex)&&seen.add(c.hex));return list.slice(0,8);}
+const COLOR_WORDS={'#f3f3f0':'solid bright white','#b4b3b0':'athletic heather, a light speckled heather gray melange','#48494d':'dark grey heather, a charcoal heather melange','#3c3d41':'asphalt, a solid dark charcoal gray',
+  '#1e2843':'solid navy blue','#2a4c9e':'solid royal blue','#b11f2b':'solid red','#5a1f2b':'solid maroon','#4b5338':'solid military green, a muted olive green','#24382a':'solid dark forest green',
+  '#e8ddc6':'natural, a soft off-white cream','#f0b4c3':'solid light pink','#d39b2a':'solid mustard yellow'};
+CF.aliveAt=0;
+async function cfAlive(){if(CF.aliveAt&&Date.now()-CF.aliveAt<30000)return true;
+  try{const ac=new AbortController();const to=setTimeout(()=>ac.abort(),2500);const r=await fetch(cfBase()+'/system_stats',{signal:ac.signal});clearTimeout(to);if(r.ok){CF.aliveAt=Date.now();return true;}}catch(e){}return false;}
+async function tplBlob(t){if(!t.builtin&&idb){const r=await idbTx('readonly',st=>st.get(t.id));if(r&&r.blob)return r.blob;}return await (await fetch(tplSrc(t))).blob();}
+function colGraph(img,prompt,seed){return {
+  "1":{class_type:"LoadImage",inputs:{image:img}},
+  "2":{class_type:"UNETLoader",inputs:{unet_name:"qwen_image_2.1_int8_convrot.safetensors",weight_dtype:"default"}},
+  "3":{class_type:"QwenImage21Cache",inputs:{device:"auto",dtype:"default",model:["2",0]}},
+  "4":{class_type:"CLIPLoader",inputs:{clip_name:"qwen3vl_8b_int8_convrot.safetensors",type:"qwen_image",device:"default"}},
+  "5":{class_type:"VAELoader",inputs:{vae_name:"qwen_image_2.1_vae_bf16.safetensors"}},
+  "6":{class_type:"TextEncodeQwenImage21",inputs:{prompt,negative_prompt:"",resolution:0,clip:["4",0],"images.image_1":["1",0],vae:["5",0]}},
+  "7":{class_type:"KSampler",inputs:{seed,steps:25,cfg:1,sampler_name:"euler",scheduler:"simple",denoise:1,model:["3",0],positive:["6",0],negative:["6",1],latent_image:["6",2]}},
+  "8":{class_type:"VAEDecode",inputs:{samples:["7",0],vae:["5",0]}},
+  "9":{class_type:"SaveImage",inputs:{filename_prefix:"mockup-studio/colors/shirt",images:["8",0]}}};}
+async function colCheck(a,b){ // the edit must keep everything but the shirt: same framing, small change elsewhere
+  if(Math.abs(a.naturalWidth/a.naturalHeight-b.naturalWidth/b.naturalHeight)>.02)return {ok:false,why:'framing changed'};
+  const w=256,h=Math.round(256*a.naturalHeight/a.naturalWidth);const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});
+  x.drawImage(a,0,0,w,h);const da=x.getImageData(0,0,w,h).data;x.drawImage(b,0,0,w,h);const db=x.getImageData(0,0,w,h).data;
+  let big=0,n=0,sum=0;for(let i=0;i<da.length;i+=4){const d=(Math.abs(da[i]-db[i])+Math.abs(da[i+1]-db[i+1])+Math.abs(da[i+2]-db[i+2]))/3;if(d>40)big++;else{n++;sum+=d;}}
+  const changed=big/(w*h),mean=n?sum/n:99;return {ok:mean<16&&changed<.5,changed,mean,why:mean>=16?'the photo shifted':changed>=.5?'too much of the photo changed':''};}
+async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlob(t);
+  const fd=new FormData();fd.append('image',new File([src],'ms-col-'+t.id+'.png',{type:src.type||'image/png'}));fd.append('overwrite','true');
+  const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the photo.');const u=await up.json();
+  const words=COLOR_WORDS[hex]||('solid '+String(name||'').toLowerCase()+' (color '+hex+')');
+  const prompt=`Change only the color of the t-shirt to ${words}. Keep the same person, face, hair, skin, tattoos, pose, body, hands, jeans, background, lighting and framing exactly the same, and keep every fold, wrinkle, seam and the collar of the shirt in the same place. The shirt stays completely blank with no print, logo or text.`;
+  let seed=0;for(const ch of t.id+hex)seed=(seed*31+ch.charCodeAt(0))%2147483647;
+  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:colGraph(u.subfolder?u.subfolder+'/'+u.name:u.name,prompt,seed),client_id:'mockup-studio'})});
+  const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the color job. Check that the Qwen Image 2.1 models are installed.');
+  const id=j.prompt_id;let out=null;
+  for(let i=0;i<400&&!CQ.cancel;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
+    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error on a color job.');
+    if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
+  if(!out)throw new Error(CQ.cancel?'Cancelled.':'Timed out waiting for ComfyUI.');
+  const ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  const a=await loadImage(URL.createObjectURL(src)),b=await loadImage(URL.createObjectURL(ob));
+  const chk=await colCheck(a,b);if(!chk.ok)throw new Error('kept the preview for '+(name||hex)+' on '+t.name+': '+chk.why);
+  const c=document.createElement('canvas');c.width=a.naturalWidth;c.height=a.naturalHeight;c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+  await colPut(t.id,hex,await canvasBlob(c,'image/jpeg',.92),true);}
+function colEnqueue(ts,cols){CQ.paused=false;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex)continue;const k=colKey(t.id,c.hex);
+    if(colorUrls.has(k)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
+async function colWork(){if(CQ.run)return;CQ.run=true;CQ.cancel=false;
+  try{while(CQ.list.length&&!CQ.cancel){if(!(await cfAlive())){CQ.paused=true;break;}
+      const j=CQ.list.shift();const t=templates.find(x=>x.id===j.id);if(!t)continue;CQ.cur=j.k;colUI();
+      try{await cfColorOne(t,j.hex,j.name);CQ.done++;}catch(e){CQ.fail++;CQ.err=e.message;}
+      CQ.cur=null;shirtUI();if(shirtHex()===j.hex){scheduleRender();scheduleGrid();}}}
+  finally{CQ.run=false;CQ.cur=null;if(CQ.cancel)CQ.list=[];colUI();}}
+function colUI(){const el=$('#shirt-gen');if(!el)return;const left=CQ.list.length+(CQ.cur?1:0);$('#shirt-stop').style.display=left?'':'none';
+  el.textContent=left?`Making real colors: ${left} left (about ${Math.max(1,Math.round(left*.55))} min)…`
+    :CQ.paused?'ComfyUI isn\'t reachable from this computer, so other colors show the recolor preview.'
+    :(CQ.done||CQ.fail)?`${CQ.done} real color photo${CQ.done===1?'':'s'} made`+(CQ.fail?`, ${CQ.fail} ${CQ.fail===1?'was':'were'} skipped (${CQ.err})`:'')+'.':'';}
+$('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
+  colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
+$('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};
+window.__ms={colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+
+/* model photo sync: your added and generated model photos follow your login */
+const MS={busy:false,timers:new Map(),again:false};
+function mdlMeta(r){const m={...r};delete m.blob;return m;}
+function mdlTomb(id){const d=LS.get('mdldel',[]);if(!d.includes(id))d.push(id);LS.set('mdldel',d);mdlSync();}
+function mdlQueue(id,isNew){if(!CS.uid||!sb||memoryMode)return;clearTimeout(MS.timers.get(id));
+  MS.timers.set(id,setTimeout(async()=>{MS.timers.delete(id);try{const r=await idbTx('readonly',st=>st.get(id));if(r)await mdlPush(r,isNew);}catch(e){}},isNew?300:1500));}
+async function mdlPush(r,upload){const path=CS.uid+'/'+r.id+'.jpg';
+  if(upload){const up=await sb.storage.from('models').upload(path,r.blob,{upsert:true,contentType:r.blob.type||'image/jpeg'});if(up.error)throw up.error;}
+  const {error}=await sb.from('model_photos').upsert({user_id:CS.uid,id:r.id,meta:mdlMeta(r),path,deleted:false,updated_at:new Date(r.updatedAt||r.createdAt||Date.now()).toISOString()});if(error)throw error;}
+async function colPush(c){if(!CS.uid||!sb)return;try{const path=CS.uid+'/c/'+c.model_id+'~'+c.hex.slice(1)+'.jpg';
+  const up=await sb.storage.from('models').upload(path,c.blob,{upsert:true,contentType:'image/jpeg'});if(up.error)throw up.error;
+  await sb.from('model_colors').upsert({user_id:CS.uid,model_id:c.model_id,hex:c.hex,path});}catch(e){console.warn('color sync',e);}}
+async function mdlSync(){if(!CS.uid||!sb||memoryMode||!idb)return;if(MS.busy){MS.again=true;return;}MS.busy=true;let changed=false;
+  try{for(const id of LS.get('mdldel',[])){ // deletions made here
+      const {data:cs}=await sb.from('model_colors').select('path').eq('model_id',id);const paths=[CS.uid+'/'+id+'.jpg',...(cs||[]).map(c=>c.path)];
+      await sb.storage.from('models').remove(paths);await sb.from('model_colors').delete().eq('model_id',id);
+      const {error}=await sb.from('model_photos').upsert({user_id:CS.uid,id,meta:{},path:paths[0],deleted:true,updated_at:new Date().toISOString()});
+      if(!error)LS.set('mdldel',LS.get('mdldel',[]).filter(x=>x!==id));}
+    const {data:rows,error}=await sb.from('model_photos').select('id,meta,path,deleted,updated_at');if(error)throw error;
+    const local=(await idbTx('readonly',st=>st.getAll()))||[];const lm=new Map(local.map(r=>[r.id,r])),rm=new Map(rows.map(r=>[r.id,r]));
+    for(const r of rows){const l=lm.get(r.id),rt=Date.parse(r.updated_at);
+      if(r.deleted){if(l){await idbTx('readwrite',st=>st.delete(r.id));await colDropModel(r.id);localImgs.delete(r.id);changed=true;}continue;}
+      if(!l){const {data:b,error:e}=await sb.storage.from('models').download(r.path);if(e||!b)continue;await idbTx('readwrite',st=>st.put({...r.meta,id:r.id,blob:b,updatedAt:rt}));changed=true;}
+      else{const lt=l.updatedAt||l.createdAt||0;if(rt>lt+1000){await idbTx('readwrite',st=>st.put({...l,...r.meta,id:r.id,blob:l.blob,updatedAt:rt}));changed=true;}else if(lt>rt+1000)await mdlPush(l,false);}}
+    for(const l of local)if(!rm.has(l.id)&&!LS.get('mdldel',[]).includes(l.id))await mdlPush(l,true);
+    const {data:crows}=await sb.from('model_colors').select('model_id,hex,path');const lc=(await colTx('readonly',st=>st.getAll()))||[];
+    const lk=new Set(lc.map(c=>c.k)),rk=new Set((crows||[]).map(c=>colKey(c.model_id,c.hex)));
+    for(const c of crows||[]){if(lk.has(colKey(c.model_id,c.hex)))continue;const {data:b,error:e}=await sb.storage.from('models').download(c.path);if(e||!b)continue;await colPut(c.model_id,c.hex,b,false);changed=true;}
+    for(const c of lc)if(!rk.has(c.k))await colPush(c);
+  }catch(e){console.warn('model sync',e);}
+  finally{MS.busy=false;if(changed){await reload();colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();}if(MS.again){MS.again=false;mdlSync();}}}
+addEventListener('focus',()=>{if(CS.uid&&Date.now()-CS.lastPull>20000){cloudPull().catch(()=>{});mdlSync();}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&CS.uid&&CS.timer&&CS.state==='saving'){clearTimeout(CS.timer);cloudPush();}});
 pfRefreshAuth();
 
