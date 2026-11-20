@@ -407,7 +407,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="front">Front poses</button><button class="small" data-pf="side">Side poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".4" max="1" step=".05" value=".85" style="width:110px"></label>
+      <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".5" max="1.2" step=".05" value="1" style="width:110px"> <span id="cf-strv">1.00</span></label>
+      <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
       <label class="row small" style="gap:4px" title="Writes a new person description (age, ethnicity, build, hair, facial hair) for every photo, so models don't all look alike"><input type="checkbox" id="cf-vary" checked> Different person each photo</label>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
@@ -1353,6 +1354,9 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
     $('#cf-st').textContent=names.includes('Z-Image-Turbo-Fun-Controlnet')?'✓ Connected to ComfyUI':'Connected, but the pose model (Z-Image-Turbo-Fun-Controlnet-Union) wasn\'t found in model_patches';}
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
+for(const id of ['cf-vary','cf-set','cf-str','cf-per','cf-arms']){const el=$('#'+id),k='cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
+  el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
+const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
 {const u=LS.get('cfurl','');if(u)$('#cf-url').value=u;}
 function cfSaveUrl(){let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/\/+$/,'');try{localStorage.setItem('ms_cfurl',JSON.stringify(v));}catch(e){}return v;}
@@ -1393,6 +1397,7 @@ function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
   const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
   return woman?`${an(pick(VARY.bodyW))} ${eth==='Latino'?'Latina':eth} woman in her ${age} with ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
+function cfArms(){const v=$('#cf-arms').value;return v==='mix'?['','hips','hip','pocket','hair','hip','pocket'][Math.floor(Math.random()*7)]:v;}
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   return $('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));}
 function cfText(ref,person){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
@@ -1401,9 +1406,10 @@ function cfText(ref,person){const cur=$('#g-model').value,want=ref.group==='wome
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
   const side=viewOf(ref)!=='front';
-  return p+(side?'\n\nShown in profile from the side, the short sleeve and the side of the chest clearly visible.':'\n\nNothing covers the chest.');}
+  return p+(side?'\n\nShown in true side profile, body turned 90 degrees to the camera, the short sleeve and the side of the chest clearly visible.':'\n\nNothing covers the chest; hands and arms stay off the front of the shirt.')+'\n\nThe full head and hair are inside the frame with space above the head; nothing is cropped at the top.';}
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
-  const pb=await (await fetch('vendor/poses/'+ref.id+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+ref.id+'.png',{type:'image/png'}));fd.append('overwrite','true');
+  const pid=ref.id+(viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');
+  const pb=await (await fetch('vendor/poses/'+pid+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+pid+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the pose image.');const u=await up.json();
   const seed=o.seed||Math.floor(Math.random()*2**48);
   const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
@@ -1424,10 +1430,10 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
   const jobs=[];// [ref, opts]
   if(setMode){const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))];
     for(const b0 of bases)for(let k=1;k<=per;k++){const front=templates.find(t=>t.id===b0);if(!front)continue;
-      const o={person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
+      const o={arms:cfArms(),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
       o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
       for(const id of [b0,b0+'l',b0+'r']){const r=templates.find(t=>t.id===id);if(r)jobs.push([r,o,k]);}}}
-  else for(const id of CF.sel){const r=templates.find(t=>t.id===id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{},k]);}
+  else for(const id of CF.sel){const r=templates.find(t=>t.id===id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{arms:cfArms()},k]);}
   const total=jobs.length;let done=0,fails=0;
   try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
       try{const r=await cfOne(ref,str,k,o);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
