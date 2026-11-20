@@ -1182,7 +1182,10 @@ $('#rm-bg').onchange=e=>{if(!design)return;design.removeBg=e.target.checked;$('#
 let tolT;$('#tol').oninput=e=>{if(!design)return;design.tol=+e.target.value;$('#v-tol').textContent=design.tol;clearTimeout(tolT);tolT=setTimeout(rebuildDesign,120);};
 $$('#slots button').forEach(b=>b.onclick=()=>{
   const v=b.dataset.slot;if(editMode)cancelEdit();setSlot(v);
-  const t=curT();if(viewOf(t)!==v&&!(viewOf(t)==='front')){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
+  const t=curT();
+  // a side photo also shows the chest print, so the front design stays editable here instead of jumping to a front photo
+  if(t&&v==='front'&&viewOf(t)!=='front'){if(!t.chestQ)toast('The chest isn\'t visible enough on this photo to show the front design. Its sliders still save for this photo.',4500);}
+  else if(t&&viewOf(t)!==v&&!(viewOf(t)==='front')){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
   scheduleRender();
 });
 
