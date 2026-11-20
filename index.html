@@ -1380,7 +1380,7 @@ const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
   eth:['Black','white','Latino','mixed-race','Native American','Pacific Islander'],
   build:['fit, athletic','muscular, athletic','lean, toned','broad-shouldered, fit','tall, athletic','toned, muscular'],
-  bodyW:['fit, slim-waisted with a large bust and a big round butt','toned with a flat stomach, large breasts and wide hips','athletic hourglass figure with a narrow waist, full bust and big butt','slim, toned build with a busty chest and a big butt','fit with a tiny waist, large bust and curvy hips','toned hourglass figure, flat stomach, full breasts and a round butt'],
+  bodyW:['a slender fitness-model physique with a tiny waist, flat toned stomach, slim arms, a large bust and a big round butt','a lean, toned hourglass figure with a narrow waist, slim arms, full breasts and a big butt','a slim, athletic build with a flat stomach, a busty chest and a round, lifted butt','a slender bikini-model figure with a small waist, large breasts and a big butt'],
   hairM:['short buzz-cut {c} hair','short textured {c} hair','a clean fade with short {c} curls','short wavy {c} hair','neatly side-parted {c} hair','close-cropped {c} hair','shoulder-length {c} hair tied back','short {c} dreadlocks','a shaved head','tousled medium-length {c} hair'],
   hairW:['long straight {c} hair behind her shoulders','long wavy {c} hair behind her shoulders','long curly {c} hair behind her shoulders','long {c} braids behind her shoulders','a sleek low {c} ponytail','a high {c} ponytail','a short {c} bob','a {c} pixie cut','{c} curls pulled back','a low {c} bun'],
   dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],
@@ -1395,7 +1395,7 @@ function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
   const lightOk=/white|mixed|Latino/.test(eth);const c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);
   const eyes=eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
   const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
-  return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, ${pick(VARY.bodyW)}, not overweight, with ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}`
+  return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, with ${pick(VARY.bodyW)}, ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
 function cfArms(){const v=$('#cf-arms').value;return v==='mix'?['','hips','hip','pocket','hair','hip','pocket'][Math.floor(Math.random()*7)]:v;}
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
