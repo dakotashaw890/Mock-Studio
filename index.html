@@ -703,8 +703,12 @@ function loadPose(){if(poseP)return poseP;poseP=new Promise((res,rej)=>{const sc
   res({run:img=>new Promise(r2=>{cb=r2;ps.send({image:img});})});}catch(e){rej(e);}};sc.onerror=rej;document.head.append(sc);});return poseP;}
 async function detectFacing(canvas){ // 'left' or 'right': which image edge a profile is facing (nose ahead of the ears)
   const ps=await loadPose();const r=await ps.run(canvas);if(!r||!r.poseLandmarks)return null;const L=r.poseLandmarks;
-  const ears=[L[7],L[8]].filter(e=>e&&e.visibility>.3);const nose=L[0];if(!nose||!ears.length)return null;
-  const ex=ears.reduce((m,e)=>m+e.x,0)/ears.length;const d=nose.x-ex;if(Math.abs(d)<.008)return null;return d<0?'left':'right';}
+  const nose=L[0];if(!nose)return null;
+  // nose ahead of the ears; if hair hides the ears, nose ahead of the shoulders and hips
+  const ears=[L[7],L[8]].filter(e=>e&&e.visibility>.3);
+  if(ears.length){const d=nose.x-ears.reduce((m,e)=>m+e.x,0)/ears.length;if(Math.abs(d)>.008)return d<0?'left':'right';}
+  const body=[L[11],L[12],L[23],L[24]].filter(e=>e&&e.visibility>.2);if(!body.length)return null;
+  const d=nose.x-body.reduce((m,e)=>m+e.x,0)/body.length;if(Math.abs(d)<.01)return null;return d<0?'left':'right';}
 async function detectBody(canvas){const ps=await loadPose();const r=await ps.run(canvas);if(!r||!r.poseLandmarks||!r.poseWorldLandmarks)return null;
   const lm=r.poseLandmarks,w=r.poseWorldLandmarks,yaw=(a,b)=>Math.atan2(w[a].z-w[b].z,w[a].x-w[b].x)*180/Math.PI;
   if(Math.min(lm[11].visibility,lm[12].visibility,lm[23].visibility||1,lm[24].visibility||1)<.5)return null;
