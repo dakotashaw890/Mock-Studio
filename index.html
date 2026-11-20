@@ -382,8 +382,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="grid2">
       <select id="g-kind"><option value="tee">T-shirt</option><option value="hoodie">Hoodie</option></select>
       <select id="g-model">
-        <option value="flat">No model: flat lay</option><option value="hanger">No model: on a hanger</option><option value="folded">No model: folded</option>
         <option>a man in his 30s</option><option>a woman in her 30s</option><option>a man in his 50s</option><option>a woman in her 20s</option><option>a man in his 20s</option><option>a woman in her 40s</option>
+        <option value="flat">No model: flat lay</option><option value="hanger">No model: on a hanger</option><option value="folded">No model: folded</option>
       </select>
       <select id="g-color">
         <option>black</option><option>white</option><option>heather gray</option><option>navy</option><option>military green</option><option>sand</option><option>maroon</option><option>charcoal</option>
@@ -398,6 +398,20 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     </div>
     <div class="prompt" id="g-out"></div>
     <button class="primary" id="g-copy">Copy prompt</button>
+  </div>
+  <div class="card" id="cf-card">
+    <h2>Generate models with ComfyUI on this computer</h2>
+    <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends the prompt above to ComfyUI on your PC. Each pose comes from a calibrated built-in photo, so new models arrive with their print areas already set. Nothing leaves your computer.</p>
+    <div class="row small" style="gap:8px;align-items:center;margin-bottom:8px"><span id="cf-st" class="status">Not connected</span><button class="small" id="cf-check">Connect</button>
+      <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" value="http://127.0.0.1:8188" style="width:170px"></label></div>
+    <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="front">Front poses</button><button class="small" data-pf="side">Side poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
+    <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
+    <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".4" max="1" step=".05" value=".85" style="width:110px"></label>
+      <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+      <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
+    <div class="small muted" id="cf-log" style="margin-top:8px"></div>
+    <div class="grid" id="cf-out" style="margin-top:8px"></div>
   </div>
   <div class="card">
     <h2>What makes a good blank</h2>
@@ -734,7 +748,7 @@ function fitFront(t,pack){
   }
   if(typeof areaIn!=='number'){ // true-to-size scale from torso width just under the sleeves
     const yA=Math.round((drops.length?Math.max(...drops):tq[0][1]+tH*.35)+tH*.06);const sw=span(yA);
-    const chest=FIT.chestIn[t.group]||20;areaIn=sw&&sw>tW*.6?chest*FIT.onBody*(tW/sw):(t.group==='women'?13:14);
+    const chest=FIT.chestIn[t.sex||t.group]||20;areaIn=sw&&sw>tW*.6?chest*FIT.onBody*(tW/sw):((t.sex||t.group)==='women'?13:14);
   }
   const ppi=tW/areaIn, Wq=FIT.sleeveIn*ppi, out={areaIn,sleeves:{}};
   for(const s of ['left','right']){
@@ -834,7 +848,7 @@ function fitSideChest(t,pack){ // front print seen from the side: find the chest
     if(!gone){let k=0;for(let j=1;j<=8;j++)if(F.fab(Math.round(e-dF*qw*.05*j),y))k++;gone=k<4;} // shirt continues inward from the edge
     if(gone){if(++miss>=Math.max(4,Math.round(qw*.08))){col=y+miss;break;}}else miss=0;}
   if(col===null||top-col<qw*.2)return null;
-  const R=(t.group==='women'?4.5:4.75)*ppi, qW=R*1.3, y0=col+COLLAR_TO_AREA*ppi;
+  const R=((t.sex||t.group)==='women'?4.5:4.75)*ppi, qW=R*1.3, y0=col+COLLAR_TO_AREA*ppi;
   const xa=dF<0?xe:xe-qW, xb=dF<0?xe+qW:xe;
   return {quad:[{x:xa/w,y:y0/h},{x:xb/w,y:y0/h},{x:xb/w,y:(y0+qW)/h},{x:xa/w,y:(y0+qW)/h}],areaIn:qW/ppi,armX:(cx+dF*.86*qw)/w,hemY:(bot+.12*qw)/h};
 }
@@ -870,7 +884,7 @@ async function ensureFit(t){
           let q=t.quad.map(v=>({...v}));const qx=q.map(v=>v.x),qy=q.map(v=>v.y);
           if(!t.builtin){const nw=c.tw*.92,cx0=(Math.min(...qx)+Math.max(...qx))/2,ty=Math.min(...qy),hw=nw*p.w/p.h;q=[{x:cx0-nw/2,y:ty},{x:cx0+nw/2,y:ty},{x:cx0+nw/2,y:ty+hw},{x:cx0-nw/2,y:ty+hw}];}
           const qw=(Math.max(...q.map(v=>v.x))-Math.min(...q.map(v=>v.x)))*p.w;
-          const ain=t.builtin&&typeof t.areaIn==='number'?t.areaIn:(FIT.chestIn[t.group]||20)*FIT.onBody*(qw/(c.tw*p.w));
+          const ain=t.builtin&&typeof t.areaIn==='number'?t.areaIn:(FIT.chestIn[t.sex||t.group]||20)*FIT.onBody*(qw/(c.tw*p.w));
           const cues=[c.cx];if(c.bust!=null&&Math.abs(c.bust-c.cx)<c.tw*.15)cues.push(c.bust);if(t.body&&Math.abs(t.body.axis-c.cx)<c.tw*.15)cues.push(t.body.axis);
           cues.sort((a,b)=>a-b);const ctr=cues.length===2?(cues[0]+cues[1])/2:cues[cues.length>>1];
           const ppi=qw/ain, dx=ctr-(Math.min(...q.map(v=>v.x))+Math.max(...q.map(v=>v.x)))/2, dy=c.cy+COLLAR_TO_AREA*ppi/p.h-Math.min(...q.map(v=>v.y));
@@ -930,23 +944,25 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
   renderAll();
 }
-async function addTemplate(file,name,kind,view){
+async function addTemplate(file,name,kind,view,extra){
   const img=await fileToImage(file);
   const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,UPLOAD_MAX);
   const c=drawScaled(img,w,h);const blob=await canvasBlob(c,'image/jpeg',.92);
   const id='u'+Date.now();
   const scene=['flat','hanger','folded'].includes(view)?view:null;if(scene)view='front';
   const rec={id,name:name||file.name.replace(/\.[^.]+$/,''),kind,view:view||'front',scene,quad:view&&view!=='front'?[{x:.4,y:.35},{x:.55,y:.35},{x:.55,y:.47},{x:.4,y:.47}]:defaultQuad(kind),createdAt:Date.now()};
+  if(extra)Object.assign(rec,extra);
   localImgs.set(id,URL.createObjectURL(blob));
   if(rec.view==='front'&&!scene){try{toast('Reading the body position…');rec.body=await detectBody(c);}catch(e){rec.body=null;}}
   if(memoryMode)memMine.push({...rec,group:'mine'});
   else await idbTx('readwrite',st=>st.put({...rec,blob}));
+  if(extra&&extra.quiet){await reload();const nt=templates.find(x=>x.id===id);if(nt)await ensureFit(nt);return id;}
   await reload(); curId=id; const nt=curT(); if(nt)await ensureFit(nt); renderThumbs(); startEdit();
 }
 function saveTurn(t,s,v){const o=LS.get('turns',{});if(typeof v!=='number'||Math.abs(v-turnDefault(t,s))<.5)delete o[t.id+':'+s];else o[t.id+':'+s]=v;LS.set('turns',o);}
@@ -1314,6 +1330,75 @@ async function libUse(r,sl,btn){const old=btn.textContent;btn.textContent='Loadi
   }catch(e){toast('Couldn\'t load that design.');}finally{btn.textContent=old;btn.disabled=false;}}
 $('#shirt-custom').oninput=e=>setShirt(e.target.value,'Custom');shirtUI();
 $('#btn-lib').onclick=libOpen;$('#mi-lib').onclick=libOpen;$('#lib-close').onclick=()=>$('#lib').classList.remove('on');$('#lib-q').oninput=libRender;
+
+/* ---------- ComfyUI on this computer: pose-guided blank models ---------- */
+window.CF={ok:false,sel:new Set(),stop:false,busy:false};
+const cfBase=()=>($('#cf-url').value||'http://127.0.0.1:8188').replace(/\/+$/,'');
+function cfPoseList(){return templates.filter(t=>t.builtin);}
+function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
+  for(const t of cfPoseList()){const d=document.createElement('div');d.className='gtile'+(CF.sel.has(t.id)?' sel':'');d.style.cssText='position:relative;padding:0;cursor:pointer;outline:'+(CF.sel.has(t.id)?'3px solid var(--accent,#2563eb)':'none');
+    const c=document.createElement('div');c.style.cssText='position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#000';
+    const a=document.createElement('img');a.src=t.file;a.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.45';a.loading='lazy';
+    const b=document.createElement('img');b.src='vendor/poses/'+t.id+'.png';b.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover;mix-blend-mode:screen';b.loading='lazy';
+    c.append(a,b);const sp=document.createElement('span');sp.textContent=t.id.toUpperCase()+(viewOf(t)==='front'?'':' side');d.append(c,sp);
+    d.onclick=()=>{CF.sel.has(t.id)?CF.sel.delete(t.id):CF.sel.add(t.id);cfRenderPoses();};box.append(d);}
+  $('#cf-n').textContent=CF.sel.size+' selected';$('#cf-go').disabled=!CF.ok||!CF.sel.size||CF.busy;}
+$$('[data-pf]').forEach(b=>b.onclick=()=>{const f=b.dataset.pf;for(const t of cfPoseList()){const fr=viewOf(t)==='front';if(f==='front'&&fr||f==='side'&&!fr||f===t.group)CF.sel.add(t.id);}cfRenderPoses();});
+$('#cf-none').onclick=()=>{CF.sel.clear();cfRenderPoses();};
+async function cfCheck(){$('#cf-st').textContent='Connecting…';
+  try{const r=await fetch(cfBase()+'/object_info/ModelPatchLoader');if(!r.ok)throw 0;const j=await r.json();
+    const names=JSON.stringify(j);CF.ok=true;
+    $('#cf-st').textContent=names.includes('Z-Image-Turbo-Fun-Controlnet')?'✓ Connected to ComfyUI':'Connected, but the pose model (Z-Image-Turbo-Fun-Controlnet-Union) wasn\'t found in model_patches';}
+  catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
+  cfRenderPoses();}
+$('#cf-check').onclick=cfCheck;
+function cfPrompt(text,img,seed,str){return {
+  '1':{class_type:'UNETLoader',inputs:{unet_name:'z_image_turbo_bf16.safetensors',weight_dtype:'default'}},
+  '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen_3_4b.safetensors',type:'lumina2',device:'default'}},
+  '3':{class_type:'VAELoader',inputs:{vae_name:'ae.safetensors'}},
+  '4':{class_type:'ModelPatchLoader',inputs:{name:'Z-Image-Turbo-Fun-Controlnet-Union.safetensors'}},
+  '5':{class_type:'LoadImage',inputs:{image:img}},
+  '6':{class_type:'QwenImageDiffsynthControlnet',inputs:{model:['1',0],model_patch:['4',0],vae:['3',0],image:['5',0],strength:str}},
+  '7':{class_type:'ModelSamplingAuraFlow',inputs:{model:['6',0],shift:3}},
+  '8':{class_type:'CLIPTextEncode',inputs:{clip:['2',0],text}},
+  '9':{class_type:'ConditioningZeroOut',inputs:{conditioning:['8',0]}},
+  '10':{class_type:'EmptySD3LatentImage',inputs:{width:1024,height:1280,batch_size:1}},
+  '11':{class_type:'KSampler',inputs:{model:['7',0],positive:['8',0],negative:['9',0],latent_image:['10',0],seed,steps:8,cfg:1,sampler_name:'res_multistep',scheduler:'simple',denoise:1}},
+  '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
+  '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
+function cfText(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
+  const m=new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s');
+  let p=buildPrompt(m);
+  // the pose image decides the stance; the written prompt only describes the person, shirt and scene
+  p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
+  const side=viewOf(ref)!=='front';
+  return p+(side?'\n\nShown in profile from the side, the short sleeve and the side of the chest clearly visible.':'\n\nNothing covers the chest.');}
+async function cfOne(ref,str,n){const base=cfBase();
+  const pb=await (await fetch('vendor/poses/'+ref.id+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+ref.id+'.png',{type:'image/png'}));fd.append('overwrite','true');
+  const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the pose image.');const u=await up.json();
+  const seed=Math.floor(Math.random()*2**48);
+  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
+  const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
+  const id=j.prompt_id;let out=null;
+  for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
+    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error. Check its window for details.');
+    if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
+  if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
+  const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  const name=(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
+  const f=new File([ib],out.filename,{type:ib.type||'image/png'});
+  const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=ref.sleeves[k].quad;
+  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:ref.quad.map(q=>({...q})),seedSleeves:sl,sex:ref.group,pose:ref.id,quiet:true});
+  return {newId,url:URL.createObjectURL(ib),name};}
+$('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#cf-go').disabled=true;$('#cf-stop').style.display='';
+  const refs=[...CF.sel].map(id=>templates.find(t=>t.id===id)).filter(Boolean),per=+$('#cf-per').value,str=+$('#cf-str').value,total=refs.length*per;let done=0,fails=0;
+  try{for(const ref of refs)for(let k=1;k<=per;k++){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
+      try{const r=await cfOne(ref,str,k);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
+        const sp=document.createElement('span');sp.textContent=r.name;d.append(im,sp);d.onclick=()=>{curId=r.newId;go('studio');renderThumbs();scheduleRender();};$('#cf-out').prepend(d);}
+      catch(e){fails++;$('#cf-log').textContent=e.message;if(/reach|fetch/i.test(e.message))break;}}
+    $('#cf-log').textContent=(done-fails)+' new model photo'+(done-fails===1?'':'s')+' added to Model photos'+(fails?', '+fails+' failed':'')+'. Click one to open it in the studio.';
+  }finally{CF.busy=false;$('#cf-stop').style.display='none';renderThumbs();cfRenderPoses();}};
+$('#cf-stop').onclick=()=>{CF.stop=true;$('#cf-log').textContent='Stopping after the current photo…';};
 /* ---------- export ---------- */
 const SIZES={orig:null,sq:[2000,2000],p45:[1600,2000],story:[1080,1920]};
 async function renderFull(t,sizeKey){const o=await renderCanvas(t,sizeKey);return canvasBlob(o,'image/jpeg',.92);}
@@ -1700,8 +1785,8 @@ const settings={
   street:'On a city sidewalk with brick buildings behind, overcast soft daylight, background slightly out of focus.',
   porch:'On the front porch of a small-town house, soft afternoon shade, background slightly out of focus.'
 };
-function buildPrompt(){
-  const k=$('#g-kind').value,m=$('#g-model').value,c=$('#g-color').value,s=settings[$('#g-setting').value];
+function buildPrompt(mo){
+  const k=$('#g-kind').value,m=mo||$('#g-model').value,c=$('#g-color').value,s=settings[$('#g-setting').value];
   const garment=k==='hoodie'
     ?`a plain blank ${c} pullover hoodie with a front kangaroo pocket, hood down, drawstrings hanging evenly`
     :`a plain blank ${c} crew-neck cotton t-shirt, regular fit`;
@@ -1714,19 +1799,21 @@ Camera level with the chest, no tilt. Fabric hangs smoothly with gentle natural 
     folded:`Photorealistic product photo of ${garment}, neatly folded into a square retail fold with the chest panel on top facing up, on a clean table. The garment has no logos, text, tags, prints or graphics anywhere.
 
 Shot from above at a slight angle, the folded chest panel flat and fully visible. Soft daylight, true-to-life fabric color, high resolution, 4:5 portrait.`};
-  if(SC[m]){$('#g-out').textContent=SC[m];return;}
+  if(SC[m]){if(mo)return SC[m];$('#g-out').textContent=SC[m];return;}
   const p=`Photorealistic e-commerce product photo of ${m} wearing ${garment}. The garment has no logos, text, tags, prints or graphics anywhere.
 
 Standing straight and facing the camera directly, shoulders square, arms relaxed at the sides. Nothing covers the chest: no crossed arms, hair behind the shoulders, no bag straps or jewelry over the shirt. Natural, gentle fabric folds, no deep creases across the chest.
 
 ${s} Framed from mid-thigh to just above the head, sharp focus on the ${k==='hoodie'?'hoodie':'shirt'}, true-to-life fabric color, high resolution, 4:5 portrait.`;
+  if(mo)return p;
   $('#g-out').textContent=p;
 }
 ['#g-kind','#g-model','#g-color','#g-setting'].forEach(s=>$(s).onchange=buildPrompt);
 $('#g-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#g-out').textContent);toast('Prompt copied.');}catch(e){toast('Copy blocked here. Press and hold the text to copy it.');}};
 
 /* ---------- nav ---------- */
-function go(tab){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+tab));if(tab==='studio'){scheduleRender();requestAnimationFrame(sizePanes);}}
+function go(tab){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+tab));if(tab==='blanks'){cfRenderPoses();if(!CF.ok)cfCheck();}
+  if(tab==='studio'){scheduleRender();requestAnimationFrame(sizePanes);}}
 $$('nav button').forEach(b=>b.onclick=()=>{if(editMode&&b.dataset.tab!=='studio')cancelEdit();go(b.dataset.tab);});
 $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
 $$('#kind-filter button').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();if(gridOn)renderGrid();});
