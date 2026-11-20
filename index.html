@@ -933,8 +933,16 @@ const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
 let idb=null;
-function openIDB(name,store,key){return new Promise(res=>{try{const r=indexedDB.open(name||'mockup-studio');r.onupgradeneeded=()=>r.result.createObjectStore(store||'templates',{keyPath:key||'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);r.onblocked=()=>res(null);}catch(e){res(null);}});}
-let cdb=null; // shirt color photos live in their own small database
+function openIDB(name,store,key){name=name||'mockup-studio';store=store||'templates';key=key||'id';
+  return new Promise(res=>{let done=false;const fin=d=>{if(done){if(d)d.close();return;}done=true;if(d)d.onversionchange=()=>d.close();res(d);};
+    // if another tab is holding the database, don't hang: carry on without saved photos and say so
+    const to=setTimeout(()=>{if(!done){IDB_LOCKED=true;fin(null);toast('Your saved photos are locked by another Mockup Studio tab or window. Close the others, then refresh this one.',10000);}},5000);
+    const open=v=>{let r;try{r=v?indexedDB.open(name,v):indexedDB.open(name);}catch(e){clearTimeout(to);return fin(null);}
+      r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(store))d.createObjectStore(store,{keyPath:key});};
+      r.onsuccess=()=>{const d=r.result;if(!d.objectStoreNames.contains(store)){const nv=d.version+1;d.close();return open(nv);}clearTimeout(to);fin(d);};
+      r.onerror=()=>{clearTimeout(to);fin(null);};};
+    open();});}
+let cdb=null,IDB_LOCKED=false; // shirt color photos live in their own small database
 function idbTx(mode,fn,store){store=store||'templates';const db=store==='colors'?cdb:idb;return new Promise((res,rej)=>{if(!db)return rej(new Error('nostore'));const tx=db.transaction(store,mode);const r=fn(tx.objectStore(store));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
 const colTx=(mode,fn)=>idbTx(mode,fn,'colors');
 async function tplPatch(id,patch){const r=await idbTx('readonly',st=>st.get(id));if(!r)return;await idbTx('readwrite',st=>st.put({...r,...patch,updatedAt:Date.now()}));mdlQueue(id);}
@@ -954,9 +962,8 @@ let builtins=[];
 async function initStore(){
   Object.assign(TS,LS.get('ts',{}));tsUI();
   try{const r=await fetch('models/models.json');builtins=await r.json();}catch(e){builtins=[];toast('Couldn\'t load the built-in models.');}
-  idb=await openIDB();
-  cdb=await openIDB('mockup-studio-colors','colors','k');if(cdb)await colLoad();
-  if(!idb){memoryMode=true;setStoreStatus('This browser won\'t save photos you add. They\'ll disappear when you close the page.');}
+  [idb,cdb]=await Promise.all([openIDB(),openIDB('mockup-studio-colors','colors','k')]);if(cdb)await colLoad();
+  if(!idb){memoryMode=true;setStoreStatus(IDB_LOCKED?'Your saved photos are locked by another Mockup Studio tab or window. Close the others, then refresh this page.':'This browser won\'t save photos you add. They\'ll disappear when you close the page.');}
   await reload();
 }
 let memMine=[];
