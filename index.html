@@ -1332,7 +1332,7 @@ $('#shirt-custom').oninput=e=>setShirt(e.target.value,'Custom');shirtUI();
 $('#btn-lib').onclick=libOpen;$('#mi-lib').onclick=libOpen;$('#lib-close').onclick=()=>$('#lib').classList.remove('on');$('#lib-q').oninput=libRender;
 
 /* ---------- ComfyUI on this computer: pose-guided blank models ---------- */
-window.CF={ok:false,sel:new Set(),stop:false,busy:false};
+window.CF={lastErr:'',ok:false,sel:new Set(),stop:false,busy:false};
 const cfBase=()=>($('#cf-url').value||'http://127.0.0.1:8188').replace(/\/+$/,'');
 function cfPoseList(){return templates.filter(t=>t.builtin);}
 function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
@@ -1381,7 +1381,7 @@ async function cfOne(ref,str,n){const base=cfBase();
   const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
   const id=j.prompt_id;let out=null;
   for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
-    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error. Check its window for details.');
+    if(e&&e.status&&e.status.status_str==='error'){const m=(e.status.messages||[]).map(x=>x[0]);throw new Error(m.includes('execution_interrupted')?'The job was cancelled in ComfyUI.':'ComfyUI hit an error. Check its window for details.');}
     if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
   if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
   const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
@@ -1395,8 +1395,8 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
   try{for(const ref of refs)for(let k=1;k<=per;k++){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
       try{const r=await cfOne(ref,str,k);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
         const sp=document.createElement('span');sp.textContent=r.name;d.append(im,sp);d.onclick=()=>{curId=r.newId;go('studio');renderThumbs();scheduleRender();};$('#cf-out').prepend(d);}
-      catch(e){fails++;$('#cf-log').textContent=e.message;if(/reach|fetch/i.test(e.message))break;}}
-    $('#cf-log').textContent=(done-fails)+' new model photo'+(done-fails===1?'':'s')+' added to Model photos'+(fails?', '+fails+' failed':'')+'. Click one to open it in the studio.';
+      catch(e){fails++;CF.lastErr=e.message;$('#cf-log').textContent=e.message;if(/reach|fetch/i.test(e.message))break;}}
+    $('#cf-log').textContent=(done-fails)+' new model photo'+(done-fails===1?'':'s')+' added to Model photos'+(fails?', '+fails+' failed ('+CF.lastErr+')':'')+'.'+(done-fails?' Click one to open it in the studio.':'');
   }finally{CF.busy=false;$('#cf-stop').style.display='none';renderThumbs();cfRenderPoses();}};
 $('#cf-stop').onclick=()=>{CF.stop=true;$('#cf-log').textContent='Stopping after the current photo…';};
 /* ---------- export ---------- */
