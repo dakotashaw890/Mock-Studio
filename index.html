@@ -1371,21 +1371,25 @@ function cfPrompt(text,img,seed,str){return {
   '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
 const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
-  eth:['Black','white','Latino','East Asian','South Asian','Middle Eastern','Southeast Asian','mixed-race','Native American','Pacific Islander'],
+  eth:['Black','white','Latino','mixed-race','Native American','Pacific Islander'],
   build:['fit, athletic','muscular, athletic','lean, toned','broad-shouldered, fit','tall, athletic','toned, muscular'],
-  bodyW:['curvy, fit','hourglass-figured, toned','athletic, curvy','fit, toned','curvy, slim-waisted','voluptuous, fit'],
+  bodyW:['curvy, fit','hourglass-figured, toned','athletic, curvy','busty, curvy','curvy with a big butt','busty, hourglass-figured with wide hips and a big butt','voluptuous, fit','busty, slim-waisted'],
   hairM:['short buzz-cut {c} hair','short textured {c} hair','a clean fade with short {c} curls','short wavy {c} hair','neatly side-parted {c} hair','close-cropped {c} hair','shoulder-length {c} hair tied back','short {c} dreadlocks','a shaved head','tousled medium-length {c} hair'],
   hairW:['long straight {c} hair behind her shoulders','long wavy {c} hair behind her shoulders','long curly {c} hair behind her shoulders','long {c} braids behind her shoulders','a sleek low {c} ponytail','a high {c} ponytail','a short {c} bob','a {c} pixie cut','{c} curls pulled back','a low {c} bun'],
-  dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],gray:['gray-streaked','salt-and-pepper'],
-  faceM:['clean-shaven','with light stubble','with a short trimmed beard','with a full beard','with a mustache','with a goatee'],
-  extra:['freckles','a warm smile','a confident neutral expression','a slight smile','dimples','thin-framed glasses','a calm, friendly expression']};
+  dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],
+  faceM:['clean-shaven','with heavy stubble','with a short trimmed beard','with a full beard','with a thick mustache','with a goatee'],
+  lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
+  exprM:['a tough, serious expression','an intense stare','a confident smirk','a hard, focused look','a calm, stern expression'],
+  lookW:['a beautiful face, full lips and natural glam makeup','striking features, full glossy lips and soft makeup','a beautiful face, full lips, defined brows and subtle makeup','high cheekbones, full lips and polished makeup'],
+  exprW:['a warm smile','a slight smile','a confident look','a soft, sultry expression','a bright smile'],
+  eyesLight:['green','blue','hazel','blue','green'],eyesDark:['brown','dark brown','brown','hazel']};
 const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
 function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
-  const lightOk=/white|mixed|Middle Eastern|Latino/.test(eth);let c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);if(/40s|50s/.test(age)&&Math.random()<.4)c=pick(VARY.gray);
-  const young=' with a youthful face, smooth skin';
+  const lightOk=/white|mixed|Latino/.test(eth);const c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);
+  const eyes=eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
   const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
-  return woman?`${an(pick(VARY.bodyW))} ${eth} woman in her ${age}${young}, with ${hair} and ${pick(VARY.extra)}`
-             :`${an(pick(VARY.build))} ${eth} man in his ${age}${young}, ${pick(VARY.faceM)}, with ${hair} and ${pick(VARY.extra)}`;}
+  return woman?`${an(pick(VARY.bodyW))} ${eth==='Latino'?'Latina':eth} woman in her ${age} with ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}`
+             :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
 function cfText(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   const m=$('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
   let p=buildPrompt(m);
