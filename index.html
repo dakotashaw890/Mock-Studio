@@ -1370,10 +1370,10 @@ function cfPrompt(text,img,seed,str){return {
   '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
   '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
 const VARY={
-  age:['early 20s','mid 20s','late 20s','early 30s','mid 30s','late 30s','40s','early 50s'],
+  age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
   eth:['Black','white','Latino','East Asian','South Asian','Middle Eastern','Southeast Asian','mixed-race','Native American','Pacific Islander'],
-  build:['slim','athletic','average-build','muscular','stocky','tall, lean','broad-shouldered'],
-  bodyW:['slim','athletic','average-build','curvy','petite','tall','fuller-figured'],
+  build:['fit, athletic','muscular, athletic','lean, toned','broad-shouldered, fit','tall, athletic','toned, muscular'],
+  bodyW:['curvy, fit','hourglass-figured, toned','athletic, curvy','fit, toned','curvy, slim-waisted','voluptuous, fit'],
   hairM:['short buzz-cut {c} hair','short textured {c} hair','a clean fade with short {c} curls','short wavy {c} hair','neatly side-parted {c} hair','close-cropped {c} hair','shoulder-length {c} hair tied back','short {c} dreadlocks','a shaved head','tousled medium-length {c} hair'],
   hairW:['long straight {c} hair behind her shoulders','long wavy {c} hair behind her shoulders','long curly {c} hair behind her shoulders','long {c} braids behind her shoulders','a sleek low {c} ponytail','a high {c} ponytail','a short {c} bob','a {c} pixie cut','{c} curls pulled back','a low {c} bun'],
   dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],gray:['gray-streaked','salt-and-pepper'],
@@ -1382,9 +1382,10 @@ const VARY={
 const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
 function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
   const lightOk=/white|mixed|Middle Eastern|Latino/.test(eth);let c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);if(/40s|50s/.test(age)&&Math.random()<.4)c=pick(VARY.gray);
+  const young=' with a youthful face, smooth skin';
   const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
-  return woman?`${an(pick(VARY.bodyW))} ${eth} woman in her ${age} with ${hair} and ${pick(VARY.extra)}`
-             :`${an(pick(VARY.build))} ${eth} man in his ${age}, ${pick(VARY.faceM)}, with ${hair} and ${pick(VARY.extra)}`;}
+  return woman?`${an(pick(VARY.bodyW))} ${eth} woman in her ${age}${young}, with ${hair} and ${pick(VARY.extra)}`
+             :`${an(pick(VARY.build))} ${eth} man in his ${age}${young}, ${pick(VARY.faceM)}, with ${hair} and ${pick(VARY.extra)}`;}
 function cfText(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   const m=$('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
   let p=buildPrompt(m);
