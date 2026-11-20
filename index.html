@@ -1406,7 +1406,9 @@ function cfText(ref,person){const cur=$('#g-model').value,want=ref.group==='wome
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
   const side=viewOf(ref)!=='front';
-  return p+(side?'\n\nShown in true side profile, body turned 90 degrees to the camera, the short sleeve and the side of the chest clearly visible.':'\n\nNothing covers the chest; hands and arms stay off the front of the shirt.')+'\n\nThe full head and hair are inside the frame with space above the head; nothing is cropped at the top.';}
+  p=p.replace(/regular fit\. /,'regular fit, ending at the hip, worn with fitted dark jeans. ');
+  const dir=viewOf(ref)==='left'?'left':'right';
+  return p+(side?`\n\nStrict side profile view: the body is turned a full 90 degrees, facing the ${dir} edge of the frame, so the camera sees only the ${dir} side, with the ${dir} shoulder and ${dir} short sleeve toward the camera. The side of the chest is clearly visible.`:'\n\nNothing covers the chest; hands and arms stay off the front of the shirt.')+'\n\nThe full head and hair are inside the frame with space above the head; nothing is cropped at the top.';}
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   const pid=ref.id+(viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');
   const pb=await (await fetch('vendor/poses/'+pid+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+pid+'.png',{type:'image/png'}));fd.append('overwrite','true');
