@@ -933,8 +933,9 @@ const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
 let idb=null;
-function openIDB(){return new Promise(res=>{try{const r=indexedDB.open('mockup-studio',2);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('templates'))d.createObjectStore('templates',{keyPath:'id'});if(!d.objectStoreNames.contains('colors'))d.createObjectStore('colors',{keyPath:'k'});};r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
-function idbTx(mode,fn,store){store=store||'templates';return new Promise((res,rej)=>{if(!idb)return rej(new Error('nostore'));const tx=idb.transaction(store,mode);const r=fn(tx.objectStore(store));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
+function openIDB(name,store,key){return new Promise(res=>{try{const r=indexedDB.open(name||'mockup-studio');r.onupgradeneeded=()=>r.result.createObjectStore(store||'templates',{keyPath:key||'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);r.onblocked=()=>res(null);}catch(e){res(null);}});}
+let cdb=null; // shirt color photos live in their own small database
+function idbTx(mode,fn,store){store=store||'templates';const db=store==='colors'?cdb:idb;return new Promise((res,rej)=>{if(!db)return rej(new Error('nostore'));const tx=db.transaction(store,mode);const r=fn(tx.objectStore(store));tx.oncomplete=()=>res(r&&r.result);tx.onerror=()=>rej(tx.error);});}
 const colTx=(mode,fn)=>idbTx(mode,fn,'colors');
 async function tplPatch(id,patch){const r=await idbTx('readonly',st=>st.get(id));if(!r)return;await idbTx('readwrite',st=>st.put({...r,...patch,updatedAt:Date.now()}));mdlQueue(id);}
 function tplSrc(t){ if(localImgs.has(t.id))return localImgs.get(t.id); return t.file; }
@@ -954,7 +955,7 @@ async function initStore(){
   Object.assign(TS,LS.get('ts',{}));tsUI();
   try{const r=await fetch('models/models.json');builtins=await r.json();}catch(e){builtins=[];toast('Couldn\'t load the built-in models.');}
   idb=await openIDB();
-  if(idb)await colLoad();
+  cdb=await openIDB('mockup-studio-colors','colors','k');if(cdb)await colLoad();
   if(!idb){memoryMode=true;setStoreStatus('This browser won\'t save photos you add. They\'ll disappear when you close the page.');}
   await reload();
 }
@@ -1845,7 +1846,7 @@ async function colorImg(id,hex){const k=colKey(id,hex);if(!colorUrls.has(k))retu
   try{const im=await loadImage(colorUrls.get(k));colorImgCache.set(k,im);return im;}catch(e){return null;}}
 async function shirtSrc(t){const hex=shirtHex();if(hex){const im=await colorImg(t.id,hex);if(im)return {img:im,rc:null};}
   return {img:await tplImage(t),rc:hex?await recolorSpec(t,hex):null};}
-async function colPut(id,hex,blob,push){const k=colKey(id,hex);await colTx('readwrite',st=>st.put({k,model_id:id,hex,blob}));
+async function colPut(id,hex,blob,push){const k=colKey(id,hex);await colTx('readwrite',st=>st.put({k,model_id:id,hex,blob})).catch(()=>{});
   if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);
   colorPacks.clear();smallPacks.clear();if(push)colPush({k,model_id:id,hex,blob});}
 async function colDropModel(id){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(c.model_id===id){await colTx('readwrite',st=>st.delete(c.k));colorUrls.delete(c.k);colorImgCache.delete(c.k);}}catch(e){}}
@@ -1937,7 +1938,7 @@ async function mdlSync(){if(!CS.uid||!sb||memoryMode||!idb)return;if(MS.busy){MS
       if(!l){const {data:b,error:e}=await sb.storage.from('models').download(r.path);if(e||!b)continue;await idbTx('readwrite',st=>st.put({...r.meta,id:r.id,blob:b,updatedAt:rt}));changed=true;}
       else{const lt=l.updatedAt||l.createdAt||0;if(rt>lt+1000){await idbTx('readwrite',st=>st.put({...l,...r.meta,id:r.id,blob:l.blob,updatedAt:rt}));changed=true;}else if(lt>rt+1000)await mdlPush(l,false);}}
     for(const l of local)if(!rm.has(l.id)&&!LS.get('mdldel',[]).includes(l.id))await mdlPush(l,true);
-    const {data:crows}=await sb.from('model_colors').select('model_id,hex,path');const lc=(await colTx('readonly',st=>st.getAll()))||[];
+    const {data:crows}=await sb.from('model_colors').select('model_id,hex,path');const lc=(await colTx('readonly',st=>st.getAll()).catch(()=>[]))||[];
     const lk=new Set(lc.map(c=>c.k)),rk=new Set((crows||[]).map(c=>colKey(c.model_id,c.hex)));
     for(const c of crows||[]){if(lk.has(colKey(c.model_id,c.hex)))continue;const {data:b,error:e}=await sb.storage.from('models').download(c.path);if(e||!b)continue;await colPut(c.model_id,c.hex,b,false);changed=true;}
     for(const c of lc)if(!rk.has(c.k))await colPush(c);
