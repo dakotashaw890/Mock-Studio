@@ -408,6 +408,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".4" max="1" step=".05" value=".85" style="width:110px"></label>
+      <label class="row small" style="gap:4px" title="Writes a new person description (age, ethnicity, build, hair, facial hair) for every photo, so models don't all look alike"><input type="checkbox" id="cf-vary" checked> Different person each photo</label>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
     <div class="small muted" id="cf-log" style="margin-top:8px"></div>
@@ -1366,8 +1367,24 @@ function cfPrompt(text,img,seed,str){return {
   '11':{class_type:'KSampler',inputs:{model:['7',0],positive:['8',0],negative:['9',0],latent_image:['10',0],seed,steps:8,cfg:1,sampler_name:'res_multistep',scheduler:'simple',denoise:1}},
   '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
   '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
+const VARY={
+  age:['early 20s','mid 20s','late 20s','early 30s','mid 30s','late 30s','40s','early 50s'],
+  eth:['Black','white','Latino','East Asian','South Asian','Middle Eastern','Southeast Asian','mixed-race','Native American','Pacific Islander'],
+  build:['slim','athletic','average-build','muscular','stocky','tall, lean','broad-shouldered'],
+  bodyW:['slim','athletic','average-build','curvy','petite','tall','fuller-figured'],
+  hairM:['short buzz-cut {c} hair','short textured {c} hair','a clean fade with short {c} curls','short wavy {c} hair','neatly side-parted {c} hair','close-cropped {c} hair','shoulder-length {c} hair tied back','short {c} dreadlocks','a shaved head','tousled medium-length {c} hair'],
+  hairW:['long straight {c} hair behind her shoulders','long wavy {c} hair behind her shoulders','long curly {c} hair behind her shoulders','long {c} braids behind her shoulders','a sleek low {c} ponytail','a high {c} ponytail','a short {c} bob','a {c} pixie cut','{c} curls pulled back','a low {c} bun'],
+  dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],gray:['gray-streaked','salt-and-pepper'],
+  faceM:['clean-shaven','with light stubble','with a short trimmed beard','with a full beard','with a mustache','with a goatee'],
+  extra:['freckles','a warm smile','a confident neutral expression','a slight smile','dimples','thin-framed glasses','a calm, friendly expression']};
+const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
+function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
+  const lightOk=/white|mixed|Middle Eastern|Latino/.test(eth);let c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);if(/40s|50s/.test(age)&&Math.random()<.4)c=pick(VARY.gray);
+  const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
+  return woman?`${an(pick(VARY.bodyW))} ${eth} woman in her ${age} with ${hair} and ${pick(VARY.extra)}`
+             :`${an(pick(VARY.build))} ${eth} man in his ${age}, ${pick(VARY.faceM)}, with ${hair} and ${pick(VARY.extra)}`;}
 function cfText(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
-  const m=new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s');
+  const m=$('#cf-vary').checked?randomPerson(want==='woman'):(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
   let p=buildPrompt(m);
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
