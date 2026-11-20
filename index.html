@@ -703,6 +703,10 @@ let poseP=null;
 function loadPose(){if(poseP)return poseP;poseP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='vendor/pose/pose.js';sc.onload=async()=>{try{const ps=new Pose({locateFile:f=>'vendor/pose/'+f});
   ps.setOptions({modelComplexity:1,staticImageMode:true,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.5});let cb=null;ps.onResults(r=>{if(cb)cb(r);});await ps.initialize();
   res({run:img=>new Promise(r2=>{cb=r2;ps.send({image:img});})});}catch(e){rej(e);}};sc.onerror=rej;document.head.append(sc);});return poseP;}
+async function detectFacing(canvas){ // 'left' or 'right': which image edge a profile is facing (nose ahead of the ears)
+  const ps=await loadPose();const r=await ps.run(canvas);if(!r||!r.poseLandmarks)return null;const L=r.poseLandmarks;
+  const ears=[L[7],L[8]].filter(e=>e&&e.visibility>.3);const nose=L[0];if(!nose||!ears.length)return null;
+  const ex=ears.reduce((m,e)=>m+e.x,0)/ears.length;const d=nose.x-ex;if(Math.abs(d)<.008)return null;return d<0?'left':'right';}
 async function detectBody(canvas){const ps=await loadPose();const r=await ps.run(canvas);if(!r||!r.poseLandmarks||!r.poseWorldLandmarks)return null;
   const lm=r.poseLandmarks,w=r.poseWorldLandmarks,yaw=(a,b)=>Math.atan2(w[a].z-w[b].z,w[a].x-w[b].x)*180/Math.PI;
   if(Math.min(lm[11].visibility,lm[12].visibility,lm[23].visibility||1,lm[24].visibility||1)<.5)return null;
@@ -1423,12 +1427,17 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
     if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
   if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
   const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  let ibf=ib;
+  if(viewOf(ref)!=='front'){try{const im=await loadImage(URL.createObjectURL(ib));const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);
+    const f=await detectFacing(c),want=viewOf(ref); // a left-sleeve photo faces the left edge, a right-sleeve photo the right edge
+    if(f&&f!==want){const c2=document.createElement('canvas');c2.width=c.width;c2.height=c.height;const x=c2.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(c,0,0);
+      ibf=await canvasBlob(c2,'image/png');}}catch(e){}}
   const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?'front':viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
-  const f=new File([ib],out.filename,{type:ib.type||'image/png'});
+  const f=new File([ibf],out.filename,{type:ibf.type||'image/png'});
   const PS=.9,tq=q=>q.map(v=>({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre
   const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=tq(ref.sleeves[k].quad);
   const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:tq(ref.quad),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,quiet:true});
-  return {newId,url:URL.createObjectURL(ib),name};}
+  return {newId,url:URL.createObjectURL(ibf),name};}
 $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#cf-go').disabled=true;$('#cf-stop').style.display='';
   const per=+$('#cf-per').value,str=+$('#cf-str').value,setMode=$('#cf-set').checked;
   const jobs=[];// [ref, opts]
