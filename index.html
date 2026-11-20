@@ -403,7 +403,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <h2>Generate models with ComfyUI on this computer</h2>
     <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends the prompt above to ComfyUI on your PC. Each pose comes from a calibrated built-in photo, so new models arrive with their print areas already set. Nothing leaves your computer.</p>
     <div class="row small" style="gap:8px;align-items:center;margin-bottom:8px"><span id="cf-st" class="status">Not connected</span><button class="small" id="cf-check">Connect</button>
-      <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" value="http://127.0.0.1:8188" style="width:260px" title="On the computer running ComfyUI: http://127.0.0.1:8188. From another computer: your Tailscale address, e.g. https://your-pc.tailnet-name.ts.net"></label></div>
+      <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" autocomplete="off" value="http://127.0.0.1:8188" style="width:260px" title="On the computer running ComfyUI: http://127.0.0.1:8188. From another computer: your Tailscale address, e.g. https://your-pc.tailnet-name.ts.net"></label></div>
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="front">Front poses</button><button class="small" data-pf="side">Side poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
@@ -1352,9 +1352,11 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
     $('#cf-st').textContent=names.includes('Z-Image-Turbo-Fun-Controlnet')?'✓ Connected to ComfyUI':'Connected, but the pose model (Z-Image-Turbo-Fun-Controlnet-Union) wasn\'t found in model_patches';}
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
-$('#cf-check').onclick=cfCheck;
+$('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
 {const u=LS.get('cfurl','');if(u)$('#cf-url').value=u;}
-$('#cf-url').onchange=()=>{let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(v))v='https://'+v;$('#cf-url').value=v;LS.set('cfurl',v);CF.ok=false;cfCheck();};
+function cfSaveUrl(){let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/\/+$/,'');try{localStorage.setItem('ms_cfurl',JSON.stringify(v));}catch(e){}return v;}
+$('#cf-url').addEventListener('input',cfSaveUrl);
+$('#cf-url').onchange=()=>{$('#cf-url').value=cfSaveUrl();CF.ok=false;cfCheck();};
 function cfPrompt(text,img,seed,str){return {
   '1':{class_type:'UNETLoader',inputs:{unet_name:'z_image_turbo_bf16.safetensors',weight_dtype:'default'}},
   '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen_3_4b.safetensors',type:'lumina2',device:'default'}},
