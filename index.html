@@ -1886,7 +1886,10 @@ async function colCheck(a,b){ // the edit must keep everything but the shirt: sa
   let big=0,n=0,sum=0;for(let i=0;i<da.length;i+=4){const d=(Math.abs(da[i]-db[i])+Math.abs(da[i+1]-db[i+1])+Math.abs(da[i+2]-db[i+2]))/3;if(d>40)big++;else{n++;sum+=d;}}
   const changed=big/(w*h),mean=n?sum/n:99;return {ok:mean<16&&changed<.5,changed,mean,why:mean>=16?'the photo shifted':changed>=.5?'too much of the photo changed':''};}
 async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlob(t);
-  const fd=new FormData();fd.append('image',new File([src],'ms-col-'+t.id+'.png',{type:src.type||'image/png'}));fd.append('overwrite','true');
+  // edit a copy at most 1280px tall/wide (about 30 s); the new color is blended back onto the full-size photo
+  const a=await loadImage(URL.createObjectURL(src));const [lw,lh]=fitSize(a.naturalWidth,a.naturalHeight,1280);const lowC=drawScaled(a,lw,lh);
+  const low=lw<a.naturalWidth?await canvasBlob(lowC,'image/png'):src;
+  const fd=new FormData();fd.append('image',new File([low],'ms-col-'+t.id+'.png',{type:low.type||'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the photo.');const u=await up.json();
   const words=COLOR_WORDS[hex]||('solid '+String(name||'').toLowerCase()+' (color '+hex+')');
   const prompt=`Change only the color of the t-shirt to ${words}. Keep the same person, face, hair, skin, tattoos, pose, body, hands, jeans, background, lighting and framing exactly the same, and keep every fold, wrinkle, seam and the collar of the shirt in the same place. The shirt stays completely blank with no print, logo or text.`;
@@ -1899,9 +1902,17 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
     if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
   if(!out)throw new Error(CQ.cancel?'Cancelled.':'Timed out waiting for ComfyUI.');
   const ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
-  const a=await loadImage(URL.createObjectURL(src)),b=await loadImage(URL.createObjectURL(ob));
+  const b=await loadImage(URL.createObjectURL(ob));
   const chk=await colCheck(a,b);if(!chk.ok)throw new Error('kept the preview for '+(name||hex)+' on '+t.name+': '+chk.why);
-  const c=document.createElement('canvas');c.width=a.naturalWidth;c.height=a.naturalHeight;c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+  const c=document.createElement('canvas');c.width=a.naturalWidth;c.height=a.naturalHeight;const cx=c.getContext('2d');cx.drawImage(a,0,0);
+  if(lw<a.naturalWidth){ // keep the original's pixels wherever the edit didn't change anything
+    const ed=drawScaled(b,lw,lh),ex=ed.getContext('2d',{willReadFrequently:true}),E=ex.getImageData(0,0,lw,lh),O=lowC.getContext('2d',{willReadFrequently:true}).getImageData(0,0,lw,lh).data;
+    const n=lw*lh,m=new Float32Array(n),tmp=new Float32Array(n);
+    for(let i=0,j=0;i<n;i++,j+=4){const d=Math.max(Math.abs(E.data[j]-O[j]),Math.abs(E.data[j+1]-O[j+1]),Math.abs(E.data[j+2]-O[j+2]));m[i]=Math.min(1,Math.max(0,(d-10)/18));}
+    for(let k=0;k<2;k++){boxBlurH(m,tmp,lw,lh,2);boxBlurV(tmp,m,lw,lh,2);}
+    for(let i=0;i<n;i++)E.data[i*4+3]=Math.round(Math.min(1,m[i]*1.6)*255);
+    ex.putImageData(E,0,0);cx.imageSmoothingQuality='high';cx.drawImage(ed,0,0,c.width,c.height);}
+  else cx.drawImage(b,0,0,c.width,c.height);
   await colPut(t.id,hex,await canvasBlob(c,'image/jpeg',.92),true);}
 function colEnqueue(ts,cols){CQ.paused=false;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex)continue;const k=colKey(t.id,c.hex);
     if(colorUrls.has(k)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
