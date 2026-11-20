@@ -390,7 +390,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       </select>
       <select id="g-setting">
         <option value="studio">Plain studio backdrop</option><option value="garage">Workshop / garage</option><option value="outdoor">Wooded trail</option><option value="street">City sidewalk</option><option value="porch">Front porch</option>
-        <option value="coffee">Coffee shop</option><option value="beach">Beach boardwalk</option><option value="downtown">Downtown, evening</option><option value="park">City park</option><option value="loft">Industrial loft</option><option value="rooftop">Rooftop terrace</option><option value="gym">Gym</option><option value="ranch">Ranch</option><option value="campus">College campus</option>
+        <option value="coffee">Coffee shop</option><option value="beach">Beach boardwalk</option><option value="downtown">Downtown, evening</option><option value="park">City park</option><option value="loft">Industrial loft</option><option value="rooftop">Rooftop terrace</option><option value="gym">Gym</option><option value="range">Outdoor gun range</option><option value="indoorrange">Indoor gun range</option><option value="musclegarage">Muscle-car garage</option><option value="moto">Motorcycle shop</option><option value="boxing">Boxing gym</option><option value="lake">Lake dock</option><option value="fishing">Fishing boat</option><option value="truck">Pickup on a backroad</option><option value="cabin">Log cabin</option><option value="mountain">Mountain overlook</option><option value="desert">Desert off-road</option><option value="bonfire">Backyard bonfire</option><option value="bbq">Backyard BBQ</option><option value="hunting">Autumn forest edge</option><option value="ranch">Ranch</option><option value="campus">College campus</option>
       </select>
     </div>
     <div class="prompt" id="g-out"></div>
@@ -405,7 +405,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".5" max="1.2" step=".05" value="1" style="width:110px"> <span id="cf-strv">1.00</span></label>
-      <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random scene per set</option><option value="any">Random, including studio</option><option value="same">Use the Setting above</option></select></label>
+      <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
@@ -1403,7 +1403,8 @@ function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
   const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
   return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, with ${pick(VARY.bodyW)}, ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
-function cfScene(){const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=Object.keys(settings).filter(k=>k!=='studio'||v==='any');return ks[Math.floor(Math.random()*ks.length)];}
+const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
+function cfScene(){const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=COOL.concat(v==='any'?['studio']:[]);return ks[Math.floor(Math.random()*ks.length)];}
 function cfArms(){const v=$('#cf-arms').value;return v==='mix'?['','hips','hip','pocket','hair','hip','pocket'][Math.floor(Math.random()*7)]:v;}
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   return randomPerson(want==='woman');}
@@ -1851,6 +1852,20 @@ const settings={
   loft:'In an industrial loft with exposed brick and large windows, soft daylight, background softly out of focus.',
   rooftop:'On a city rooftop terrace with a skyline behind, soft golden hour light, background softly out of focus.',
   gym:'In a modern gym with equipment softly blurred behind, bright clean lighting, background softly out of focus.',
+  range:'At an outdoor shooting range with wooden shooting benches, target stands and dirt berms behind, bright afternoon sun, background softly out of focus. No guns are held or shown in hand.',
+  indoorrange:'Inside an indoor shooting range with lane dividers and paper targets down the lanes behind, cool overhead lighting, background softly out of focus. No guns are held or shown in hand.',
+  musclegarage:'In a gritty garage with a classic muscle car, tool chests and a neon shop sign behind, moody warm light, background softly out of focus.',
+  moto:'In a motorcycle shop with custom bikes, exposed brick and tool walls behind, warm moody light, background softly out of focus.',
+  boxing:'In an old-school boxing gym with a ring, heavy bags and chain-hung lights behind, dramatic warm light, background softly out of focus.',
+  lake:'On a wooden dock at a calm lake with pine trees and mountains behind, golden hour sunlight, background softly out of focus.',
+  fishing:'On a fishing boat on open water with a shoreline behind, bright morning sun, background softly out of focus.',
+  truck:'Beside a lifted pickup truck on a dirt backroad with fields behind, golden hour sun, background softly out of focus.',
+  cabin:'In front of a rustic log cabin in the woods with a stacked woodpile behind, warm late-afternoon light, background softly out of focus.',
+  mountain:'On a rocky mountain trail overlook with peaks and valleys behind, crisp daylight, background softly out of focus.',
+  desert:'In the desert beside an off-road Jeep with red rock formations behind, warm golden light, background softly out of focus.',
+  bonfire:'At a backyard bonfire at dusk with string lights and a wooden fence behind, warm firelight glow, background softly out of focus.',
+  bbq:'At a backyard barbecue with a smoker grill and patio behind, warm afternoon sun, background softly out of focus.',
+  hunting:'At the edge of an autumn forest with tall grass and fall colors behind, soft early-morning light, background softly out of focus.',
   ranch:'At a rustic ranch with a wooden fence and open fields behind, warm afternoon sun, background softly out of focus.',
   campus:'On a college campus walkway with brick buildings and trees behind, soft daylight, background softly out of focus.'
 };
