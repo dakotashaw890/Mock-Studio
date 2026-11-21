@@ -1991,7 +1991,9 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
     ex.putImageData(E,0,0);cx.imageSmoothingQuality='high';cx.drawImage(ed,0,0,c.width,c.height);}
   else cx.drawImage(b,0,0,c.width,c.height);
   await colPut(t.id,hex,await canvasBlob(c,'image/jpeg',.92),true);}
-function colEnqueue(ts,cols){CQ.paused=false;CQ.halted='';CQ.dropped=0;CQ.streak=0;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex)continue;const k=colKey(t.id,c.hex);
+// colours never sent to ComfyUI: they only ever show as the recolor preview
+const NO_GEN=['natural','pink','mustard'];
+function colEnqueue(ts,cols){CQ.paused=false;CQ.halted='';CQ.dropped=0;CQ.streak=0;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex||NO_GEN.includes(colName(c.name||''))||NO_GEN.some(n=>SHIRT_COLORS.some(sc=>colName(sc[0])===n&&sc[1]===c.hex)))continue;const k=colKey(t.id,c.hex);
     if(hasColor(t.id,c.hex)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
 async function colWork(){if(CQ.run)return;CQ.run=true;CQ.cancel=false;
   try{while(CQ.list.length&&!CQ.cancel){if(!(await cfAlive())){CQ.paused=true;CQ.dropped=CQ.list.length;CQ.list=[];CQ.halted='ComfyUI closed';break;}
