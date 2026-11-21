@@ -544,7 +544,7 @@ async function poseShirtMask(t){try{const img=await tplImage(t);const [w,h]=fitS
     // shirt colour stats from the fill, to also catch folds and shadows the fill missed
     let sl=0,sn=0;for(let i=0;i<w*h;i+=5)if(m[i]){const j=i*4;sl+=.299*data[j]+.587*data[j+1]+.114*data[j+2];sn++;}const ml=sn?sl/sn:60;
     for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){const i=y*w+xx,j=i*4;const tp=woman||Math.abs(xx-nx)<nw?top:top2;let v=0;
-      if(y>=tp&&y<=bot&&(!seg||seg.at((xx+.5)/w,(y+.5)/h))){if(m[i])v=255;else if(y>shY*h+(bot-shY*h)*.08&&y<botX){const R=data[j],G=data[j+1],B=data[j+2],L=.299*R+.587*G+.114*B,sat=Math.max(R,G,B)-Math.min(R,G,B);if(L<=ml+45&&sat<28)v=255;}}
+      if(y>=tp&&y<=bot&&(!seg||seg.at((xx+.5)/w,(y+.5)/h))){if(m[i])v=255;else if(y>shY*h+(bot-shY*h)*.08&&y<botX&&xx>Math.min(lm[11].x,lm[12].x)*w&&xx<Math.max(lm[11].x,lm[12].x)*w){const R=data[j],G=data[j+1],B=data[j+2],L=.299*R+.587*G+.114*B,sat=Math.max(R,G,B)-Math.min(R,G,B);if(L<=ml+45&&sat<28)v=255;}}
       id.data[j]=id.data[j+1]=id.data[j+2]=v;id.data[j+3]=255;}
     x.putImageData(id,0,0);return o;}catch(e){return null;}}
 // photos with at least one real colour: the shirt is exactly what changed between the original and that colour
@@ -693,7 +693,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
     for(let y=minY;y<=maxY;y++){const sy=y+.5;
       const vRow=(()=>{const qx=xAt(.5);const z=m6*qx+m7*sy+m8;return (m3*qx+m4*sy+m5)/z;})();
       const x0=Math.round(xAt(Math.min(1,Math.max(0,vRow)))), lim=Math.round(qw*1.2);
-      for(let k=0;k<lim;k++){const x=x0+dS*k;if(x<1||x>=w-run-1)break;let ok=true;for(let r=0;r<run;r++){if(L[y*w+x+dS*r]<=thr){ok=false;break;}}if(ok){const z=m6*x+m7*sy+m8,ue=(m0*x+m1*sy+m2)/z;raw[y-minY]=dS>0?ue:1-ue;break;}}
+      const fmk=sm.fmask;for(let k=0;k<lim;k++){const x=x0+dS*k;if(x<1||x>=w-run-1)break;let ok=true;for(let r=0;r<run;r++){if(fmk?fmk((x+dS*r+.5)/w,sy/h):L[y*w+x+dS*r]<=thr){ok=false;break;}}if(ok){const z=m6*x+m7*sy+m8,ue=(m0*x+m1*sy+m2)/z;raw[y-minY]=dS>0?ue:1-ue;break;}}
     }
     hE=new Float32Array(raw.length).fill(NaN);const R=4;
     for(let i=0;i<raw.length;i++){const vals=[];for(let j=i-R;j<=i+R;j++)if(j>=0&&j<raw.length&&!isNaN(raw[j]))vals.push(raw[j]);if(vals.length>=R){vals.sort((a,b)=>a-b);const m=vals[vals.length>>1];if(m>.45&&m<1.4)hE[i]=m;}}
@@ -707,6 +707,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       let du,cv=1-(2*u-1)*(2*u-1),eA=1;
       if(sm){let uc=.5;if(hE){const ed=hE[y-minY],eo=isNaN(ed)?1:sm.side?Math.min(2.2,Math.max(.6,ed)):Math.min(1.04,Math.max(.8,ed));uc=dS>0?eo-AR:1-eo+AR;}
         if(sm.front&&L[i]>fThr+.22)continue; // never print on skin or background
+        if(sm.fmask&&!sm.fmask((x+.5)/w,(y+.5)/h))continue;
         if(sideF){if(!sideF.base(x,y))continue;eA=sideF.soft(x,y);if(eA<=.02)continue;} // side view: only on the shirt, even against a dark background; soft at the outline
         if(sm.clip&&(x-sm.clip.x)*sm.clip.d<=0)continue; // chest seen from the side: hidden behind the arm
         const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
@@ -751,7 +752,7 @@ function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
   ctx.putImageData(out,0,0);
 }
 
@@ -774,7 +775,24 @@ async function detectBody(canvas){const ps=await loadPose();const r=await ps.run
   return {axis:+((lm[11].x+lm[12].x+lm[23].x+lm[24].x)/4).toFixed(4),yaw:+((yaw(11,12)+yaw(23,24))/2).toFixed(1),sh:+Math.abs(lm[11].x-lm[12].x).toFixed(4)};}
 /* ---------- automatic sleeve fitting (same engine for built-in and uploaded photos) ---------- */
 const FIT={chestIn:{men:20.5,women:19},onBody:.82,sleeveIn:3.1,widthPerArm:.646};
-function fabModel(pack,qpx,strict){ // qpx: [[x,y]x4] region known to be shirt; returns {d(x,y), tol}
+async function armSeeds(t,fm,p){try{const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(img,w,h));
+    if(!r||!r.poseLandmarks)return null;const lm=r.poseLandmarks,out={},A=p.w/p.h;
+    const shW=Math.abs(lm[11].x-lm[12].x); // normalized shoulder width
+    for(const [s,S,E] of [['left',11,13],['right',12,14]]){const a=lm[S],b=lm[E];if((a.visibility||0)<.4||(b.visibility||0)<.3)continue;
+      // walk shoulder -> elbow until the shirt ends: that's the sleeve hem
+      let hx=null,hy=null,miss=0;for(let k=0;k<=60;k++){const u=k/60,x=a.x+(b.x-a.x)*u,y=a.y+(b.y-a.y)*u;if(fm(x,y)){hx=x;hy=y;miss=0;}else if(hx!==null&&++miss>3)break;}
+      if(hx===null)continue;const sz=shW*.16,cy=hy+(a.y-hy)*.3;let cx=hx+(a.x-hx)*.3; // just above the hem, toward the shoulder
+      // slide out so the box's outer side sits on the sleeve's outer edge (where the print shows from the front)
+      const dS=s==='left'?1:-1;let ex=cx,mx=0;for(let k=0;k<200;k++){const x=cx+dS*k*.002;if(fm(x,cy)){ex=x;mx=0;}else if(++mx>3)break;}cx=ex-dS*sz/2;
+      out[s]=[{x:cx-sz/2,y:cy-sz*A/2},{x:cx+sz/2,y:cy-sz*A/2},{x:cx+sz/2,y:cy+sz*A/2},{x:cx-sz/2,y:cy+sz*A/2}];}
+    return Object.keys(out).length?out:null;}catch(e){return null;}}
+// while fitting a generated photo, "is this shirt?" comes from its shirt outline when there is one (colour alone can't tell a black shirt from a dark background)
+let FIT_MASK=null;const fitMasks=new Map();
+function canvasSampler(c){if(!c)return null;const w=c.width||c.naturalWidth,h=c.height||c.naturalHeight;let x=c.getContext?c.getContext('2d',{willReadFrequently:true}):null;
+  if(!x){const k=document.createElement('canvas');k.width=w;k.height=h;x=k.getContext('2d',{willReadFrequently:true});x.drawImage(c,0,0);}
+  const d=x.getImageData(0,0,w,h).data;return (nx,ny)=>{const X=Math.min(w-1,Math.max(0,Math.round(nx*w-.5))),Y=Math.min(h-1,Math.max(0,Math.round(ny*h-.5)));return d[(Y*w+X)*4]>127;};}
+function fabModel(pack,qpx,strict){const base=fabModel0(pack,qpx,strict);if(!FIT_MASK)return base;const fm=FIT_MASK;return {...base,fab:(x,y)=>fm(x/pack.w,y/pack.h)};}
+function fabModel0(pack,qpx,strict){ // qpx: [[x,y]x4] region known to be shirt; returns {d(x,y), tol}
   const {w,h,data}=pack, M=sq2quad(qpx), rs=[],gs=[],bs=[];
   for(let a=0;a<12;a++)for(let b=0;b<12;b++){const [x,y]=apply(M,.3+.4*(a+.5)/12,.3+.4*(b+.5)/12);const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=w||yi>=h)continue;const j=(yi*w+xi)*4;rs.push(data[j]);gs.push(data[j+1]);bs.push(data[j+2]);}
   const med=a=>{a.sort((x,y)=>x-y);return a[a.length>>1]||0;};const R=med(rs),G=med(gs),B=med(bs);
@@ -966,7 +984,10 @@ async function ensureFit(t){
   try{
     let r=fitRes.get(t.id);
     if(!r){const p=await previewPack(t);
-      if(viewOf(t)==='front'){const c=fitChest(t,p);
+      const fm=!t.builtin&&viewOf(t)==='front'?canvasSampler(await maskImage(t)):null;if(fm)fitMasks.set(t.id,fm);
+      // generated photos: start the sleeve search from this person's own arms (shoulder to elbow), not the reference pose
+      if(fm&&!t.builtin){const ps=await armSeeds(t,fm,p);if(ps)t.seedSleeves={...(t.seedSleeves||{}),...ps};}
+      if(viewOf(t)==='front'){FIT_MASK=fm;let c;try{c=fitChest(t,p);}finally{FIT_MASK=null;}
         if(c&&c.ok&&!isManual(t,'front')){ // anchor the chest print to the neckline
           let q=t.quad.map(v=>({...v}));const qx=q.map(v=>v.x),qy=q.map(v=>v.y);
           if(!t.builtin){const nw=c.tw*.92,cx0=(Math.min(...qx)+Math.max(...qx))/2,ty=Math.min(...qy),hw=nw*p.w/p.h;q=[{x:cx0-nw/2,y:ty},{x:cx0+nw/2,y:ty},{x:cx0+nw/2,y:ty+hw},{x:cx0-nw/2,y:ty+hw}];}
@@ -978,7 +999,12 @@ async function ensureFit(t){
           t.quad=q.map(v=>({x:+(v.x+dx).toFixed(4),y:+(v.y+dy).toFixed(4)}));
           t.chestTurn=bodyTurn(t); if(!t.builtin)t.areaIn=ain;
         }
-        r=fitFront(t,p);r.quad=t.quad;r.chestTurn=t.chestTurn;
+        FIT_MASK=fm;try{r=fitFront(t,p);}finally{FIT_MASK=null;}r.quad=t.quad;r.chestTurn=t.chestTurn;
+        // generated photos: a fitted sleeve whose outer side isn't on the sleeve's real outer edge falls back to the arm-based box
+        if(fm&&r.sleeves)for(const sd of ['left','right']){const f=r.sleeves[sd];if(!f||!f.quad)continue;const dS=sd==='left'?1:-1,q=f.quad;
+          const ox=dS>0?Math.max(...q.map(v=>v.x)):Math.min(...q.map(v=>v.x)),qy=q.reduce((a,v)=>a+v.y,0)/4,qw=Math.max(...q.map(v=>v.x))-Math.min(...q.map(v=>v.x));
+          let ex=ox,mx=0;for(let k=1;k<150;k++){const x=ox+dS*k*.002;if(fm(x,qy)){ex=x;mx=0;}else if(++mx>3)break;}
+          if(Math.abs(ex-ox)>qw*.25||!fm(ox-dS*qw*.2,qy))r.sleeves[sd]={conf:'low'};}
       }else r={side:fitSide(t,p)};
       fitRes.set(t.id,r);}
     else if(viewOf(t)==='front'&&r.quad&&!isManual(t,'front')){t.quad=r.quad;t.chestTurn=r.chestTurn;}
@@ -986,8 +1012,12 @@ async function ensureFit(t){
     if(viewOf(t)==='front'){
       if(!t.builtin&&r.areaIn)t.areaIn=r.areaIn;
       t.sleeves=t.sleeves||{};
-      for(const s of ['left','right']){const f=r.sleeves&&r.sleeves[s];if(!f)continue;t.fit[s]=isManual(t,s)?'manual':f.conf;
-        if(!isManual(t,s)&&f.quad&&f.conf==='ok')t.sleeves[s]={...(t.sleeves[s]||{}),quad:f.quad};}
+      for(const s of ['left','right']){const f=r.sleeves&&r.sleeves[s];const seed=t.seedSleeves&&t.seedSleeves[s];if(!f&&!seed)continue;
+        t.fit[s]=isManual(t,s)?'manual':f?f.conf:'low';
+        if(isManual(t,s))continue;
+        if(f&&f.quad&&f.conf==='ok')t.sleeves[s]={...(t.sleeves[s]||{}),quad:f.quad};
+        else if(!(t.sleeves[s]&&t.sleeves[s].quad)&&(seed||f&&f.quad))t.sleeves[s]={...(t.sleeves[s]||{}),quad:seed||f.quad}; // never leave a photo without a sleeve area
+      }
     }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
       if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;
       if(!r.chest)r.chest=fitSideChest(t,await previewPack(t),await sideMask(t))||{};if(r.chest.quad){t.chestQ=r.chest.quad;t.chestAreaIn=r.chest.areaIn;t.chestClip={x:r.chest.armX,y:r.chest.hemY};}}
@@ -1193,7 +1223,11 @@ view.addEventListener('pointerup',endDrag);view.addEventListener('pointercancel'
 $('#btn-edit').onclick=startEdit;
 $('#btn-cancel-area').onclick=cancelEdit;
 $('#btn-autofit').onclick=async()=>{const t=curT();if(!t)return;const p=await previewPack(t);let f;
-  if(viewOf(t)==='front'){const r=fitFront(t,p);f=r.sleeves&&r.sleeves[editSlot];}else{f=fitSide({...t,quad:editQuad},p);}
+  if(viewOf(t)==='front'){let r;
+    if(!t.builtin){const fm=canvasSampler(await maskImage(t));const ps=fm?await armSeeds(t,fm,p):null;const tt={...t,seedSleeves:{...(t.seedSleeves||{}),...(ps||{})}};
+      FIT_MASK=fm;try{r=fitFront(tt,p);}finally{FIT_MASK=null;}f=r.sleeves&&r.sleeves[editSlot];if((!f||f.conf!=='ok')&&ps&&ps[editSlot])f={quad:ps[editSlot],conf:'low'};}
+    else{r=fitFront(t,p);f=r.sleeves&&r.sleeves[editSlot];}}
+  else{f=fitSide({...t,quad:editQuad},p);}
   if(f&&f.quad){editQuad=f.quad.map(q=>({...q}));editTurn=turnDefault(t,editSlot);turnUI(t);scheduleRender();toast(f.conf==='ok'?'Fitted to the sleeve. Save to keep it.':'Fitted, but check it. The sleeve was hard to read in this photo.');}
   else toast(viewOf(t)==='front'?'Couldn\'t find this sleeve in the photo. Drag the box onto it instead.':'Couldn\'t find the sleeve. Drag the box onto the sleeve, then try Auto-fit again.');};
 function quadStats(q){const c={x:q.reduce((a,p)=>a+p.x,0)/4,y:q.reduce((a,p)=>a+p.y,0)/4};const w=(dist([q[0].x,q[0].y],[q[1].x,q[1].y])+dist([q[3].x,q[3].y],[q[2].x,q[2].y]))/2,h=(dist([q[0].x,q[0].y],[q[3].x,q[3].y])+dist([q[1].x,q[1].y],[q[2].x,q[2].y]))/2;return {c,w,h};}
@@ -1942,7 +1976,10 @@ async function colorImg(id,hex){const k=colAlias(id,hex);if(!k)return null;if(co
 async function shirtSrc(t){const hex=shirtHex();if(hex){const im=await colorImg(t.id,hex);if(im)return {img:im,rc:null};}
   return {img:await tplImage(t),rc:hex?await recolorSpec(t,hex):null};}
 async function colPut(id,hex,blob,push){const k=colKey(id,hex);await colTx('readwrite',st=>st.put({k,model_id:id,hex,blob})).catch(()=>{});
-  if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);maskImgs.delete(id);
+  if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);
+  // the first AI colour gives an exact shirt outline: redo this photo's automatic print areas with it
+  const firstForId=![...colorUrls.keys()].some(x=>x!==k&&x.startsWith(id+'|'));maskImgs.delete(id);
+  if(firstForId){const t=templates.find(x=>x.id===id);if(t&&!t.builtin){fitRes.delete(id);fitMasks.delete(id);t._fitted=false;for(const sd of ['left','right'])if(!isManual(t,sd)&&t.sleeves)delete t.sleeves[sd];}}
   colorPacks.clear();smallPacks.clear();if(push)colPush({k,model_id:id,hex,blob});}
 async function colDropModel(id){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(c.model_id===id){await colTx('readwrite',st=>st.delete(c.k));colorUrls.delete(c.k);colorImgCache.delete(c.k);}}catch(e){}}
 function setMates(t){if(t.setId)return templates.filter(x=>x.setId===t.setId);
@@ -2026,7 +2063,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__ms={colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__ms={armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
