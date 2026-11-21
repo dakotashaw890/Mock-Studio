@@ -197,8 +197,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <h2>Shirt color</h2>
         <div class="swrow" id="shirt-sw"></div>
         <div class="row small" style="gap:8px;align-items:center;margin-top:6px"><span id="shirt-name" class="muted"></span><label class="row small" style="gap:4px;margin-left:auto">Custom <input type="color" id="shirt-custom" value="#3355aa" style="width:34px;height:24px;padding:0;border:0"></label></div>
-        <div class="row small" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button class="small" id="shirt-make" title="Uses ComfyUI on your PC to repaint this model's shirt (front and both sides) in your core colors. Real photos look better than the recolor preview.">Make real colors for this model</button><button class="small" id="shirt-stop" style="display:none">Cancel</button><span id="shirt-gen" class="muted"></span></div>
-        <p class="small muted" style="margin:4px 0 0">Swatches with a dot have a real photo for this model. Others show a recolor preview. ▲ = a color on your loaded Printify listing.</p>
+        <div class="row small" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button class="small" id="shirt-make" title="Uses ComfyUI on your PC to repaint this model's shirt (front and both sides) in your core colors. Real photos look better than the recolor preview.">Make AI colors for this model</button><button class="small" id="shirt-stop" style="display:none">Cancel</button><span id="shirt-gen" class="muted"></span></div>
+        <p class="small muted" style="margin:4px 0 0">Green dot = AI color made in ComfyUI (best). No dot = quick preview tinted in your browser (rough, instant). ▲ = a color on your loaded Printify listing.</p>
       </div>
       <div class="card">
         <h2>1. Your designs</h2>
@@ -410,7 +410,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
-      <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make real shirt colors (adds about 2½ min per photo)</label>
+      <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
       <div class="row small" style="gap:8px;display:none"><span id="cf-colq" class="muted"></span><button class="small" id="cf-colstop">Stop colors</button></div>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
@@ -525,9 +525,9 @@ function canonHex(name,hex){const k=colName(name),m=SHIRT_COLORS.find(c=>colName
 function normHex(h){if(!h||!/^#?[0-9a-f]{6}$/i.test(h))return null;h='#'+h.replace('#','').toLowerCase();const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return (.299*r+.587*g+.114*b)/255<.09?'':h;}
 function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';const t=curT(),sells=new Set(LS.get('pfcolors',[]).map(c=>canonHex(c.name,c.hex)));
   for(const [n,hex] of allColors()){const b=document.createElement('button');const real=!hex||(t&&hasColor(t.id,hex));
-    b.className='sw'+(cur===hex?' on':'')+(real?' real':'')+(sells.has(hex)?' sells':'');b.title=n+(hex&&real?' (real photo)':hex?' (preview: recolored)':'')+(sells.has(hex)?' · on your listing':'');b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
+    b.className='sw'+(cur===hex?' on':'')+(real?' real':'')+(sells.has(hex)?' sells':'');b.title=n+(hex&&real?' (AI color)':hex?' (quick preview)':'')+(sells.has(hex)?' · on your listing':'');b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
   const nm=(allColors().find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];
-  $('#shirt-name').textContent=nm+(cur&&t?(hasColor(t.id,cur)?' · real photo':' · recolor preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
+  $('#shirt-name').textContent=nm+(cur&&t?(hasColor(t.id,cur)?' · AI color':' · quick preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
 async function maskImage(t){if(maskImgs.has(t.id))return maskImgs.get(t.id);let m=null;
   if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}}
   else m=await diffMask(t);
@@ -2004,10 +2004,10 @@ async function colWork(){if(CQ.run)return;CQ.run=true;CQ.cancel=false;
       CQ.cur=null;shirtUI();if(shirtHex()===j.hex){scheduleRender();scheduleGrid();}}}
   finally{CQ.run=false;CQ.cur=null;if(CQ.cancel)CQ.list=[];colUI();}}
 function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=$('#cf-colq');if(m){m.textContent=el.textContent;m.parentNode.style.display=el.textContent?'':'none';}},0);const left=CQ.list.length+(CQ.cur?1:0);$('#shirt-stop').style.display=left?'':'none';
-  el.textContent=left?`Making real colors: ${left} left (about ${Math.max(1,Math.round(left*.55))} min)…`
-    :CQ.halted?`Shirt colors stopped (${CQ.halted})`+(CQ.dropped?`; ${CQ.dropped} not made. Use “Make real colors for this model” to finish one later.`:'.')
-    :CQ.paused?'ComfyUI isn\'t reachable from this computer, so other colors show the recolor preview.'
-    :(CQ.done||CQ.fail)?`${CQ.done} real color photo${CQ.done===1?'':'s'} made`+(CQ.fail?`, ${CQ.fail} ${CQ.fail===1?'was':'were'} skipped (${CQ.err})`:'')+'.':'';}
+  el.textContent=left?`Making AI colors in ComfyUI: ${left} left (about ${Math.max(1,Math.round(left*.55))} min)…`
+    :CQ.halted?`Shirt colors stopped (${CQ.halted})`+(CQ.dropped?`; ${CQ.dropped} not made. Use “Make AI colors for this model” to finish one later.`:'.')
+    :CQ.paused?'ComfyUI isn\'t reachable from this computer, so colors show the quick preview.'
+    :(CQ.done||CQ.fail)?`${CQ.done} AI color photo${CQ.done===1?'':'s'} made`+(CQ.fail?`, ${CQ.fail} ${CQ.fail===1?'was':'were'} skipped (${CQ.err})`:'')+'.':'';}
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
