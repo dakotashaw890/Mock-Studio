@@ -1461,7 +1461,8 @@ const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?
 function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
   const lightOk=/white|mixed|Latino/.test(eth);const c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);
   const eyes=eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
-  const hair=pick(woman?VARY.hairW:VARY.hairM).replace('{c}',c);
+  // dreadlocks and braids only come up for Black models
+  const hair=pick((woman?VARY.hairW:VARY.hairM).filter(h=>eth==='Black'||!/dreadlock|braid|locs/.test(h))).replace('{c}',c);
   return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, with ${pick(VARY.bodyW)}, ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}${Math.random()<.25?', with the front hem tied in a knot at her waist':''}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`;}
 const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
