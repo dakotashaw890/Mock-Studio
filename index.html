@@ -1453,6 +1453,7 @@ const VARY={
   hairW:['long, voluminous {c} blowout with soft bouncy curls at the ends, swept back behind her shoulders','long, glossy {c} hair in loose Hollywood waves, swept behind her shoulders','long, sleek and shiny straight {c} hair with a middle part, tucked behind her shoulders','long {c} hair with big soft curls and face-framing layers, falling behind her shoulders','long, tousled {c} beach waves with natural volume, swept back off her shoulders','long, defined glossy {c} curls with volume, pushed back behind her shoulders','a polished shoulder-length {c} lob with soft waves','long, silky {c} hair with a deep side part and a soft wave, behind her shoulders','long, sleek {c} knotless braids swept back behind her shoulders'],
   dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],
   faceM:['with a full, thick beard','with a full, thick beard','with a short, well-kept beard','with a short, well-kept beard','with heavy stubble','with heavy stubble','with a goatee','clean-shaven'],
+  tatM:['a bald eagle with an American flag and roses','a compass, a pocket watch and wisps of smoke','a lion head with clouds and roses','a skull with a helmet, dog tags and an American flag','a wolf head with pine trees and mountains'],
   capM:['a worn black trucker cap with a small American flag patch','a faded olive-green baseball cap','a black baseball cap','a tan trucker cap'],
   lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
   exprM:['a tough, serious expression','an intense stare','a slight confident smirk','a hard, focused look','a calm, stern expression','a serious look, gazing slightly off to the side'],
@@ -1468,7 +1469,7 @@ function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=pick(V
   return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, with ${pick(VARY.bodyW)}, ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}${Math.random()<.25?', with the front hem tied in a knot at her waist':''}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`+menExtras();}
 function menExtras(){const x=[];if(Math.random()<.35)x.push('wearing '+pick(VARY.capM));if(Math.random()<.2)x.push('wearing dark wraparound sunglasses');
-  if(Math.random()<.4)x.push('a black-and-grey tattoo sleeve on one forearm below the t-shirt sleeve');if(Math.random()<.4)x.push('a black rugged tactical wristwatch');return x.length?', '+x.join(', '):'';}
+  if(Math.random()<.4)x.push('a black-and-grey tattoo sleeve on his right forearm only (the left arm has no tattoos), showing '+pick(VARY.tatM));if(Math.random()<.4)x.push('a black rugged tactical wristwatch');return x.length?', '+x.join(', '):'';}
 const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
 function cfScene(){const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=COOL.concat(v==='any'?['studio']:[]);return ks[Math.floor(Math.random()*ks.length)];}
 function cfArms(woman){const v=$('#cf-arms').value;
@@ -1908,8 +1909,12 @@ async function colDropModel(id){try{const all=(await colTx('readonly',st=>st.get
 function setMates(t){if(t.setId)return templates.filter(x=>x.setId===t.setId);
   if(t.builtin){const b=t.id.replace(/[lr]$/,'');return templates.filter(x=>x.builtin&&x.id.replace(/[lr]$/,'')===b);}return [t];}
 const CORE_DEFAULT=[['White','#f3f3f0'],['Athletic Heather','#b4b3b0'],['Dark Grey Heather','#48494d'],['Navy','#1e2843'],['Military Green','#4b5338']];
+// automatic colors: at most 5 besides the original black. From a loaded listing, its colors that match the core five come first, then its first others; every other color is made only when clicked
 function coreColors(){const pf=LS.get('pfcolors',[]).map(c=>({name:c.name,hex:normHex(c.hex)})).filter(c=>c.hex);
-  const seen=new Set();const list=(pf.length?pf:CORE_DEFAULT.map(([name,hex])=>({name,hex}))).filter(c=>!seen.has(c.hex)&&seen.add(c.hex));return list.slice(0,8);}
+  const core=CORE_DEFAULT.map(([name,hex])=>({name,hex}));if(!pf.length)return core;
+  const key=n=>String(n).toLowerCase().replace(/gr[ae]y/g,'grey').replace(/[^a-z]/g,'');
+  const hit=pf.filter(c=>core.some(k=>key(k.name)===key(c.name)));const rest=pf.filter(c=>!hit.includes(c));
+  const seen=new Set();return hit.concat(rest).filter(c=>!seen.has(c.hex)&&seen.add(c.hex)).slice(0,5);}
 const COLOR_WORDS={'#f3f3f0':'solid bright white','#b4b3b0':'athletic heather, a light speckled heather gray melange','#48494d':'dark grey heather, a charcoal heather melange','#3c3d41':'asphalt, a solid dark charcoal gray',
   '#1e2843':'solid navy blue','#2a4c9e':'solid royal blue','#b11f2b':'solid red','#5a1f2b':'solid maroon','#4b5338':'solid military green, a muted olive green','#24382a':'solid dark forest green',
   '#e8ddc6':'natural, a soft off-white cream','#f0b4c3':'solid light pink','#d39b2a':'solid mustard yellow'};
