@@ -1445,6 +1445,7 @@ function cfPrompt(text,img,seed,str){return {
   '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
 const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
+  ageM:['mid 20s','late 20s','late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s'],
   eth:['white','white','white','white','white','white','Latino','Latino','Latino','Latino','mixed-race','mixed-race','mixed-race','Black','Black','Native American','Pacific Islander'],
   build:['fit, athletic','muscular, athletic','lean, toned','broad-shouldered, fit','tall, athletic','toned, muscular'],
   bodyW:['a slender fitness-model physique with a tiny waist, slim arms, a large bust and a big round butt','a lean, toned hourglass figure with a narrow waist, slim arms, full breasts and a big butt','a slim, athletic build with a small waist, a busty chest and a round, lifted butt','a slender model figure with a small waist, large breasts and a big butt'],
@@ -1458,7 +1459,7 @@ const VARY={
   exprW:['a warm, inviting smile','a soft closed-lip smile','a confident, alluring look','a soft, sultry expression','a bright, genuine smile','a playful half smile'],
   eyesLight:['green','blue','hazel','blue','green'],eyesDark:['brown','dark brown','brown','hazel']};
 const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
-function randomPerson(woman){const age=pick(VARY.age),eth=pick(VARY.eth);
+function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=pick(VARY.eth);
   const lightOk=/white|mixed|Latino/.test(eth);const c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);
   const eyes=eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
   // dreadlocks and braids only come up for Black models
