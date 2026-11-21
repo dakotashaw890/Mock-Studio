@@ -623,6 +623,8 @@ function designSampled(tw,th){
 /* ---------- compositor ---------- */
 let curTurn=0,curFlat=false;
 let REC_BOX=false,LASTBOX={};
+// arc length round a torso cross-section (ellipse, lateral half-width = TORSO_K x half-depth), per unit half-depth, by angle from the chest's front
+const TORSO_K=1.4,ELL=(()=>{const n=1024,t=new Float32Array(n+1);let acc=0;for(let i=1;i<=n;i++){const f=(i-.5)/n*Math.PI/2;acc+=Math.sqrt(TORSO_K*TORSO_K*Math.cos(f)**2+Math.sin(f)**2)*(Math.PI/2/n);t[i]=acc;}return t;})();
 function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
@@ -646,6 +648,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // bounding box of design region
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
+  const bU=sm&&sm.side?((sm.women?4.3:4.8)/Math.max(6,areaIn||12)):0;
   const AR=.774, dS=sm&&sm.dS?sm.dS:(slot==='left'?1:-1), hC=u0+fw/2-.5, aC=sm?sm.turn*Math.PI/180+(P.yaw||0)*Math.PI/180:0, iP=new Float32Array(513);
   if(sm){const K=sm.front?(sm.side?.12:.8):.15,N=2048,E=[];for(let k=0;k<=N;k++){const al=-Math.PI/2+Math.PI*k/N;E.push((1-K)*Math.sin(al)+K*2*al/Math.PI);}
     let k=0;for(let j=0;j<=512;j++){const e=-1+2*j/512;while(k<N&&E[k+1]<e)k++;const lo=E[k],hi=E[Math.min(N,k+1)];iP[j]=-Math.PI/2+Math.PI*(k+(hi>lo?(e-lo)/(hi-lo):0))/N;}}
@@ -720,8 +723,13 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
         if(sm.fmask&&!sm.fmask((x+.5)/w,(y+.5)/h))continue;
         if(sideF){if(!sideF.base(x,y))continue;eA=sideF.soft(x,y);if(eA<=.02)continue;} // side view: only on the shirt, even against a dark background; soft at the outline
         if(sm.clip&&(x-sm.clip.x)*sm.clip.d<=0)continue; // chest seen from the side: hidden behind the arm
-        const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
-        du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}
+        if(sm.side&&bU>0){ // profile: the print lies on the chest's front, which curves round to the side; seen edge-on it is crushed into a band at the front edge
+          const ed=hE?hE[y-minY]:NaN,eo=isNaN(ed)?1:Math.min(2.2,Math.max(.6,ed)),edgeU=dS>0?eo:1-eo,t=dS*(edgeU-u);
+          if(t<0||t>=bU)continue;const ph=Math.acos(1-t/bU),fi=ph/(Math.PI/2)*1024,f0=Math.min(1023,fi|0),sArc=bU*(ELL[f0]+(ELL[f0+1]-ELL[f0])*(fi-f0));
+          const Lat=sArc+bU*TORSO_K*Math.sin(aC-Math.PI/2)+dS*hC; // body turned toward the camera shows more; moving the design shifts it round the body
+          du=.5-dS*Lat/fw;cv=Math.sin(ph);eA*=.62+.38*Math.sin(ph);} // the front face is lit edge-on: a touch darker toward the edge
+        else{const sn=dS*(u-uc)/AR;if(sn<=-1||sn>=1)continue;const jf=(sn+1)*256,j0=Math.floor(jf),al=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);cv=Math.cos(al);
+        du=dS>0?.5+(AR*(al-aC)-hC)/fw:.5-(AR*(al-aC)+hC)/fw;}}
       else{let uu=u; if(wth>0.01||TT){const sx2=2*(u-.5)*sinWT+sinT; if(sx2<=-1||sx2>=1)continue; uu=.5+(Math.asin(sx2)-TT)/(2*wthT);}
       du=(uu-u0)/fw;}
       let dv=(v+arc*cv-v0)/fh;
@@ -766,7 +774,7 @@ function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
   ctx.putImageData(out,0,0);
 }
 
