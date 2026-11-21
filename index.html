@@ -1116,7 +1116,7 @@ function renderList(){
     const row=document.createElement('div');row.className='row';
     const e=document.createElement('button');e.textContent='Print area';e.onclick=()=>{curId=t.id;go('studio');renderThumbs();startEdit();};
     const x=document.createElement('button');x.textContent=t.builtin?'Hide':'Delete';x.className='danger';
-    x.onclick=async()=>{const ok=t.builtin?await confirmDlg('Hide “'+t.name+'”?','It won\'t show in the studio. You can bring built-in models back below.','Hide'):await confirmDlg('Delete “'+t.name+'”?','This removes the photo and its print area from this browser. It can\'t be undone.');if(ok){try{await deleteTemplate(t);toast(t.builtin?'Hidden.':'Deleted.');}catch(err){toast('Couldn\'t remove it.');}}};
+    x.onclick=async()=>{const ok=t.builtin?await confirmDlg('Hide “'+t.name+'”?','It won\'t show in the studio. You can bring built-in models back below.','Hide'):await confirmDlg('Delete “'+t.name+'”?',(CS.uid?'This removes the photo, its shirt colors and its print area from your account on every computer.':'This removes the photo, its shirt colors and its print area from this browser.')+' It can\'t be undone.');if(ok){try{await deleteTemplate(t);toast(t.builtin?'Hidden.':'Deleted.');}catch(err){toast('Couldn\'t remove it.');}}};
     row.append(e,x);
     if(t.builtin&&t.custom){const r=document.createElement('button');r.textContent='Reset area';r.onclick=()=>resetQuad(t).then(()=>toast('Print area reset.'));row.append(r);}b.append(inp,badge,row);d.append(im,b);box.append(d);
   }
