@@ -517,17 +517,33 @@ const SHIRT_COLORS=[['Black',''],['White','#f3f3f0'],['Athletic Heather','#b4b3b
 let SHIRT=null;
 function shirtHex(){if(!SHIRT)SHIRT=LS.get('shirt',{hex:''});return SHIRT.hex||'';}
 function setShirt(hex,name){SHIRT={hex:hex||'',name:name||''};LS.set('shirt',SHIRT);colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();
-  const t=curT();if(hex&&t&&!colorUrls.has(colKey(t.id,hex))&&!t.scene)cfAlive().then(ok=>{if(ok)colEnqueue(setMates(t),[{hex,name:name||hex}]);else if(!CQ.list.length&&!CQ.run){CQ.paused=true;colUI();}});}
+  const t=curT();if(hex&&t&&!hasColor(t.id,hex)&&!t.scene)cfAlive().then(ok=>{if(ok)colEnqueue(setMates(t),[{hex,name:name||hex}]);else if(!CQ.list.length&&!CQ.run){CQ.paused=true;colUI();}});}
 function allColors(){const out=SHIRT_COLORS.map(c=>[...c]);for(const c of LS.get('pfcolors',[])){const hx=normHex(c.hex);if(hx===null)continue;
     const ex=out.find(o=>o[1]===hx||o[0].toLowerCase()===String(c.name).toLowerCase());if(!ex)out.push([c.name,hx]);}return out;}
+const colName=n=>String(n).toLowerCase().replace(/gr[ae]y/g,'grey').replace(/[^a-z]/g,'');
+function canonHex(name,hex){const k=colName(name),m=SHIRT_COLORS.find(c=>colName(c[0])===k);return m?m[1]:normHex(hex);}
 function normHex(h){if(!h||!/^#?[0-9a-f]{6}$/i.test(h))return null;h='#'+h.replace('#','').toLowerCase();const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return (.299*r+.587*g+.114*b)/255<.09?'':h;}
-function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';const t=curT(),sells=new Set(LS.get('pfcolors',[]).map(c=>normHex(c.hex)));
-  for(const [n,hex] of allColors()){const b=document.createElement('button');const real=!hex||(t&&colorUrls.has(colKey(t.id,hex)));
+function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';const t=curT(),sells=new Set(LS.get('pfcolors',[]).map(c=>canonHex(c.name,c.hex)));
+  for(const [n,hex] of allColors()){const b=document.createElement('button');const real=!hex||(t&&hasColor(t.id,hex));
     b.className='sw'+(cur===hex?' on':'')+(real?' real':'')+(sells.has(hex)?' sells':'');b.title=n+(hex&&real?' (real photo)':hex?' (preview: recolored)':'')+(sells.has(hex)?' · on your listing':'');b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
   const nm=(allColors().find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];
-  $('#shirt-name').textContent=nm+(cur&&t?(colorUrls.has(colKey(t.id,cur))?' · real photo':' · recolor preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
+  $('#shirt-name').textContent=nm+(cur&&t?(hasColor(t.id,cur)?' · real photo':' · recolor preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
 async function maskImage(t){if(maskImgs.has(t.id))return maskImgs.get(t.id);let m=null;
-  if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}}maskImgs.set(t.id,m);return m;}
+  if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}}
+  else m=await diffMask(t);
+  maskImgs.set(t.id,m);return m;}
+// photos with at least one real colour: the shirt is exactly what changed between the original and that colour
+async function diffMask(t){let best=null,bl=-1;for(const k of colorUrls.keys()){if(!k.startsWith(t.id+'|'))continue;const hx=k.split('|')[1];
+    const l=(.299*parseInt(hx.slice(1,3),16)+.587*parseInt(hx.slice(3,5),16)+.114*parseInt(hx.slice(5,7),16))/255;if(l>bl){bl=l;best=k;}}
+  if(!best)return null;
+  try{const a=await tplImage(t),b=await loadImage(colorUrls.get(best));const [w,h]=fitSize(a.naturalWidth,a.naturalHeight,900);
+    const A=drawScaled(a,w,h).getContext('2d').getImageData(0,0,w,h).data,B=drawScaled(b,w,h).getContext('2d').getImageData(0,0,w,h).data;
+    const n=w*h,m=new Float32Array(n),tmp=new Float32Array(n);
+    for(let i=0,j=0;i<n;i++,j+=4){const d=Math.max(Math.abs(A[j]-B[j]),Math.abs(A[j+1]-B[j+1]),Math.abs(A[j+2]-B[j+2]));m[i]=Math.min(1,Math.max(0,(d-18)/30));}
+    boxBlurH(m,tmp,w,h,1);boxBlurV(tmp,m,w,h,1);
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),id=x.createImageData(w,h);
+    for(let i=0;i<n;i++){const v=Math.round(Math.min(1,m[i]*1.3)*255);id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255;}
+    x.putImageData(id,0,0);return c;}catch(e){return null;}}
 async function recolorSpec(t,hex){return {hex,mask:await maskImage(t),t};}
 function maskFromFill(data,w,h,t){ // photos without a stored mask: grow the shirt from its print areas by fabric colour
   const seeds=[];const add=q=>{if(!q)return;const xs=q.map(p=>p.x*w),ys=q.map(p=>p.y*h);seeds.push([Math.round(xs.reduce((a,b)=>a+b)/4),Math.round(ys.reduce((a,b)=>a+b)/4),Math.max(...ys)-Math.min(...ys)]);};
@@ -1903,19 +1919,22 @@ async function cloudLogin(ses){const uid=ses&&ses.user?ses.user.id:null;if(uid==
 
 /* ---------- real shirt colors: ComfyUI repaints the shirt; photos sync to the account ---------- */
 async function colLoad(){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(!colorUrls.has(c.k))colorUrls.set(c.k,URL.createObjectURL(c.blob));}catch(e){}}
-async function colorImg(id,hex){const k=colKey(id,hex);if(!colorUrls.has(k))return null;if(colorImgCache.has(k))return colorImgCache.get(k);
+function colAlias(id,hex){let k=colKey(id,hex);if(colorUrls.has(k))return k;
+  for(const c of LS.get('pfcolors',[])){const raw=normHex(c.hex);if(raw&&raw!==hex&&canonHex(c.name,c.hex)===hex&&colorUrls.has(colKey(id,raw)))return colKey(id,raw);}return null;}
+function hasColor(id,hex){return !!colAlias(id,hex);}
+async function colorImg(id,hex){const k=colAlias(id,hex);if(!k)return null;if(colorImgCache.has(k))return colorImgCache.get(k);
   try{const im=await loadImage(colorUrls.get(k));colorImgCache.set(k,im);return im;}catch(e){return null;}}
 async function shirtSrc(t){const hex=shirtHex();if(hex){const im=await colorImg(t.id,hex);if(im)return {img:im,rc:null};}
   return {img:await tplImage(t),rc:hex?await recolorSpec(t,hex):null};}
 async function colPut(id,hex,blob,push){const k=colKey(id,hex);await colTx('readwrite',st=>st.put({k,model_id:id,hex,blob})).catch(()=>{});
-  if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);
+  if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);maskImgs.delete(id);
   colorPacks.clear();smallPacks.clear();if(push)colPush({k,model_id:id,hex,blob});}
 async function colDropModel(id){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(c.model_id===id){await colTx('readwrite',st=>st.delete(c.k));colorUrls.delete(c.k);colorImgCache.delete(c.k);}}catch(e){}}
 function setMates(t){if(t.setId)return templates.filter(x=>x.setId===t.setId);
   if(t.builtin){const b=t.id.replace(/[lr]$/,'');return templates.filter(x=>x.builtin&&x.id.replace(/[lr]$/,'')===b);}return [t];}
 const CORE_DEFAULT=[['White','#f3f3f0'],['Athletic Heather','#b4b3b0'],['Dark Grey Heather','#48494d'],['Navy','#1e2843'],['Military Green','#4b5338']];
 // automatic colors: at most 5 besides the original black. From a loaded listing, its colors that match the core five come first, then its first others; every other color is made only when clicked
-function coreColors(){const pf=LS.get('pfcolors',[]).map(c=>({name:c.name,hex:normHex(c.hex)})).filter(c=>c.hex);
+function coreColors(){const pf=LS.get('pfcolors',[]).map(c=>({name:c.name,hex:canonHex(c.name,c.hex)})).filter(c=>c.hex);
   const core=CORE_DEFAULT.map(([name,hex])=>({name,hex}));if(!pf.length)return core;
   const key=n=>String(n).toLowerCase().replace(/gr[ae]y/g,'grey').replace(/[^a-z]/g,'');
   const hit=pf.filter(c=>core.some(k=>key(k.name)===key(c.name)));const rest=pf.filter(c=>!hit.includes(c));
@@ -1973,7 +1992,7 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
   else cx.drawImage(b,0,0,c.width,c.height);
   await colPut(t.id,hex,await canvasBlob(c,'image/jpeg',.92),true);}
 function colEnqueue(ts,cols){CQ.paused=false;CQ.halted='';CQ.dropped=0;CQ.streak=0;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex)continue;const k=colKey(t.id,c.hex);
-    if(colorUrls.has(k)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
+    if(hasColor(t.id,c.hex)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
 async function colWork(){if(CQ.run)return;CQ.run=true;CQ.cancel=false;
   try{while(CQ.list.length&&!CQ.cancel){if(!(await cfAlive())){CQ.paused=true;CQ.dropped=CQ.list.length;CQ.list=[];CQ.halted='ComfyUI closed';break;}
       const j=CQ.list.shift();const t=templates.find(x=>x.id===j.id);if(!t)continue;CQ.cur=j.k;colUI();
@@ -1990,7 +2009,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__ms={addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__ms={colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
