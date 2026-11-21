@@ -410,7 +410,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
-      <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors" checked> Also make real shirt colors</label>
+      <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make real shirt colors (adds about 2½ min per photo)</label>
+      <div class="row small" style="gap:8px;display:none"><span id="cf-colq" class="muted"></span><button class="small" id="cf-colstop">Stop colors</button></div>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
     <div class="small muted" id="cf-log" style="margin-top:8px"></div>
@@ -455,7 +456,7 @@ const DEFAULTS = {size:.85, y:.04, x:0, fold:.45, shade:.75, opacity:.94};
 let memoryMode=false;
 var colorUrls=new Map(),colorImgCache=new Map();const colKey=(id,hex)=>id+'|'+hex;
 var CQ=window.CQ={list:[],run:false,cur:null,done:0,fail:0,err:'',cancel:false,paused:false};
-let templates=[]; let curId=null; let kindFilter='all';
+let templates=[],poseTemplates=[]; let curId=null; let kindFilter='all';
 const imgCache=new Map(), packCache=new Map(), localImgs=new Map(), colorPacks=new Map(), maskImgs=new Map();
 let design=null; // active slot's design
 const designs={front:null,left:null,right:null};
@@ -1005,12 +1006,14 @@ async function initStore(){
 let memMine=[];
 async function reload(){
   const quads=LS.get('quads',{}), names=LS.get('names',{}), hidden=LS.get('hidden',[]);
-  const b=builtins.filter(t=>!hidden.includes(t.id)).map((t,i)=>{const sl={...(t.sleeves||{})};for(const k of ['left','right'])if(quads[t.id+':'+k])sl[k]={quad:quads[t.id+':'+k]};
+  const bAll=builtins.map((t,i)=>{const sl={...(t.sleeves||{})};for(const k of ['left','right'])if(quads[t.id+':'+k])sl[k]={quad:quads[t.id+':'+k]};
     return {...t,builtin:true,seedSleeves:Object.fromEntries(Object.entries(t.sleeves||{}).map(([k,v])=>[k,v.quad])),origQuad:t.quad,quad:quads[t.id]||t.quad,sleeves:sl,custom:!!(quads[t.id]||quads[t.id+':left']||quads[t.id+':right']||LS.get('turns',{})[t.id+':left']!=null||LS.get('turns',{})[t.id+':right']!=null),name:names[t.id]||t.name,createdAt:i};});
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
   const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,setId:m.setId||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
+  // hidden built-ins leave the studio but stay available as poses for generating new models
+  poseTemplates=bAll;const b=bAll.filter(t=>!hidden.includes(t.id));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
   for(const k of imgCache.keys())if(!templates.some(t=>t.id===k)){imgCache.delete(k);packCache.delete(k);}
   if(!curT())curId=shown()[0]?.id||templates[0]?.id||null;
@@ -1403,7 +1406,8 @@ $('#btn-lib').onclick=libOpen;$('#mi-lib').onclick=libOpen;$('#lib-close').oncli
 /* ---------- ComfyUI on this computer: pose-guided blank models ---------- */
 window.CF={lastErr:'',ok:false,sel:new Set(),stop:false,busy:false};
 const cfBase=()=>($('#cf-url').value||'http://127.0.0.1:8188').replace(/\/+$/,'');
-function cfPoseList(){return templates.filter(t=>t.builtin);}
+function cfPoseList(){return poseTemplates;}
+const poseRef=id=>poseTemplates.find(t=>t.id===id)||templates.find(t=>t.id===id);
 function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
   for(const t of cfPoseList()){const d=document.createElement('div');d.className='gtile'+(CF.sel.has(t.id)?' sel':'');d.style.cssText='position:relative;padding:0;cursor:pointer;outline:'+(CF.sel.has(t.id)?'3px solid var(--accent,#2563eb)':'none');
     const c=document.createElement('div');c.style.cssText='position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#000';
@@ -1421,7 +1425,7 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
-for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg','cf-colors']){const el=$('#'+id),k='cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
+for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg','cf-colors']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -1518,11 +1522,11 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
   const per=+$('#cf-per').value,str=+$('#cf-str').value,setMode=$('#cf-set').checked;
   const jobs=[];// [ref, opts]
   if(setMode){const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))];
-    for(const b0 of bases)for(let k=1;k<=per;k++){const front=templates.find(t=>t.id===b0);if(!front)continue;
+    for(const b0 of bases)for(let k=1;k<=per;k++){const front=poseRef(b0);if(!front)continue;
       const o={scene:cfScene(),arms:cfArms(front.group==='women'),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
       o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
-      for(const id of [b0,b0+'l',b0+'r']){const r=templates.find(t=>t.id===id);if(r)jobs.push([r,o,k]);}}}
-  else for(const id of CF.sel){const r=templates.find(t=>t.id===id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms(r.group==='women')},k]);}
+      for(const id of [b0,b0+'l',b0+'r']){const r=poseRef(id);if(r)jobs.push([r,o,k]);}}}
+  else for(const id of CF.sel){const r=poseRef(id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms(r.group==='women')},k]);}
   const total=jobs.length;let done=0,fails=0;const newIds=[];
   try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
       try{const r=await cfOne(ref,str,k,o);newIds.push(r.newId);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
@@ -1951,7 +1955,7 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
   const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the color job. Check that the Qwen Image 2.1 models are installed.');
   const id=j.prompt_id;let out=null;
   for(let i=0;i<400&&!CQ.cancel;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
-    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error on a color job.');
+    if(e&&e.status&&e.status.status_str==='error'){const st=new Error(JSON.stringify(e.status.messages||[]).includes('interrupted')?'stopped in ComfyUI':'ComfyUI hit an error on a color job.');st.halt=true;throw st;}
     if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
   if(!out)throw new Error(CQ.cancel?'Cancelled.':'Timed out waiting for ComfyUI.');
   const ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
@@ -1967,21 +1971,24 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
     ex.putImageData(E,0,0);cx.imageSmoothingQuality='high';cx.drawImage(ed,0,0,c.width,c.height);}
   else cx.drawImage(b,0,0,c.width,c.height);
   await colPut(t.id,hex,await canvasBlob(c,'image/jpeg',.92),true);}
-function colEnqueue(ts,cols){CQ.paused=false;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex)continue;const k=colKey(t.id,c.hex);
+function colEnqueue(ts,cols){CQ.paused=false;CQ.halted='';CQ.dropped=0;CQ.streak=0;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex)continue;const k=colKey(t.id,c.hex);
     if(colorUrls.has(k)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
 async function colWork(){if(CQ.run)return;CQ.run=true;CQ.cancel=false;
-  try{while(CQ.list.length&&!CQ.cancel){if(!(await cfAlive())){CQ.paused=true;break;}
+  try{while(CQ.list.length&&!CQ.cancel){if(!(await cfAlive())){CQ.paused=true;CQ.dropped=CQ.list.length;CQ.list=[];CQ.halted='ComfyUI closed';break;}
       const j=CQ.list.shift();const t=templates.find(x=>x.id===j.id);if(!t)continue;CQ.cur=j.k;colUI();
-      try{await cfColorOne(t,j.hex,j.name);CQ.done++;}catch(e){CQ.fail++;CQ.err=e.message;}
+      try{await cfColorOne(t,j.hex,j.name);CQ.done++;CQ.streak=0;}catch(e){CQ.fail++;CQ.err=e.message;CQ.streak=(CQ.streak||0)+1;
+        // a job stopped or erroring in ComfyUI ends the whole run, so it never fires job after job
+        if(e.halt||CQ.streak>=2){CQ.dropped=CQ.list.length;CQ.list=[];CQ.halted=e.message;}}
       CQ.cur=null;shirtUI();if(shirtHex()===j.hex){scheduleRender();scheduleGrid();}}}
   finally{CQ.run=false;CQ.cur=null;if(CQ.cancel)CQ.list=[];colUI();}}
-function colUI(){const el=$('#shirt-gen');if(!el)return;const left=CQ.list.length+(CQ.cur?1:0);$('#shirt-stop').style.display=left?'':'none';
+function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=$('#cf-colq');if(m){m.textContent=el.textContent;m.parentNode.style.display=el.textContent?'':'none';}},0);const left=CQ.list.length+(CQ.cur?1:0);$('#shirt-stop').style.display=left?'':'none';
   el.textContent=left?`Making real colors: ${left} left (about ${Math.max(1,Math.round(left*.55))} min)…`
+    :CQ.halted?`Shirt colors stopped (${CQ.halted})`+(CQ.dropped?`; ${CQ.dropped} not made. Use “Make real colors for this model” to finish one later.`:'.')
     :CQ.paused?'ComfyUI isn\'t reachable from this computer, so other colors show the recolor preview.'
     :(CQ.done||CQ.fail)?`${CQ.done} real color photo${CQ.done===1?'':'s'} made`+(CQ.fail?`, ${CQ.fail} ${CQ.fail===1?'was':'were'} skipped (${CQ.err})`:'')+'.':'';}
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
-$('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};
+$('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
 window.__ms={addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
