@@ -166,6 +166,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="row" style="margin-top:10px;justify-content:space-between">
           <div class="row">
             <button id="btn-edit">Adjust print area</button>
+            <button id="btn-warp" title="Show dots on the logo you can drag to bend parts of it (this photo only)">Warp</button>
+            <button id="btn-warp-reset" style="display:none">Reset warp</button>
             <button id="btn-save-area" class="primary" style="display:none">Save area</button>
             <button id="btn-apply-sim" style="display:none">Save &amp; apply to similar</button>
             <button id="btn-autofit" style="display:none" title="Find the sleeve in the photo and fit the print area to it">Auto-fit</button>
@@ -620,6 +622,7 @@ function designSampled(tw,th){
 
 /* ---------- compositor ---------- */
 let curTurn=0,curFlat=false;
+let REC_BOX=false,LASTBOX={};
 function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
@@ -633,6 +636,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   let u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
   if(TS.on&&areaIn&&typeof P.cx==='number')u0=0.5+P.cx/areaIn-fw/2;
   if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=((P.top+AREA_TOP_SHIFT)*ppi)/ah;}
+  const WP=Array.isArray(P.warp)&&P.warp.length===9?P.warp:null, bb=[1e9,1e9,-1e9,-1e9];
   const tw=Math.max(2,Math.round((topW+botW)/2*fw*1.2)), th=Math.max(2,Math.round((lH+rH)/2*fh*1.2));
   const ds=designSampled(tw,th), pm=ds.pm, dw=ds.w, dh=ds.h;
   // mean luminance over the print area
@@ -679,7 +683,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null,sideF=null;
   if(sm&&sm.side){ // chest seen from the side: follow the body's real front edge on every row (the bust curves forward), found by fabric colour so dark backgrounds don't fool it
-    const F0=fabModel(pack,q,true),mk=sm.mask,bk=Math.max(3,Math.round(w*.012)),
+    const F0=fabModel(pack,q),mk=sm.mask,bk=Math.max(3,Math.round(w*.012)),
       cd=(i1,i2)=>Math.abs(data[i1]-data[i2])+Math.abs(data[i1+1]-data[i2+1])+Math.abs(data[i1+2]-data[i2+2]),
       // near the outline, a pixel only counts as shirt if it looks more like the shirt than like the background just beyond it
       edgeV=(x,y)=>{const xb=x+dS*bk;if(xb<0||xb>=w)return 1;if(mk&&mk.at((xb+.5)/w,(y+.5)/h))return 1;const i=(y*w+x)*4,ib=(y*w+xb)*4,r=F0.dist(x,y)/Math.max(1,cd(i,ib));return Math.min(1,Math.max(0,(1-r)/.45));},edgeOk=(x,y)=>edgeV(x,y)>.45,
@@ -724,6 +728,9 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       if(rr){const X=(du-.5)*fw*A,Y=(dv-.5)*fh;du=(X*rc+Y*rs)/(fw*A)+.5;dv=(-X*rs+Y*rc)/fh+.5;}
       if(cK)dv+=cK*(1-(2*du-1)*(2*du-1));
       if(bK)du-=bK*(1-(2*dv-1)*(2*dv-1));
+      if(WP){const gx=Math.min(2,Math.max(0,du*2)),gy=Math.min(2,Math.max(0,dv*2)),ix=Math.min(1,gx|0),iy=Math.min(1,gy|0),tx=gx-ix,ty=gy-iy,
+        a0=WP[iy*3+ix],a1=WP[iy*3+ix+1],b0=WP[iy*3+3+ix],b1=WP[iy*3+3+ix+1];
+        du-=(a0[0]*(1-tx)+a1[0]*tx)*(1-ty)+(b0[0]*(1-tx)+b1[0]*tx)*ty;dv-=(a0[1]*(1-tx)+a1[1]*tx)*(1-ty)+(b0[1]*(1-tx)+b1[1]*tx)*ty;}
       if(du<=-.01||dv<=-.01||du>=1.01||dv>=1.01)continue;
       const fx=du*dw-.5, fy=dv*dh-.5; const ix=Math.floor(fx), iy=Math.floor(fy); const tx=fx-ix, ty=fy-iy;
       let r=0,g=0,b=0,a=0;
@@ -737,10 +744,11 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       let sv=1+(L[i]/mean-1)*sh; if(sv<0)sv=0; if(sv>1.8)sv=1.8;
       const dk=Math.min(sv,1), hl=Math.min(.45,Math.max(0,sv-1)*.55);
       r=r*dk;g=g*dk;b=b*dk; r+=(255-r)*hl; g+=(255-g)*hl; b+=(255-b)*hl;
-      const al=a*op*(sm&&sm.side?eA:1), j=i*4;
+      const al=a*op*(sm&&sm.side?eA:1), j=i*4;if(al>.1){if(x<bb[0])bb[0]=x;if(y<bb[1])bb[1]=y;if(x>bb[2])bb[2]=x;if(y>bb[3])bb[3]=y;}
       od[j]=od[j]*(1-al)+r*al; od[j+1]=od[j+1]*(1-al)+g*al; od[j+2]=od[j+2]*(1-al)+b*al;
     }
   }
+  if(REC_BOX&&bb[2]>bb[0])LASTBOX[slot]={x0:bb[0],y0:bb[1],x1:bb[2],y1:bb[3],U:[q[1][0]-q[0][0],q[1][1]-q[0][1]],V:[q[3][0]-q[0][0],q[3][1]-q[0][1]],fw,fh,areaIn:areaIn||0,ppi:areaIn?((topW+botW)/2)/areaIn:0,ah:(lH+rH)/2,M,u0,v0,A,rc,rs};
   if(own)ctx.putImageData(out,0,0);
 }
 
@@ -1148,8 +1156,8 @@ async function renderView(){
   else if(slotPhoto!==t.id&&viewOf(t)==='front'&&slot!=='front'&&!editMode)setSlot('front'); // new front photo: edit the chest design by default
   slotPhoto=t.id;
   if(shirtHex())pack=await viewPack(t);
-  renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);
-  if(!editMode)stamp(vctx.canvas);
+  REC_BOX=true;LASTBOX={};try{renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);}finally{REC_BOX=false;}
+  if(!editMode){stamp(vctx.canvas);drawHandles(vctx);}
   if(editMode)drawHandles(editQuad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
 }
@@ -1209,6 +1217,53 @@ function startEdit(){const t=curT();if(!t)return;editMode=true;editSlot=viewOf(t
 function endEdit(){editMode=false;editQuad=null;drag=null;$('#turn-row').style.display='none';view.style.touchAction='';view.style.cursor='';
   $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-apply-sim').style.display='none';$('#btn-cancel-area').style.display='none';$('#btn-autofit').style.display='none';$('#hint').style.display='none';scheduleRender();}
 function cancelEdit(){endEdit();}
+/* ---------- drag the logo on the preview: move, resize (keeps shape), rotate; optional warp grid. Saves to this photo only ---------- */
+let WARP_ON=false,LD=null;
+function curBox(){const b=LASTBOX[slot];if(!b)return null;const pad=6;return {x0:b.x0-pad,y0:b.y0-pad,x1:b.x1+pad,y1:b.y1+pad,b};}
+function warpOf(){const o=ovOf(curT(),slot);return Array.isArray(o.warp)&&o.warp.length===9?o.warp.map(v=>[...v]):Array.from({length:9},()=>[0,0]);}
+function warpSet(w){const k=ovKey(curT(),slot);if(!k)return;const A=ovAll(),o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovSave();ovUI();scheduleRender();scheduleGrid();}
+function fwdDesign(g,gx,gy){const X1=(gx-.5)*g.fw*g.A,Y1=(gy-.5)*g.fh,X=X1*g.rc-Y1*g.rs,Y=X1*g.rs+Y1*g.rc,du=X/(g.fw*g.A)+.5,dv=Y/g.fh+.5;return apply(g.M,g.u0+du*g.fw,g.v0+dv*g.fh);}
+function warpDots(B){const w=warpOf(),g=B.b;const out=[];for(let r=0;r<3;r++)for(let c=0;c<3;c++){const d=w[r*3+c];out.push(fwdDesign(g,c/2+d[0],r/2+d[1]));}return out;}
+function drawHandles(x){if(editMode||!designs[slot]||!curT())return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
+  x.save();x.lineWidth=1.5*sc;x.setLineDash([5*sc,4*sc]);x.strokeStyle='rgba(255,255,255,.9)';x.shadowColor='rgba(0,0,0,.6)';x.shadowBlur=3*sc;x.strokeRect(B.x0,B.y0,B.x1-B.x0,B.y1-B.y0);x.setLineDash([]);
+  const dot=(px,py,r,f)=>{x.beginPath();x.arc(px,py,r*sc,0,Math.PI*2);x.fillStyle=f;x.fill();x.lineWidth=2*sc;x.strokeStyle='#fff';x.stroke();};
+  for(const [px,py] of [[B.x0,B.y0],[B.x1,B.y0],[B.x1,B.y1],[B.x0,B.y1]])dot(px,py,6,'#ea580c');
+  const rx=(B.x0+B.x1)/2,ry=B.y0-26*sc;x.beginPath();x.moveTo(rx,B.y0);x.lineTo(rx,ry);x.strokeStyle='#fff';x.lineWidth=1.5*sc;x.stroke();dot(rx,ry,6,'#2563eb');
+  if(WARP_ON)for(const [px,py] of warpDots(B))dot(px,py,5,'#16a34a');
+  x.restore();}
+function canvasPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)*view.width/r.width,y:(e.clientY-r.top)*view.height/r.height,sc:view.width/r.width};}
+function hitLogo(p){const near=(a,b,r)=>Math.hypot(a[0]-b[0],a[1]-b[1])<r*p.sc;const B=curBox();
+  if(B){const rx=(B.x0+B.x1)/2,ry=B.y0-26*p.sc;if(near([p.x,p.y],[rx,ry],14))return {mode:'rot'};
+    if(WARP_ON){const ds=warpDots(B);for(let i=0;i<9;i++)if(near([p.x,p.y],ds[i],12))return {mode:'warp',i};}
+    const cs=[[B.x0,B.y0],[B.x1,B.y0],[B.x1,B.y1],[B.x0,B.y1]];for(let i=0;i<4;i++)if(near([p.x,p.y],cs[i],14))return {mode:'size'};
+    if(p.x>=B.x0&&p.x<=B.x1&&p.y>=B.y0&&p.y<=B.y1)return {mode:'move'};}
+  for(const sl of ['front','left','right']){if(sl===slot)continue;const b=LASTBOX[sl];if(b&&p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)return {mode:'move',pick:sl};}
+  return null;}
+view.addEventListener('pointerdown',e=>{if(editMode||!curT())return;const p=canvasPt(e);const h=hitLogo(p);if(!h)return;
+  if(h.pick){const b=document.querySelector('#slots button[data-slot='+h.pick+']');if(b)b.click();}
+  const D=fineDefs(),B=curBox()||{b:LASTBOX[slot]};if(!B.b)return;
+  LD={...h,p0:p,g:B.b,size:D.size.get(),px:D.px.get(),py:D.py.get(),rot:D.rot.get(),warp:warpOf(),cx:(B.b.x0+B.b.x1)/2,cy:(B.b.y0+B.b.y1)/2,bw:B.b.x1-B.b.x0,bh:B.b.y1-B.b.y0};
+  view.setPointerCapture(e.pointerId);e.preventDefault();});
+view.addEventListener('pointermove',e=>{if(editMode)return;const p=canvasPt(e);
+  if(!LD){const h=hitLogo(p);view.style.cursor=!h?'':h.mode==='rot'?'grab':h.mode==='size'?'nwse-resize':h.mode==='warp'?'crosshair':'move';return;}
+  const g=LD.g,dx=p.x-LD.p0.x,dy=p.y-LD.p0.y;
+  if(LD.mode==='move'){const [ux,uy]=g.U,[vx,vy]=g.V,det=ux*vy-uy*vx;if(!det)return;const a=(dx*vy-dy*vx)/det,b=(ux*dy-uy*dx)/det; // drag in print-area units
+    const D=fineDefs(),kx=D.px.key,ky=D.py.key;
+    const nx=kx==='cx'?LD.px+a*g.areaIn:LD.px+a/Math.max(.05,(1-g.fw)/2);
+    const ny=ky==='top'?LD.py+b*g.ah/Math.max(1e-6,g.ppi):ky==='hem'?LD.py-b*g.ah/Math.max(1e-6,g.ppi):LD.py+b/Math.max(.05,1-g.fh);
+    fineSet('px',nx);fineSet('py',ny);}
+  else if(LD.mode==='size'){const d0=Math.hypot(LD.p0.x-LD.cx,LD.p0.y-LD.cy),d1=Math.hypot(p.x-LD.cx,p.y-LD.cy);if(d0>2)fineSet('size',LD.size*d1/d0);}
+  else if(LD.mode==='rot'){const a0=Math.atan2(LD.p0.y-LD.cy,LD.p0.x-LD.cx),a1=Math.atan2(p.y-LD.cy,p.x-LD.cx);let d=(a1-a0)*180/Math.PI;if(d>180)d-=360;if(d<-180)d+=360;fineSet('rot',LD.rot+ROT_SIGN*d);}
+  else if(LD.mode==='warp'){ // screen drag -> design units through the local mapping
+    const gx=(LD.i%3)/2+LD.warp[LD.i][0],gy=Math.floor(LD.i/3)/2+LD.warp[LD.i][1],e2=.01,p0=fwdDesign(g,gx,gy),px=fwdDesign(g,gx+e2,gy),py=fwdDesign(g,gx,gy+e2);
+    const a=(px[0]-p0[0])/e2,b=(py[0]-p0[0])/e2,c=(px[1]-p0[1])/e2,d=(py[1]-p0[1])/e2,det=a*d-b*c;if(!det)return;
+    const ddx=(d*dx-b*dy)/det,ddy=(-c*dx+a*dy)/det;const w=LD.warp.map(v=>[...v]);w[LD.i]=[Math.max(-.5,Math.min(.5,LD.warp[LD.i][0]+ddx)),Math.max(-.5,Math.min(.5,LD.warp[LD.i][1]+ddy))];warpSet(w);}
+  e.preventDefault();});
+const endLD=e=>{if(!LD)return;LD=null;try{view.releasePointerCapture(e.pointerId);}catch(_){} fineUI();};
+view.addEventListener('pointerup',endLD);view.addEventListener('pointercancel',endLD);
+let ROT_SIGN=1;
+$('#btn-warp').onclick=()=>{WARP_ON=!WARP_ON;$('#btn-warp').classList.toggle('primary',WARP_ON);$('#btn-warp-reset').style.display=WARP_ON?'':'none';if(WARP_ON)toast('Drag the green dots to bend that part of the logo. Saves to this photo only.',4000);scheduleRender();};
+$('#btn-warp-reset').onclick=()=>{warpSet(Array.from({length:9},()=>[0,0]));};
 function evPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,r};}
 function inside(q,p){let c=false;for(let i=0,j=3;i<4;j=i++){const a=q[i],b=q[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))c=!c;}return c;}
 view.addEventListener('pointerdown',e=>{
@@ -2083,7 +2138,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__ms={armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
