@@ -1218,13 +1218,13 @@ function endEdit(){editMode=false;editQuad=null;drag=null;$('#turn-row').style.d
   $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-apply-sim').style.display='none';$('#btn-cancel-area').style.display='none';$('#btn-autofit').style.display='none';$('#hint').style.display='none';scheduleRender();}
 function cancelEdit(){endEdit();}
 /* ---------- drag the logo on the preview: move, resize (keeps shape), rotate; optional warp grid. Saves to this photo only ---------- */
-let WARP_ON=false,LD=null;
+let WARP_ON=false,LD=null,SEL=null; // SEL: photo id whose logo was clicked (handles show only then)
 function curBox(){const b=LASTBOX[slot];if(!b)return null;const pad=6;return {x0:b.x0-pad,y0:b.y0-pad,x1:b.x1+pad,y1:b.y1+pad,b};}
 function warpOf(){const o=ovOf(curT(),slot);return Array.isArray(o.warp)&&o.warp.length===9?o.warp.map(v=>[...v]):Array.from({length:9},()=>[0,0]);}
 function warpSet(w){const k=ovKey(curT(),slot);if(!k)return;const A=ovAll(),o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovSave();ovUI();scheduleRender();scheduleGrid();}
 function fwdDesign(g,gx,gy){const X1=(gx-.5)*g.fw*g.A,Y1=(gy-.5)*g.fh,X=X1*g.rc-Y1*g.rs,Y=X1*g.rs+Y1*g.rc,du=X/(g.fw*g.A)+.5,dv=Y/g.fh+.5;return apply(g.M,g.u0+du*g.fw,g.v0+dv*g.fh);}
 function warpDots(B){const w=warpOf(),g=B.b;const out=[];for(let r=0;r<3;r++)for(let c=0;c<3;c++){const d=w[r*3+c];out.push(fwdDesign(g,c/2+d[0],r/2+d[1]));}return out;}
-function drawHandles(x){if(editMode||!designs[slot]||!curT())return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
+function drawHandles(x){if(editMode||!designs[slot]||!curT()||(SEL!==curT().id&&!WARP_ON))return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
   x.save();x.lineWidth=1.5*sc;x.setLineDash([5*sc,4*sc]);x.strokeStyle='rgba(255,255,255,.9)';x.shadowColor='rgba(0,0,0,.6)';x.shadowBlur=3*sc;x.strokeRect(B.x0,B.y0,B.x1-B.x0,B.y1-B.y0);x.setLineDash([]);
   const dot=(px,py,r,f)=>{x.beginPath();x.arc(px,py,r*sc,0,Math.PI*2);x.fillStyle=f;x.fill();x.lineWidth=2*sc;x.strokeStyle='#fff';x.stroke();};
   for(const [px,py] of [[B.x0,B.y0],[B.x1,B.y0],[B.x1,B.y1],[B.x0,B.y1]])dot(px,py,6,'#ea580c');
@@ -1232,14 +1232,17 @@ function drawHandles(x){if(editMode||!designs[slot]||!curT())return;const B=curB
   if(WARP_ON)for(const [px,py] of warpDots(B))dot(px,py,5,'#16a34a');
   x.restore();}
 function canvasPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)*view.width/r.width,y:(e.clientY-r.top)*view.height/r.height,sc:view.width/r.width};}
-function hitLogo(p){const near=(a,b,r)=>Math.hypot(a[0]-b[0],a[1]-b[1])<r*p.sc;const B=curBox();
-  if(B){const rx=(B.x0+B.x1)/2,ry=B.y0-26*p.sc;if(near([p.x,p.y],[rx,ry],14))return {mode:'rot'};
+function hitLogo(p){const near=(a,b,r)=>Math.hypot(a[0]-b[0],a[1]-b[1])<r*p.sc;const B=curBox(),shown=SEL===(curT()||{}).id||WARP_ON;
+  if(B&&shown){const rx=(B.x0+B.x1)/2,ry=B.y0-26*p.sc;if(near([p.x,p.y],[rx,ry],14))return {mode:'rot'};
     if(WARP_ON){const ds=warpDots(B);for(let i=0;i<9;i++)if(near([p.x,p.y],ds[i],12))return {mode:'warp',i};}
     const cs=[[B.x0,B.y0],[B.x1,B.y0],[B.x1,B.y1],[B.x0,B.y1]];for(let i=0;i<4;i++)if(near([p.x,p.y],cs[i],14))return {mode:'size'};
     if(p.x>=B.x0&&p.x<=B.x1&&p.y>=B.y0&&p.y<=B.y1)return {mode:'move'};}
+  if(B&&!shown&&p.x>=B.x0&&p.x<=B.x1&&p.y>=B.y0&&p.y<=B.y1)return {mode:'move'};
   for(const sl of ['front','left','right']){if(sl===slot)continue;const b=LASTBOX[sl];if(b&&p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)return {mode:'move',pick:sl};}
   return null;}
-view.addEventListener('pointerdown',e=>{if(editMode||!curT())return;const p=canvasPt(e);const h=hitLogo(p);if(!h)return;
+view.addEventListener('pointerdown',e=>{if(editMode||!curT())return;const p=canvasPt(e);const h=hitLogo(p);
+  if(!h){if(SEL){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');$('#btn-warp-reset').style.display='none';scheduleRender();}return;}
+  if(SEL!==curT().id){SEL=curT().id;scheduleRender();}
   if(h.pick){const b=document.querySelector('#slots button[data-slot='+h.pick+']');if(b)b.click();}
   const D=fineDefs(),B=curBox()||{b:LASTBOX[slot]};if(!B.b)return;
   LD={...h,p0:p,g:B.b,size:D.size.get(),px:D.px.get(),py:D.py.get(),rot:D.rot.get(),warp:warpOf(),cx:(B.b.x0+B.b.x1)/2,cy:(B.b.y0+B.b.y1)/2,bw:B.b.x1-B.b.x0,bh:B.b.y1-B.b.y0};
@@ -1262,7 +1265,7 @@ view.addEventListener('pointermove',e=>{if(editMode)return;const p=canvasPt(e);
 const endLD=e=>{if(!LD)return;LD=null;try{view.releasePointerCapture(e.pointerId);}catch(_){} fineUI();};
 view.addEventListener('pointerup',endLD);view.addEventListener('pointercancel',endLD);
 let ROT_SIGN=1;
-$('#btn-warp').onclick=()=>{WARP_ON=!WARP_ON;$('#btn-warp').classList.toggle('primary',WARP_ON);$('#btn-warp-reset').style.display=WARP_ON?'':'none';if(WARP_ON)toast('Drag the green dots to bend that part of the logo. Saves to this photo only.',4000);scheduleRender();};
+$('#btn-warp').onclick=()=>{WARP_ON=!WARP_ON;if(WARP_ON&&curT())SEL=curT().id;$('#btn-warp').classList.toggle('primary',WARP_ON);$('#btn-warp-reset').style.display=WARP_ON?'':'none';if(WARP_ON)toast('Drag the green dots to bend that part of the logo. Saves to this photo only.',4000);scheduleRender();};
 $('#btn-warp-reset').onclick=()=>{warpSet(Array.from({length:9},()=>[0,0]));};
 function evPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,r};}
 function inside(q,p){let c=false;for(let i=0,j=3;i<4;j=i++){const a=q[i],b=q[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))c=!c;}return c;}
@@ -1584,7 +1587,7 @@ const VARY={
   hairW:['long, voluminous {c} blowout with soft bouncy curls at the ends, swept back behind her shoulders','long, glossy {c} hair in loose Hollywood waves, swept behind her shoulders','long, sleek and shiny straight {c} hair with a middle part, tucked behind her shoulders','long {c} hair with big soft curls and face-framing layers, falling behind her shoulders','long, tousled {c} beach waves with natural volume, swept back off her shoulders','long, defined glossy {c} curls with volume, pushed back behind her shoulders','a polished shoulder-length {c} lob with soft waves','long, silky {c} hair with a deep side part and a soft wave, behind her shoulders','long, sleek {c} knotless braids swept back behind her shoulders'],
   dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],
   faceM:['with a full, thick beard','with a full, thick beard','with a short, well-kept beard','with a short, well-kept beard','with heavy stubble','with heavy stubble','with a goatee','clean-shaven'],
-  tatM:['a bald eagle with an American flag and roses','a compass, a pocket watch and wisps of smoke','a lion head with clouds and roses','a skull with a helmet, dog tags and an American flag','a wolf head with pine trees and mountains'],
+  tatM:['a bald eagle with an American flag and roses','a compass with a pocket watch and wisps of smoke','a lion head with clouds and roses','a skull with a helmet, dog tags and an American flag','a wolf head with pine trees and mountains'],
   tatW:['a peony and rose bouquet with delicate stems and leaves','a small crescent moon and stars with a thin vine','a butterfly with wildflowers','a sunflower with a few small leaves','a snake winding through roses'],
   capM:['a worn black trucker cap with a small American flag patch','a faded olive-green baseball cap','a black baseball cap','a tan trucker cap'],
   lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
@@ -1612,7 +1615,14 @@ const MAN_POSE={'':'arms hanging relaxed and natural at his sides, a relaxed con
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   return randomPerson(want==='woman');}
 function cfText(ref,person,scene,arms){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
-  const m=person||randomPerson(want==='woman');const _unused=(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
+  let m=person||randomPerson(want==='woman');
+  {const v=viewOf(ref),tat=m.match(/,? an? (?:fine-line black ink tattoo|black-and-grey tattoo sleeve) on (?:his|her) right forearm only \([^)]*\), showing (.+?)(?=, a black rugged|, with the front hem|$)/);
+   if(tat){const pr=want==='woman'?'her':'his',what=tat[1];
+     const say=v==='left'?`, no tattoos on the arm facing the camera (${pr} left arm is bare; ${pr} only tattoo, ${what}, is on ${pr} right forearm, which is hidden on the far side)`
+       :v==='right'?`, ${want==='woman'?'a fine-line black ink tattoo':'a black-and-grey tattoo sleeve'} on the forearm facing the camera (${pr} right forearm), showing ${what}; this is ${pr} only tattoo`
+       :`, ${want==='woman'?'a fine-line black ink tattoo':'a black-and-grey tattoo sleeve'} on ${pr} right forearm only, which appears on the left side of the photo, showing ${what}; ${pr} left forearm, on the right side of the photo, has no tattoos`;
+     m=m.replace(tat[0],say);}}
+  const _unused=(new RegExp('\\ba '+want+'\\b').test(cur)?cur:(want==='woman'?'a woman in her 30s':'a man in his 30s'));
   let p=buildPrompt(m,scene);
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
@@ -2138,7 +2148,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
