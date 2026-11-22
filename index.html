@@ -1323,7 +1323,7 @@ function cancelEdit(){endEdit();}
 let WARP_ON=false,LD=null,SEL=null; // SEL: photo id whose logo was clicked (handles show only then)
 function curBox(){const b=LASTBOX[slot];if(!b)return null;const pad=6;return {x0:b.x0-pad,y0:b.y0-pad,x1:b.x1+pad,y1:b.y1+pad,b};}
 function warpOf(){const o=ovOf(curT(),slot);return Array.isArray(o.warp)&&o.warp.length===9?o.warp.map(v=>[...v]):Array.from({length:9},()=>[0,0]);}
-function warpSet(w){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll();if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk].warp;if(!Object.keys(A[dk]).length)delete A[dk];}}const o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovSave();ovUI();scheduleRender();scheduleGrid();}
+function warpSet(w){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll();if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk].warp;if(!Object.keys(A[dk]).length)delete A[dk];}}const o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovMark(k);ovMark(ovDesignKey(t,slot));ovSave();ovUI();scheduleRender();scheduleGrid();}
 function fwdDesign(g,gx,gy){const X1=(gx-.5)*g.fw*g.A,Y1=(gy-.5)*g.fh,X=X1*g.rc-Y1*g.rs,Y=X1*g.rs+Y1*g.rc,du=X/(g.fw*g.A)+.5,dv=Y/g.fh+.5;return apply(g.M,g.u0+du*g.fw,g.v0+dv*g.fh);}
 function warpDots(B){const w=warpOf(),g=B.b;const out=[];for(let r=0;r<3;r++)for(let c=0;c<3;c++){const d=w[r*3+c];out.push(fwdDesign(g,c/2+d[0],r/2+d[1]));}return out;}
 function drawHandles(x){if(editMode||!designs[slot]||!curT()||(SEL!==curT().id&&!WARP_ON))return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
@@ -1483,12 +1483,12 @@ const sliders=[['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+
 const labelId={fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){$('#v-tol').textContent=design?design.tol:30;fineUI();}
 
-$('#btn-ov-reset').onclick=()=>{const t=curT(),A=ovAll();for(const k of [ovPhotoKey(t,slot),ovDesignKey(t,slot)])if(k)delete A[k];ovSave();fineUI();scheduleRender();scheduleGrid();};
+$('#btn-ov-reset').onclick=()=>{const t=curT(),A=ovAll();for(const k of [ovPhotoKey(t,slot),ovDesignKey(t,slot)])if(k){delete A[k];ovMark(k);}ovSave();fineUI();scheduleRender();scheduleGrid();};
 $('#btn-approve').onclick=()=>{const t=curT();if(t)setApproved(t,!isApproved(t));};
 $('#ov-scope').onchange=e=>{OV_SCOPE=e.target.checked?'design':'photo';ovUI();};
 $('#btn-ov-all').onclick=()=>{const t=curT(),o={...ovOf(t,slot)},A=ovAll(),d=designs[slot];
   for(const [k,v] of Object.entries(o)){if(k==='fold'||k==='shade'||k==='opacity')P[k]=v;else{PL[slot][k]=v;if(k==='top')PL.front.top=v;}}
-  for(const key of Object.keys(A)){const [,s2,...nm]=key.split(':');if(s2!==slot||(nm.length&&(!d||nm.join(':')!==d.name)))continue;for(const k of Object.keys(o))delete A[key][k];if(!Object.keys(A[key]).length)delete A[key];}
+  for(const key of Object.keys(A)){const [,s2,...nm]=key.split(':');if(s2!==slot||(nm.length&&(!d||nm.join(':')!==d.name)))continue;for(const k of Object.keys(o)){delete A[key][k];delete A[key][k+'@'];}if(!Object.keys(A[key]).length)delete A[key];ovMark(key);}
   ovSave();savePlacement();fineUI();scheduleRender();scheduleGrid();toast('Applied to every photo.');};
 $('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0,yaw:0,bend:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,yaw:0,bend:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
@@ -1501,13 +1501,25 @@ function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'bloc
 /* fine placement controls: in true-to-size mode they edit the real measurements (same numbers as Printify) */
 const STEP_IN=1/300;
 /* per-photo adjustments: sliders change only the photo on screen; the base placement (Printify / the measurement boxes) is shared */
-let OVM=null;const ovAll=()=>OVM||(OVM=LS.get('ov',{}));let ovT;const ovSave=()=>{clearTimeout(ovT);ovT=setTimeout(()=>LS.set('ov',OVM),250);};
+// saving merges only the photos this tab changed, so a second open tab (or the site on another screen) can't wipe them with an old copy
+let OVM=null;const OV_DIRTY=new Set();const ovAll=()=>OVM||(OVM=LS.get('ov',{}));let ovT;
+const ovSave=all=>{if(all===true)for(const k of Object.keys(OVM||{}))OV_DIRTY.add(k);clearTimeout(ovT);ovT=setTimeout(ovFlush,250);};
+function ovMark(k){if(k)OV_DIRTY.add(k);}
+function ovFlush(){const fresh=LS.get('ov',{}),mine=OVM||{};for(const k of OV_DIRTY){if(mine[k])fresh[k]=mine[k];else delete fresh[k];}OV_DIRTY.clear();OVM=fresh;LS.set('ov',fresh);}
+addEventListener('storage',e=>{if(e.key==='ms_ov'){OVM=null;OV_DIRTY.clear();scheduleRender();scheduleGrid();}});
 // adjustments belong to the photo (every design uses them); "only this design" adds a tweak layer on top
 let OV_SCOPE='photo';
 function ovPhotoKey(t,s){return t?t.id+':'+s:null;}
 function ovDesignKey(t,s){const d=designs[s];return t&&d?t.id+':'+s+':'+d.name:null;}
 function ovKey(t,s){return OV_SCOPE==='design'?ovDesignKey(t,s):ovPhotoKey(t,s);}
-function ovOf(t,s){const A=ovAll(),pk=ovPhotoKey(t,s),dk=ovDesignKey(t,s);return {...((pk&&A[pk])||{}),...((dk&&A[dk])||{})};}
+// photo setup for size/position is a calibration: it scales with each product's own Printify size instead of copying one product's numbers
+const OV_CAL=['inches','hem','top','cx'];
+function baseFor(key,s){if(s===slot)return baseOf(key);const ps=slot;slot=s;try{return baseOf(key);}finally{slot=ps;}}
+function ovPhoto(t,s){const A=ovAll(),pk=ovPhotoKey(t,s),o=(pk&&A[pk])||{},r={};
+  for(const [k,v] of Object.entries(o)){if(k.endsWith('@'))continue;const b0=o[k+'@'];
+    if(typeof b0==='number'&&OV_CAL.includes(k)&&typeof v==='number'){const b=baseFor(k,s);if(typeof b!=='number'){r[k]=v;continue;}r[k]=k==='inches'?(b0>0?v*b/b0:v):v+(b-b0);}else r[k]=v;}
+  return r;}
+function ovOf(t,s){const A=ovAll(),dk=ovDesignKey(t,s);return {...ovPhoto(t,s),...((dk&&A[dk])||{})};}
 const BASE_DEF={size:.85,y:.1,x:0,curve:0,rot:0,yaw:0,bend:0,wrap:.35};
 function baseOf(key){if(key==='inches')return PL[slot].inches;if(key==='top')return PL.front.top;if(key==='cx')return typeof PL[slot].cx==='number'?PL[slot].cx:0;
   if(key==='hem')return typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN;if(key==='fold'||key==='shade'||key==='opacity')return P[key];
@@ -1516,8 +1528,9 @@ function effOf(key){const o=ovOf(curT(),slot);return typeof o[key]==='number'?o[
 function ovSet(key,v){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll();
   // writing at photo level clears the same setting from this design's tweak layer, so the change is what you see
   if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk][key];if(!Object.keys(A[dk]).length)delete A[dk];}}
-  const ref=OV_SCOPE==='design'?(((A[ovPhotoKey(t,slot)]||{})[key])??baseOf(key)):baseOf(key);
-  const o=A[k]||(A[k]={});if(typeof v==='number'&&Math.abs(v-ref)<1e-9)delete o[key];else o[key]=v;if(!Object.keys(o).length)delete A[k];ovSave();ovUI();}
+  const ref=OV_SCOPE==='design'?(ovPhoto(t,slot)[key]??baseOf(key)):baseOf(key);
+  const o=A[k]||(A[k]={});if(typeof v==='number'&&Math.abs(v-ref)<1e-9){delete o[key];delete o[key+'@'];}else{o[key]=v;if(OV_SCOPE==='photo'&&OV_CAL.includes(key))o[key+'@']=baseOf(key);}
+  if(!Object.keys(o).length)delete A[k];ovMark(k);ovMark(ovDesignKey(t,slot));ovSave();ovUI();}
 function ovUI(){const t=curT(),A=ovAll(),pk=ovPhotoKey(t,slot),dk=ovDesignKey(t,slot),np=pk&&A[pk]?Object.keys(A[pk]).length:0,nd=dk&&A[dk]?Object.keys(A[dk]).length:0;
   $('#ov-bar').style.display='flex';$('#ov-msg').textContent=nd?'This photo has a tweak for this design only.':np?'Adjusted on this photo — every design uses it.':'Adjustments save to this photo and every design uses them.';
   $('#btn-ov-reset').style.display=np||nd?'':'none';$('#btn-ov-all').style.display=np||nd?'':'none';$('#ov-scope').checked=OV_SCOPE==='design';}
@@ -2175,7 +2188,10 @@ async function cloudPull(){if(!CS.uid||!sb)return;CS.lastPull=Date.now();
   const {data,error}=await sb.from('user_settings').select('data').maybeSingle();if(error){CS.state='error';syncUI();return;}
   const cloud=(data&&data.data)||{},local=cloudSnapshot(),m=syncMeta();let changed=false,needPush=false;
   for(const k of new Set([...Object.keys(cloud),...Object.keys(local)])){const c=cloud[k],l=local[k];
-    if(c&&(!l||c.t>=l.t)){if(!l||JSON.stringify(c.v)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(c.v));changed=true;}m[k]=c.t;}
+    // per-photo maps merge photo by photo, so a newer save from another computer can't erase setups made here
+    const MAPK=/^(ov|approved|occ|occoff|sidefront)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
+    if(MAPK){const mv={...l.v,...c.v};if(JSON.stringify(mv)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(mv));changed=true;}m[k]=Math.max(c.t,l.t);if(JSON.stringify(mv)!==JSON.stringify(c.v))needPush=true;}
+    else if(c&&(!l||c.t>=l.t)){if(!l||JSON.stringify(c.v)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(c.v));changed=true;}m[k]=c.t;}
     else if(l)needPush=true;}
   localStorage.setItem('ms__meta',JSON.stringify(m));
   if(changed)await applyCloudState();
@@ -2285,7 +2301,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__pose=()=>loadPose();window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__pose=()=>loadPose();window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
