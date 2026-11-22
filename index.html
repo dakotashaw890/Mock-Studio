@@ -80,7 +80,8 @@ label.file strong{font-size:14px}
 .frow{display:flex;gap:6px;align-items:center}.frow input[type=range]{flex:1}.nb{padding:2px 9px;min-width:30px;font-weight:700}
 .qtile .qb{position:absolute;top:6px;left:6px;border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600;color:#fff}
 .gtile span{display:block;font-size:11px;color:var(--muted);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.thumb{flex:0 0 auto;width:74px;border:2px solid transparent;border-radius:10px;padding:0;background:none;cursor:pointer;display:block}
+.thumb .okb{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;background:#16a34a;color:#fff;font:700 11px/18px system-ui;text-align:center;font-style:normal}
+.thumb{flex:0 0 auto;width:74px;border:2px solid transparent;border-radius:10px;padding:0;background:none;cursor:pointer;display:block;position:relative}
 .thumb img{width:100%;height:92px;object-fit:cover;border-radius:8px;display:block;background:var(--soft)}
 .thumb span{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px}
 .thumb.on{border-color:var(--accent)}
@@ -163,11 +164,18 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <div class="hint" id="hint" style="display:none">Drag the 4 corners to the print area. Drag inside to move it.</div>
           <div class="busy" id="busy">Rendering…</div>
         </div>
+        <div class="row small" id="brush-bar" style="display:none;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <span>Brush:</span><button class="small primary" data-bm="1">Hide print</button><button class="small" data-bm="2">Show print</button><button class="small" data-bm="0">Eraser</button>
+          <label class="row small" style="gap:4px">Size <input type="range" id="brush-size" min="2" max="24" value="8" style="width:90px"></label>
+          <label class="row small" style="gap:4px" title="Untick to stop trimming the print to the shirt outline on this photo"><input type="checkbox" id="occ-auto" checked> Trim to shirt outline</label>
+          <button class="small" id="brush-clear">Clear brush</button><button class="small" id="brush-done">Done</button>
+        </div>
         <div class="row" style="margin-top:10px;justify-content:space-between">
           <div class="row">
             <button id="btn-edit">Adjust print area</button>
             <button id="btn-warp" title="Show dots on the logo you can drag to bend parts of it (this photo only)">Warp</button>
             <button id="btn-warp-reset" style="display:none">Reset warp</button>
+            <button id="btn-brush" title="Paint where the print should be hidden (an arm, hair or a hand in front of the shirt) or forced to show. This photo only.">Hide/show brush</button>
             <button id="btn-save-area" class="primary" style="display:none">Save area</button>
             <button id="btn-apply-sim" style="display:none">Save &amp; apply to similar</button>
             <button id="btn-autofit" style="display:none" title="Find the sleeve in the photo and fit the print area to it">Auto-fit</button>
@@ -234,6 +242,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       </div>
       <div class="card">
         <h2>2. Placement <span class="muted small" id="pl-slot" style="font-weight:500">· Front</span></h2>
+        <label class="row small" id="sf-row" style="gap:6px;margin:-4px 0 8px;display:none"><input type="checkbox" id="sf-on"> Show the front design on this side photo</label>
         <div class="row" id="pl-slots" style="gap:6px;margin:-4px 0 10px"><button class="pill" data-ps="front">Front</button><button class="pill" data-ps="left">Left sleeve</button><button class="pill" data-ps="right">Right sleeve</button></div>
         <div class="ctl"><label class="row small" style="font-weight:600"><input type="checkbox" id="ts-on"> True-to-size printing</label></div>
         <div id="ts-ctl" style="display:none">
@@ -258,7 +267,8 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="ctl"><div class="lab">Follow folds <span id="v-fold"></span></div><input type="range" id="fold" min="0" max="100" value="45"></div>
         <div class="ctl"><div class="lab">Fabric shading <span id="v-shade"></span></div><input type="range" id="shade" min="0" max="100" value="75"></div>
         <div class="ctl"><div class="lab">Ink opacity <span id="v-op"></span></div><input type="range" id="op" min="40" max="100" value="94"></div>
-        <div id="ov-bar" class="row small" style="display:none;gap:8px;align-items:center;margin:6px 0;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent,#2563eb) 12%,transparent)"><span>Adjusted on this photo only.</span><button id="btn-ov-reset" class="small">Reset this photo</button><button id="btn-ov-all" class="small">Use on all photos</button></div>
+        <div class="row small" id="appr-row" style="gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap"><button id="btn-approve" class="small primary">Approve this photo</button><span id="appr-hint" class="muted"></span></div>
+        <div id="ov-bar" class="row small" style="display:none;gap:8px;align-items:center;margin:6px 0;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent,#2563eb) 12%,transparent)"><span id="ov-msg">Adjusted on this photo only.</span><label class="row small" style="gap:4px" title="Tick to make the next changes apply to this design only, on top of the photo's setup"><input type="checkbox" id="ov-scope"> Only for this design</label><button id="btn-ov-reset" class="small">Reset this photo</button><button id="btn-ov-all" class="small">Use on all photos</button></div>
         <button id="btn-reset" class="small">Reset to defaults</button>
       </div>
       <div class="card">
@@ -416,6 +426,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".5" max="1.2" step=".05" value="1" style="width:110px"> <span id="cf-strv">1.00</span></label>
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
+      <label class="row small" style="gap:4px" title="Three-quarter turn: the body turned about 45° with the face to the camera, so a chest graphic reads from an angle. Used for the front photo of each set.">Angle <select id="cf-angle"><option value="">Straight on</option><option value="q">Three-quarter turn</option><option value="mix">Mix</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
       <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
       <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
@@ -537,8 +548,8 @@ function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();
   const nm=(allColors().find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];
   $('#shirt-name').textContent=nm+(cur&&t?(hasColor(t.id,cur)?' · AI color':' · quick preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
 async function maskImage(t){if(maskImgs.has(t.id))return maskImgs.get(t.id);let m=null;
-  if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}}
-  else m=await diffMask(t)||await poseShirtMask(t);
+  if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}t._maskExact=!!m;}
+  else{m=await diffMask(t);t._maskExact=!!m;if(!m)m=await poseShirtMask(t);}
   maskImgs.set(t.id,m);return m;}
 // photos with no AI colour yet: colour fill, but only inside the person's outline and between the collar and the hips (keeps it off dark backgrounds, beards, hair and jeans)
 async function poseShirtMask(t){try{const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,900);const c=drawScaled(img,w,h);
@@ -768,13 +779,34 @@ function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.s
 function turnDefault(t,s){if(s==='front'&&viewOf(t)!=='front')return 90+(typeof t.turn==='number'?t.turn:0);if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
 function turnOf(t,s){const o=LS.get('turns',{})[t.id+':'+s];return typeof o==='number'?o:turnDefault(t,s);}
 function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front')return t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
-function layersOf(t){const v=viewOf(t);if(v!=='front')return t.chestQ?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
+// side photos show only the sleeve unless you switch the front design on for that photo (a strict profile hides almost all of a chest print)
+function sideFrontOn(t){return !!LS.get('sidefront',{})[t.id];}
+function layersOf(t){const v=viewOf(t);if(v!=='front')return t.chestQ&&sideFrontOn(t)?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
+/* ---------- occlusion: print only shows on the shirt; a brush fixes what the outline gets wrong (arms, hair, hands in front) ---------- */
+const occAuto=new Map(),occBr=new Map();const OCC_W=160,OCC_H=200;
+function maskGrid(img,dil){const w=Math.min(400,img.naturalWidth||img.width),h=Math.round(w*(img.naturalHeight||img.height)/(img.naturalWidth||img.width));
+  const c=drawScaled(img,w,h),d=c.getContext('2d').getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let i=0;i<w*h;i++)g[i]=d[i*4]>127?1:0;
+  const r=Math.max(1,Math.round(dil*w)),t=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){let run=-1e9;for(let x=0;x<w;x++){if(g[y*w+x])run=x;t[y*w+x]=x-run<=r?1:0;}run=1e9;for(let x=w-1;x>=0;x--){if(g[y*w+x])run=x;if(run-x<=r)t[y*w+x]=1;}}
+  const o=new Uint8Array(w*h);for(let x=0;x<w;x++){let run=-1e9;for(let y=0;y<h;y++){if(t[y*w+x])run=y;o[y*w+x]=y-run<=r?1:0;}run=1e9;for(let y=h-1;y>=0;y--){if(t[y*w+x])run=y;if(run-y<=r)o[y*w+x]=1;}}
+  return {w,h,g:o};}
+async function occLoad(t){if(occAuto.has(t.id)||t.scene)return;try{const m=await maskImage(t);occAuto.set(t.id,m&&t._maskExact?maskGrid(m,.003):null);}catch(e){occAuto.set(t.id,null);}}
+function occEnc(g){let s='',v=g[0],n=0;for(let i=0;i<=g.length;i++){if(i<g.length&&g[i]===v)n++;else{s+=v+':'+n+',';v=g[i];n=1;}}return s;}
+function occDec(s){const g=new Uint8Array(OCC_W*OCC_H);let i=0;for(const p of s.split(',')){if(!p)continue;const [v,n]=p.split(':').map(Number);g.fill(v,i,i+n);i+=n;}return g;}
+function occBrush(t){const s=LS.get('occ',{})[t.id];if(!s)return null;let c=occBr.get(t.id);if(!c||c.s!==s){c={s,g:occDec(s)};occBr.set(t.id,c);}return c.g;}
+function occApply(t,pack,out){if(t.scene||occOff(t))return;const A=occAuto.get(t.id),B=occBrush(t);if(!A&&!B)return;const {w,h,data}=pack,o=out.data;
+  for(let y=0;y<h;y++){const ay=A?Math.min(A.h-1,(y*A.h/h)|0)*A.w:0,by=Math.min(OCC_H-1,(y*OCC_H/h)|0)*OCC_W;
+    for(let x=0;x<w;x++){const i=(y*w+x)*4;if(o[i]===data[i]&&o[i+1]===data[i+1]&&o[i+2]===data[i+2])continue;
+      const b=B?B[by+Math.min(OCC_W-1,(x*OCC_W/w)|0)]:0;const hide=b===1||(b!==2&&A&&!A.g[ay+Math.min(A.w-1,(x*A.w/w)|0)]);
+      if(hide){o[i]=data[i];o[i+1]=data[i+1];o[i+2]=data[i+2];}}}}
+function occOff(t){return !!LS.get('occoff',{})[t.id];}
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
   for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
+  occApply(t,pack,out);
   ctx.putImageData(out,0,0);
 }
 
@@ -1017,6 +1049,7 @@ function fitSide(t,pack){
 const fitRes=new Map();
 function isManual(t,s){if(t.builtin){const o=LS.get('quads',{});return !!o[s==='front'||s===viewOf(t)?t.id:t.id+':'+s];}return !!(t.manual&&t.manual[s]);}
 async function ensureFit(t){
+  await occLoad(t);
   if(t._fitted)return; t._fitted=true; if(t.scene){t.fit={};return;}
   try{
     let r=fitRes.get(t.id);
@@ -1068,7 +1101,7 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|approved|occ|occoff|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
@@ -1185,7 +1218,7 @@ async function renderView(){
   slotPhoto=t.id;
   if(shirtHex())pack=await viewPack(t);
   REC_BOX=true;LASTBOX={};try{renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);}finally{REC_BOX=false;}
-  if(!editMode){stamp(vctx.canvas);drawHandles(vctx);}
+  if(!editMode){stamp(vctx.canvas);drawHandles(vctx);drawBrush(vctx);}
   if(editMode)drawHandles(editQuad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
 }
@@ -1198,14 +1231,20 @@ function drawHandles(quad,pack){
   pts.forEach(p=>{vctx.beginPath();vctx.arc(p[0],p[1],9*sc,0,Math.PI*2);vctx.fillStyle='#ea580c';vctx.fill();vctx.lineWidth=2.5*sc;vctx.strokeStyle='#fff';vctx.stroke();});
   vctx.restore();
 }
-function renderThumbs(){requestAnimationFrame(fineUI);
+// a photo is "approved" once you've checked its print areas; approved photos are trusted for every design
+function isApproved(t){return !!LS.get('approved',{})[t.id];}
+function setApproved(t,on){const m=LS.get('approved',{});if(on)m[t.id]=Date.now();else delete m[t.id];LS.set('approved',m);renderThumbs();approveUI();}
+function approveUI(){const t=curT(),b=$('#btn-approve');if(!b||!t)return;const on=isApproved(t);b.textContent=on?'✓ Approved — click to unapprove':'Approve this photo';b.classList.toggle('primary',!on);
+  $('#appr-hint').textContent=on?'Every design uses this photo’s setup.':'Check the logo and sleeve spots look right on this photo, then approve. Set up once; every design reuses it.';}
+function renderThumbs(){setTimeout(approveUI,0);requestAnimationFrame(fineUI);
   if(typeof updateDlCount==='function')try{updateDlCount();}catch(e){}
   const box=$('#thumbs');box.textContent='';
   for(const t of shown()){
     const b=document.createElement('button');b.className='thumb'+(t.id===curId?' on':'');
     const im=document.createElement('img');im.src=tplSrc(t);im.alt='';im.loading='lazy';
     const sp=document.createElement('span');sp.textContent=t.name;
-    b.append(im,sp);b.onclick=()=>{if(editMode)cancelEdit();curId=t.id;renderThumbs();scheduleRender();};
+    b.append(im,sp);if(isApproved(t)){const ok=document.createElement('i');ok.className='okb';ok.title='Set up and approved';ok.textContent='✓';b.append(ok);}
+    b.onclick=()=>{if(editMode)cancelEdit();curId=t.id;renderThumbs();scheduleRender();};
     box.append(b);
   }
   if(!shown().length){const p=document.createElement('p');p.className='small muted';p.textContent='No photos of this type yet.';box.append(p);}
@@ -1249,7 +1288,7 @@ function cancelEdit(){endEdit();}
 let WARP_ON=false,LD=null,SEL=null; // SEL: photo id whose logo was clicked (handles show only then)
 function curBox(){const b=LASTBOX[slot];if(!b)return null;const pad=6;return {x0:b.x0-pad,y0:b.y0-pad,x1:b.x1+pad,y1:b.y1+pad,b};}
 function warpOf(){const o=ovOf(curT(),slot);return Array.isArray(o.warp)&&o.warp.length===9?o.warp.map(v=>[...v]):Array.from({length:9},()=>[0,0]);}
-function warpSet(w){const k=ovKey(curT(),slot);if(!k)return;const A=ovAll(),o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovSave();ovUI();scheduleRender();scheduleGrid();}
+function warpSet(w){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll();if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk].warp;if(!Object.keys(A[dk]).length)delete A[dk];}}const o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovSave();ovUI();scheduleRender();scheduleGrid();}
 function fwdDesign(g,gx,gy){const X1=(gx-.5)*g.fw*g.A,Y1=(gy-.5)*g.fh,X=X1*g.rc-Y1*g.rs,Y=X1*g.rs+Y1*g.rc,du=X/(g.fw*g.A)+.5,dv=Y/g.fh+.5;return apply(g.M,g.u0+du*g.fw,g.v0+dv*g.fh);}
 function warpDots(B){const w=warpOf(),g=B.b;const out=[];for(let r=0;r<3;r++)for(let c=0;c<3;c++){const d=w[r*3+c];out.push(fwdDesign(g,c/2+d[0],r/2+d[1]));}return out;}
 function drawHandles(x){if(editMode||!designs[slot]||!curT()||(SEL!==curT().id&&!WARP_ON))return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
@@ -1293,6 +1332,23 @@ view.addEventListener('pointermove',e=>{if(editMode)return;const p=canvasPt(e);
 const endLD=e=>{if(!LD)return;LD=null;try{view.releasePointerCapture(e.pointerId);}catch(_){} fineUI();};
 view.addEventListener('pointerup',endLD);view.addEventListener('pointercancel',endLD);
 let ROT_SIGN=1;
+// hide/show brush
+let BRUSH_ON=false,BRUSH_M=1,BRUSH_G=null,BRUSH_DOWN=false;
+function brushUI(){$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('primary',+b.dataset.bm===BRUSH_M));const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
+function brushSave(){const t=curT();if(!t||!BRUSH_G)return;const m=LS.get('occ',{});if(BRUSH_G.some(v=>v))m[t.id]=occEnc(BRUSH_G);else delete m[t.id];LS.set('occ',m);}
+function brushAt(e){const t=curT();if(!t)return;const r=view.getBoundingClientRect(),nx=(e.clientX-r.left)/r.width,ny=(e.clientY-r.top)/r.height,rad=+$('#brush-size').value/2;
+  const cx=nx*OCC_W,cy=ny*OCC_H;for(let y=Math.max(0,Math.floor(cy-rad));y<Math.min(OCC_H,Math.ceil(cy+rad));y++)for(let x=Math.max(0,Math.floor(cx-rad));x<Math.min(OCC_W,Math.ceil(cx+rad));x++)if(Math.hypot(x+.5-cx,y+.5-cy)<=rad)BRUSH_G[y*OCC_W+x]=BRUSH_M;
+  const m=LS.get('occ',{});occBr.set(t.id,{s:'live',g:BRUSH_G});scheduleRender();}
+view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;view.setPointerCapture(e.pointerId);brushAt(e);},true);
+view.addEventListener('pointermove',e=>{if(!BRUSH_ON)return;e.stopImmediatePropagation();if(BRUSH_DOWN)brushAt(e);},true);
+view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!BRUSH_DOWN)return;e.stopImmediatePropagation();BRUSH_DOWN=false;brushSave();occBr.delete((curT()||{}).id);scheduleRender();scheduleGrid();},true);
+$('#btn-brush').onclick=()=>{BRUSH_ON=!BRUSH_ON;if(BRUSH_ON){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');toast('Paint over an arm, hand or hair to hide the print there. “Show print” forces it back. Saves to this photo for every design.',5000);}brushUI();scheduleRender();};
+document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.onclick=()=>{BRUSH_M=+b.dataset.bm;brushUI();});
+$('#brush-clear').onclick=()=>{const t=curT();if(!t)return;const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
+$('#brush-done').onclick=()=>{BRUSH_ON=false;brushUI();scheduleRender();};
+$('#occ-auto').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('occoff',{});if(e.target.checked)delete m[t.id];else m[t.id]=1;LS.set('occoff',m);scheduleRender();scheduleGrid();};
+function drawBrush(x){if(!BRUSH_ON)return;const t=curT();if(!t)return;const g=(occBr.get(t.id)||{}).g||occBrush(t);if(!g)return;const W=x.canvas.width,H=x.canvas.height,cw=W/OCC_W,ch=H/OCC_H;x.save();
+  for(let y=0;y<OCC_H;y++)for(let i=0;i<OCC_W;i++){const v=g[y*OCC_W+i];if(!v)continue;x.fillStyle=v===1?'rgba(239,68,68,.35)':'rgba(34,197,94,.35)';x.fillRect(Math.floor(i*cw),Math.floor(y*ch),Math.ceil(cw)+1,Math.ceil(ch)+1);}x.restore();}
 $('#btn-warp').onclick=()=>{WARP_ON=!WARP_ON;if(WARP_ON&&curT())SEL=curT().id;$('#btn-warp').classList.toggle('primary',WARP_ON);$('#btn-warp-reset').style.display=WARP_ON?'':'none';if(WARP_ON)toast('Drag the green dots to bend that part of the logo. Saves to this photo only.',4000);scheduleRender();};
 $('#btn-warp-reset').onclick=()=>{warpSet(Array.from({length:9},()=>[0,0]));};
 function evPt(e){const r=view.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height,r};}
@@ -1381,6 +1437,7 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
   const v=b.dataset.slot;if(editMode)cancelEdit();setSlot(v);
   const t=curT();
   // a side photo also shows the chest print, so the front design stays editable here instead of jumping to a front photo
+  if(t&&v==='front'&&viewOf(t)!=='front'&&t.chestQ&&!sideFrontOn(t)){const m=LS.get('sidefront',{});m[t.id]=1;LS.set('sidefront',m);toast('Front design turned on for this side photo. Untick “Show the front design” in Adjust to hide it again.',4500);scheduleRender();}
   if(t&&v==='front'&&viewOf(t)!=='front'){if(!t.chestQ)toast('The chest isn\'t visible enough on this photo to show the front design. Its sliders still save for this photo.',4500);}
   else if(t&&viewOf(t)!==v&&!(viewOf(t)==='front')){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
   scheduleRender();
@@ -1391,10 +1448,12 @@ const sliders=[['fold','fold',v=>v/100,v=>v+'%'],['shade','shade',v=>v/100,v=>v+
 const labelId={fold:'v-fold',shade:'v-shade',op:'v-op',wrap:'v-wrap'};
 function syncSliders(){$('#v-tol').textContent=design?design.tol:30;fineUI();}
 
-$('#btn-ov-reset').onclick=()=>{const k=ovKey(curT(),slot);if(k){delete ovAll()[k];ovSave();}fineUI();scheduleRender();scheduleGrid();};
+$('#btn-ov-reset').onclick=()=>{const t=curT(),A=ovAll();for(const k of [ovPhotoKey(t,slot),ovDesignKey(t,slot)])if(k)delete A[k];ovSave();fineUI();scheduleRender();scheduleGrid();};
+$('#btn-approve').onclick=()=>{const t=curT();if(t)setApproved(t,!isApproved(t));};
+$('#ov-scope').onchange=e=>{OV_SCOPE=e.target.checked?'design':'photo';ovUI();};
 $('#btn-ov-all').onclick=()=>{const t=curT(),o={...ovOf(t,slot)},A=ovAll(),d=designs[slot];
   for(const [k,v] of Object.entries(o)){if(k==='fold'||k==='shade'||k==='opacity')P[k]=v;else{PL[slot][k]=v;if(k==='top')PL.front.top=v;}}
-  for(const key of Object.keys(A)){const [,s2,...nm]=key.split(':');if(s2!==slot||!d||nm.join(':')!==d.name)continue;for(const k of Object.keys(o))delete A[key][k];if(!Object.keys(A[key]).length)delete A[key];}
+  for(const key of Object.keys(A)){const [,s2,...nm]=key.split(':');if(s2!==slot||(nm.length&&(!d||nm.join(':')!==d.name)))continue;for(const k of Object.keys(o))delete A[key][k];if(!Object.keys(A[key]).length)delete A[key];}
   ovSave();savePlacement();fineUI();scheduleRender();scheduleGrid();toast('Applied to every photo.');};
 $('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0,yaw:0,bend:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,yaw:0,bend:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
@@ -1408,15 +1467,25 @@ function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'bloc
 const STEP_IN=1/300;
 /* per-photo adjustments: sliders change only the photo on screen; the base placement (Printify / the measurement boxes) is shared */
 let OVM=null;const ovAll=()=>OVM||(OVM=LS.get('ov',{}));let ovT;const ovSave=()=>{clearTimeout(ovT);ovT=setTimeout(()=>LS.set('ov',OVM),250);};
-function ovKey(t,s){const d=designs[s];return t&&d?t.id+':'+s+':'+d.name:null;}
-function ovOf(t,s){const k=ovKey(t,s);return (k&&ovAll()[k])||{};}
+// adjustments belong to the photo (every design uses them); "only this design" adds a tweak layer on top
+let OV_SCOPE='photo';
+function ovPhotoKey(t,s){return t?t.id+':'+s:null;}
+function ovDesignKey(t,s){const d=designs[s];return t&&d?t.id+':'+s+':'+d.name:null;}
+function ovKey(t,s){return OV_SCOPE==='design'?ovDesignKey(t,s):ovPhotoKey(t,s);}
+function ovOf(t,s){const A=ovAll(),pk=ovPhotoKey(t,s),dk=ovDesignKey(t,s);return {...((pk&&A[pk])||{}),...((dk&&A[dk])||{})};}
 const BASE_DEF={size:.85,y:.1,x:0,curve:0,rot:0,yaw:0,bend:0,wrap:.35};
 function baseOf(key){if(key==='inches')return PL[slot].inches;if(key==='top')return PL.front.top;if(key==='cx')return typeof PL[slot].cx==='number'?PL[slot].cx:0;
   if(key==='hem')return typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN;if(key==='fold'||key==='shade'||key==='opacity')return P[key];
   return typeof PL[slot][key]==='number'?PL[slot][key]:(slot!=='front'&&key==='wrap'?.7:slot!=='front'&&key==='size'?.95:slot!=='front'&&key==='y'?.5:BASE_DEF[key]);}
 function effOf(key){const o=ovOf(curT(),slot);return typeof o[key]==='number'?o[key]:baseOf(key);}
-function ovSet(key,v){const k=ovKey(curT(),slot);if(!k)return;const A=ovAll();const o=A[k]||(A[k]={});if(Math.abs(v-baseOf(key))<1e-9)delete o[key];else o[key]=v;if(!Object.keys(o).length)delete A[k];ovSave();ovUI();}
-function ovUI(){const o=ovOf(curT(),slot),n=Object.keys(o).length;$('#ov-bar').style.display=n?'flex':'none';}
+function ovSet(key,v){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll();
+  // writing at photo level clears the same setting from this design's tweak layer, so the change is what you see
+  if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk][key];if(!Object.keys(A[dk]).length)delete A[dk];}}
+  const ref=OV_SCOPE==='design'?(((A[ovPhotoKey(t,slot)]||{})[key])??baseOf(key)):baseOf(key);
+  const o=A[k]||(A[k]={});if(typeof v==='number'&&Math.abs(v-ref)<1e-9)delete o[key];else o[key]=v;if(!Object.keys(o).length)delete A[k];ovSave();ovUI();}
+function ovUI(){const t=curT(),A=ovAll(),pk=ovPhotoKey(t,slot),dk=ovDesignKey(t,slot),np=pk&&A[pk]?Object.keys(A[pk]).length:0,nd=dk&&A[dk]?Object.keys(A[dk]).length:0;
+  $('#ov-bar').style.display='flex';$('#ov-msg').textContent=nd?'This photo has a tweak for this design only.':np?'Adjusted on this photo — every design uses it.':'Adjustments save to this photo and every design uses them.';
+  $('#btn-ov-reset').style.display=np||nd?'':'none';$('#btn-ov-all').style.display=np||nd?'':'none';$('#ov-scope').checked=OV_SCOPE==='design';}
 function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.round(v*300)+' px':(+v.toFixed(2))+'"';
   const sgn=(v,f)=>(v>0?'+':'')+f(v), K=(key,o)=>({...o,key,get:()=>effOf(key),set:v=>ovSet(key,v)});
   return {
@@ -1583,7 +1652,7 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
-for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg','cf-colors']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
+for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-angle']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else el.value=v;}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -1635,6 +1704,7 @@ function menExtras(){const x=[];if(Math.random()<.35)x.push('wearing '+pick(VARY
   if(Math.random()<.4)x.push('a black-and-grey tattoo sleeve on his right forearm only (the left arm has no tattoos), showing '+pick(VARY.tatM));if(Math.random()<.4)x.push('a black rugged tactical wristwatch');return x.length?', '+x.join(', '):'';}
 const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
 function cfScene(){const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=COOL.concat(v==='any'?['studio']:[]);return ks[Math.floor(Math.random()*ks.length)];}
+function cfAngle(){const v=$('#cf-angle').value;const q=Math.random()<.5?'ql':'qr';return v==='q'?q:v==='mix'?(Math.random()<.5?q:''):'';}
 function cfArms(woman){const v=$('#cf-arms').value;
   if(!woman){if(v==='mix')return ['','','pocket','pocket','pocket','hip'][Math.floor(Math.random()*6)];return v==='hair'?'pocket':v;} // men: hands in pockets or relaxed, never hand-in-hair
   return v==='mix'?['','hips','hip','pocket','hair','hip','pocket'][Math.floor(Math.random()*7)]:v;}
@@ -1642,7 +1712,7 @@ const MAN_POSE={'':'arms hanging relaxed and natural at his sides, a relaxed con
   hip:'one hand resting on his belt at the hip, the other arm relaxed at his side, a confident stance',hips:'both hands resting on his belt at the hips, a strong confident stance'};
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   return randomPerson(want==='woman');}
-function cfText(ref,person,scene,arms){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
+function cfText(ref,person,scene,arms,angle){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
   let m=person||randomPerson(want==='woman');
   {const v=viewOf(ref),tat=m.match(/,? an? (?:fine-line black ink tattoo|black-and-grey tattoo sleeve) on (?:his|her) right forearm only \([^)]*\), showing (.+?)(?=, a black rugged|, with the front hem|$)/);
    if(tat){const pr=want==='woman'?'her':'his',what=tat[1];
@@ -1658,14 +1728,15 @@ function cfText(ref,person,scene,arms){const cur=$('#g-model').value,want=ref.gr
   p=p.replace(/crew-neck cotton t-shirt, regular fit\. /,'short-sleeve Bella+Canvas 3001 unisex jersey tee: lightweight soft 100% combed ringspun cotton jersey with a smooth surface and gentle natural drape, unisex retail fit that is trim but not skin-tight, side-seamed, a thin ribbed knit crew-neck collar, clean coverstitched sleeve hems, sleeves ending at mid upper arm with bare forearms, the hem ending at the hip, no pocket, worn untucked with fitted dark jeans. ');
   p=/front hem tied/.test(m)?p.replace('the hem ending at the hip, no pocket, worn untucked with fitted dark jeans.','a full-length tee whose front hem is gathered and tied in a small knot at her waist, showing a little midriff, with fitted high-waisted dark jeans. The shirt is a normal full-length tee made shorter only by the knot; it is not a cut crop top.'):p+'\n\nThe tee is full length: the hem covers the waistband of the jeans at the hip. It is not a crop top and does not show the stomach.';
   const dir=viewOf(ref)==='left'?'left':'right';
+  if(!side&&angle)p=`Three-quarter view: the body and shoulders are turned about 45 degrees away from the camera toward the ${angle==='ql'?'left':'right'} side of the frame, following the pose exactly, while the face turns back to look at the camera. The front of the t-shirt and the chest are clearly visible at an angle, with the near short sleeve toward the camera.\n\n`+p;
   if(side)p=`Strict side profile view, the person seen exactly from the side: body and face turned a full 90 degrees to face the ${dir} edge of the frame, looking straight ahead, not at the camera, with the ${dir} shoulder and ${dir} short sleeve toward the camera. The t-shirt has short sleeves ending at mid upper arm; the arm below the sleeve is bare. In profile the person is slim with a slim waist and no belly.${/front hem tied/.test(m)?'':' The t-shirt is the same full-length tee as in a front view: seen from the side its hem still hangs down past the waistband of the jeans at the hip, covering the stomach and the lower back completely, with no skin showing between the shirt and the jeans. Not a crop top.'}\n\n`+p;
   return p+(side?`\n\nTrue profile, like a side-view fitting photo: the side of the chest and the ${dir} sleeve clearly visible.`:'\n\nNothing covers the chest; hands and arms stay off the front of the shirt.')+'\n\nThe full head and hair are inside the frame with space above the head; nothing is cropped at the top. Hair is worn down, not in a ponytail or bun. Short sleeves only, never long sleeves.'+(want==='man'?'\n\nHe looks like a real, rugged, everyday American guy in a candid lifestyle photo for an outdoor and workwear apparel brand, not a fashion model: natural skin texture, a natural unstyled look, masculine and confident.'+(side?'':' Pose: '+(MAN_POSE[arms||'']||MAN_POSE[''])+'.'):'')+(want==='woman'?'\n\nShe looks like a top commercial fashion model: a beautiful, camera-ready face in sharp focus with flattering soft light, catchlights in the eyes, natural skin texture, symmetrical features, and salon-styled glossy hair with volume and movement. Her hair falls behind her shoulders and off the front of the shirt. No frizz, no flyaways, no messy hair.':'');}
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
-  const pid=ref.id+(viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');
+  const pid=ref.id+(viewOf(ref)==='front'&&o.angle?'~'+o.angle:viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');
   const pb=await (await fetch('vendor/poses/'+pid+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+pid+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the pose image.');const u=await up.json();
   const seed=o.seed||Math.floor(Math.random()*2**48);
-  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
+  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,o.angle),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
   const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
   const id=j.prompt_id;let out=null;
   for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
@@ -1689,10 +1760,10 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
   const jobs=[];// [ref, opts]
   if(setMode){const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))];
     for(const b0 of bases)for(let k=1;k<=per;k++){const front=poseRef(b0);if(!front)continue;
-      const o={scene:cfScene(),arms:cfArms(front.group==='women'),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
+      const o={scene:cfScene(),arms:cfArms(front.group==='women'),angle:cfAngle(),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
       o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
       for(const id of [b0,b0+'l',b0+'r']){const r=poseRef(id);if(r)jobs.push([r,o,k]);}}}
-  else for(const id of CF.sel){const r=poseRef(id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms(r.group==='women')},k]);}
+  else for(const id of CF.sel){const r=poseRef(id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms(r.group==='women'),angle:viewOf(r)==='front'?cfAngle():''},k]);}
   const total=jobs.length;let done=0,fails=0;const newIds=[];
   try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
       try{const r=await cfOne(ref,str,k,o);newIds.push(r.newId);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
@@ -1979,6 +2050,7 @@ function pfSelUI(){$('#pf-kit').disabled=!PFSEL.size;$('#pf-kit').textContent=PF
 $('#pf-kit').onclick=async()=>{
   if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
   if(!shown().some(x=>viewOf(x)==='front'&&!excluded.has(x.id))){toast('Pick at least one front photo in the studio first.');return;}
+  {const un=shown().filter(x=>!excluded.has(x.id)&&!isApproved(x));if(un.length&&!confirm(un.length+' photo'+(un.length>1?'s are':' is')+' not approved yet, so the logo spot hasn’t been checked on '+(un.length>1?'them':'it')+'.\n\nOK = make the kits anyway\nCancel = go back and approve them first (the ✓ on each thumbnail)'))return;}
   const keep={designs:{...designs},PL:JSON.parse(JSON.stringify(PL)),ts:TS.on,slot,linked:PF.linked};
   busy(true);$('#pf-kit').disabled=true;const zip=new JSZip(),fails=[];let done=0,imgs=0;const list=[...PFSEL.entries()];
   try{for(const [id,title] of list){done++;const lab='Product '+done+' of '+list.length;
@@ -2009,6 +2081,8 @@ $('#pf-kit').onclick=async()=>{
       ed.addEventListener('pointermove',mv);ed.addEventListener('pointerup',up);});
     ed.addEventListener('dblclick',()=>{const full=getComputedStyle(de).getPropertyValue('--appw').trim()==='100vw';const w=full?1180:innerWidth;setW(w);LS.set('appw',full?1180:99999);requestAnimationFrame(sizePanes);scheduleRender();});}
 })();
+$('#sf-on').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('sidefront',{});if(e.target.checked)m[t.id]=1;else delete m[t.id];LS.set('sidefront',m);scheduleRender();scheduleGrid();};
+setInterval(()=>{const t=curT(),r=$('#sf-row');if(!t||!r)return;const side=viewOf(t)!=='front';r.style.display=side?'':'none';if(side)$('#sf-on').checked=sideFrontOn(t);},400);
 // slot switcher on the Adjust tab mirrors the one under Your designs
 document.querySelectorAll('#pl-slots button').forEach(b=>b.onclick=()=>{const o=document.querySelector('#slots button[data-slot='+b.dataset.ps+']');if(o)o.click();});
 setInterval(()=>{const on=(document.querySelector('#slots button.on')||{}).dataset;document.querySelectorAll('#pl-slots button').forEach(b=>b.classList.toggle('on',!!on&&b.dataset.ps===on.slot));},400);
@@ -2091,7 +2165,7 @@ async function shirtSrc(t){const hex=shirtHex();if(hex){const im=await colorImg(
 async function colPut(id,hex,blob,push){const k=colKey(id,hex);await colTx('readwrite',st=>st.put({k,model_id:id,hex,blob})).catch(()=>{});
   if(colorUrls.has(k))URL.revokeObjectURL(colorUrls.get(k));colorUrls.set(k,URL.createObjectURL(blob));colorImgCache.delete(k);
   // the first AI colour gives an exact shirt outline: redo this photo's automatic print areas with it
-  const firstForId=![...colorUrls.keys()].some(x=>x!==k&&x.startsWith(id+'|'));maskImgs.delete(id);
+  const firstForId=![...colorUrls.keys()].some(x=>x!==k&&x.startsWith(id+'|'));maskImgs.delete(id);occAuto.delete(id);
   if(firstForId){const t=templates.find(x=>x.id===id);if(t&&!t.builtin){fitRes.delete(id);fitMasks.delete(id);sideMasks.delete(id);t._fitted=false;for(const sd of ['left','right'])if(!isManual(t,sd)&&t.sleeves)delete t.sleeves[sd];}}
   colorPacks.clear();smallPacks.clear();if(push)colPush({k,model_id:id,hex,blob});}
 async function colDropModel(id){try{const all=(await colTx('readonly',st=>st.getAll()))||[];for(const c of all)if(c.model_id===id){await colTx('readwrite',st=>st.delete(c.k));colorUrls.delete(c.k);colorImgCache.delete(c.k);}}catch(e){}}
@@ -2176,7 +2250,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__pose=()=>loadPose();window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
