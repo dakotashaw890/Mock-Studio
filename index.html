@@ -2100,9 +2100,13 @@ async function pfRefreshAuth(){
   if(connected){PF.shops=data.shops||[];const sel=$('#pf-shop');sel.textContent='';for(const s of PF.shops){const o=document.createElement('option');o.value=s.id;o.textContent=s.title+(s.channel?' · '+s.channel:'');sel.append(o);}
     PF.shop=PF.shops[0]?PF.shops[0].id:null;if(PF.shop){PF.page=1;pfLoadProducts();}else pfMsg('No shops found on this Printify account.');}
 }
+// several sign-in events fire on page load and each one loaded the list; their answers all got added, so every product showed 2-3 times.
+// Only the newest request now fills the list, and it's cleared right before filling.
+let PF_REQ=0;
 async function pfLoadProducts(){
-  const box=$('#pf-products');box.textContent='';pfMsg('Loading products…');
-  try{const r=await pfCall('products',{shop_id:PF.shop,page:PF.page});PF.last=r.last_page||1;pfMsg('');
+  const box=$('#pf-products'),my=++PF_REQ;box.textContent='';pfMsg('Loading products…');
+  try{const r=await pfCall('products',{shop_id:PF.shop,page:PF.page});if(my!==PF_REQ)return;box.textContent='';PF.last=r.last_page||1;pfMsg('');
+    const seen=new Set();r.products=r.products.filter(p=>!seen.has(p.id)&&seen.add(p.id));
     $('#pf-page').textContent='Page '+PF.page+' of '+PF.last;$('#pf-prev').disabled=PF.page<=1;$('#pf-next').disabled=PF.page>=PF.last;
     if(!r.products.length){pfMsg('No products in this shop yet.');return;}
     for(const p of r.products){
@@ -2116,7 +2120,7 @@ async function pfLoadProducts(){
       ck.onchange=()=>{if(ck.checked)PFSEL.set(p.id,p.title);else PFSEL.delete(p.id);pfSelUI();};cb.append(ck,'Include in listing kits');
       b.append(t,pos,btn,cb);d.append(im,b);box.append(d);
     }
-  }catch(e){pfMsg(e.message);}
+  }catch(e){if(my===PF_REQ)pfMsg(e.message);}
 }
 function b64Blob(b64,type){const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type});}
 async function pfFetchProduct(id,step,opts){ // loads a product's artwork and Printify placement without touching the studio
