@@ -783,7 +783,7 @@ const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units=
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
 function turnDefault(t,s){if(s==='front'&&viewOf(t)!=='front')return 90+(typeof t.turn==='number'?t.turn:0);if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
 function turnOf(t,s){const o=LS.get('turns',{})[t.id+':'+s];return typeof o==='number'?o:turnDefault(t,s);}
-function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front')return turnedOn(t)&&t.turnAreaIn?t.turnAreaIn:t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
+function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front'){layersOf(t);return t._sfIn||(turnedOn(t)&&t.turnAreaIn?t.turnAreaIn:t.chestAreaIn)||14;}if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
 // side photos show only the sleeve unless you switch the front design on for that photo (a strict profile hides almost all of a chest print)
 function sideFrontOn(t){return !!LS.get('sidefront',{})[t.id]||!!LS.get('turned',{})[t.id];}
 // "turned toward the camera": a side photo that is really a three-quarter view gets the front design drawn like a front photo, angled to the turn
@@ -793,8 +793,13 @@ function turnedQuad(t){if(!t.chestQ||!t.quad)return null;const A=t._asp||.8,P=q=
   const xe=dF<0?Math.min(...cq.map(p=>p[0])):Math.max(...cq.map(p=>p[0])),arm=(Math.min(...xs)+Math.max(...xs))/2+dF*qw*.6;
   const W=Math.max(qw*1.5,Math.abs(xe-arm)*.9),cx=(xe+arm)/2,top=Math.min(...cq.map(p=>p[1])),H=W*1.2;
   t.turnAreaIn=W/ppi;const u=x=>x/A;return [{x:u(cx-W/2),y:top},{x:u(cx+W/2),y:top},{x:u(cx+W/2),y:top+H},{x:u(cx-W/2),y:top+H}];}
-function layersOf(t){const v=viewOf(t);if(v!=='front'&&turnedOn(t)){const q=turnedQuad(t);if(q)return [['front',q,0],[v,t.quad,t.arc]];}
-  if(v!=='front')return t.chestQ&&sideFrontOn(t)?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
+// the front design's area on a side photo: your own saved area if you've drawn one, else the found chest (or the turned estimate)
+function sideFrontArea(t){const auto=turnedOn(t)?turnedQuad(t):t.chestQ;const own=LS.get('sidechest',{})[t.id+(turnedOn(t)?':t':'')];
+  if(!own)return auto?{q:auto,areaIn:turnedOn(t)?t.turnAreaIn:t.chestAreaIn}:null;
+  const A=t._asp||.8,wd=q=>Math.hypot((q[1].x-q[0].x)*A,q[1].y-q[0].y),xs=(t.quad||[]).map(p=>p.x*A),qw=xs.length?Math.max(...xs)-Math.min(...xs):0;
+  return {q:own,areaIn:qw>0?wd(own)/(qw/3.1):(auto?(turnedOn(t)?t.turnAreaIn:t.chestAreaIn):14)};}
+function layersOf(t){const v=viewOf(t);
+  if(v!=='front'){const f=sideFrontOn(t)?sideFrontArea(t):null;if(f){t._sfIn=f.areaIn;return [['front',f.q,0],[v,t.quad,t.arc]];}return [[v,t.quad,t.arc]];}
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
 /* ---------- occlusion: print only shows on the shirt; a brush fixes what the outline gets wrong (arms, hair, hands in front) ---------- */
@@ -1125,7 +1130,7 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|turned|approved|occ|occoff|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|sidechest|turned|approved|occ|occoff|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
@@ -1212,7 +1217,7 @@ async function saveQuad(t,quad){
     else{const m=memMine.find(x=>x.id===t.id);if(m){m.quad=t.quad;m.manual=t.manual;}}}
   renderList();
 }
-async function resetQuad(t){const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':front'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
+async function resetQuad(t){{const sc=LS.get("sidechest",{});delete sc[t.id];delete sc[t.id+":t"];LS.set("sidechest",sc);}const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':front'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
 async function renameTemplate(t,name){
   t.name=name;
   if(t.builtin){const n=LS.get('names',{});n[t.id]=name;LS.set('names',n);}
@@ -1335,8 +1340,9 @@ function renderAll(){
 let editTurn=null;
 function turnUI(t){const sl=editMode&&editSlot!=='front';$('#turn-row').style.display=sl?'flex':'none';if(!sl)return;const off=Math.round(editTurn-turnDefault(t,editSlot));$('#turn-in').value=off;$('#turn-v').textContent=(off>0?'+':'')+off+'°';}
 $('#turn-in').oninput=()=>{const t=curT();if(!t)return;editTurn=turnDefault(t,editSlot)+(+$('#turn-in').value);turnUI(t);scheduleRender();};
-function startEdit(){const t=curT();if(!t)return;editMode=true;editSlot=viewOf(t)==='front'?slot:viewOf(t);editTurn=editSlot==='front'?null:turnOf(t,editSlot);turnUI(t);const a=areaOf(t,editSlot)||defaultSleeveQuad(editSlot);editOrig=a.map(p=>({...p}));editQuad=a.map(p=>({...p}));$('#hint').textContent='Editing the '+SLOT_NAMES[editSlot].toLowerCase()+' print area. Drag the corners, or drag inside to move it.';view.style.touchAction='none';view.style.cursor='crosshair';
-  $('#btn-edit').style.display='none';$('#btn-save-area').style.display='';$('#btn-apply-sim').style.display='';$('#btn-cancel-area').style.display='';$('#btn-autofit').style.display=editSlot==='front'?'none':'';$('#hint').style.display='block';scheduleRender();}
+function startEdit(){const t=curT();if(!t)return;const sfE=viewOf(t)!=='front'&&slot==='front';if(sfE&&!sideFrontOn(t)){const m=LS.get('sidefront',{});m[t.id]=1;LS.set('sidefront',m);}const sfA=sfE?sideFrontArea(t):null;if(sfE&&!sfA){toast('Couldn\'t place a front area on this photo. Fix the sleeve area first.');return;}
+  editMode=true;editSlot=viewOf(t)==='front'||sfE?slot:viewOf(t);editTurn=editSlot==='front'?null:turnOf(t,editSlot);turnUI(t);const a=sfE?sfA.q:areaOf(t,editSlot)||defaultSleeveQuad(editSlot);editOrig=a.map(p=>({...p}));editQuad=a.map(p=>({...p}));$('#hint').textContent='Editing the '+SLOT_NAMES[editSlot].toLowerCase()+' print area. Drag the corners, or drag inside to move it.';view.style.touchAction='none';view.style.cursor='crosshair';
+  $('#btn-edit').style.display='none';$('#btn-save-area').style.display='';$('#btn-apply-sim').style.display='';$('#btn-cancel-area').style.display='';$('#btn-autofit').style.display=editSlot==='front'?'none':'';if(sfE)$('#btn-apply-sim').style.display='none';$('#hint').style.display='block';scheduleRender();}
 function endEdit(){editMode=false;editQuad=null;drag=null;$('#turn-row').style.display='none';view.style.touchAction='';view.style.cursor='';
   $('#btn-edit').style.display='';$('#btn-save-area').style.display='none';$('#btn-apply-sim').style.display='none';$('#btn-cancel-area').style.display='none';$('#btn-autofit').style.display='none';$('#hint').style.display='none';scheduleRender();}
 function cancelEdit(){endEdit();}
@@ -1447,7 +1453,9 @@ $('#btn-apply-sim').onclick=async()=>{
     endEdit();renderList();toast('Applied to '+(others.length+1)+' photos.');scheduleGrid();
   }catch(e){toast('Couldn\'t apply the change.');}
 };
-$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;try{if(editSlot!=='front')saveTurn(t,editSlot,editTurn);await saveArea(t,editSlot,q);endEdit();toast('Print area saved.');scheduleGrid();}catch(e){toast('Couldn\'t save the print area.');}};
+$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;
+  if(viewOf(t)!=='front'&&editSlot==='front'){const m=LS.get('sidechest',{});m[t.id+(turnedOn(t)?':t':'')]=q.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));LS.set('sidechest',m);endEdit();toast('Front print area saved for this photo.');scheduleGrid();return;}
+  try{if(editSlot!=='front')saveTurn(t,editSlot,editTurn);await saveArea(t,editSlot,q);endEdit();toast('Print area saved.');scheduleGrid();}catch(e){toast('Couldn\'t save the print area.');}};
 
 /* ---------- design input ---------- */
 function artBounds(c){const s=Math.min(1,600/Math.max(c.width,c.height)),w=Math.max(1,Math.round(c.width*s)),h=Math.max(1,Math.round(c.height*s));
