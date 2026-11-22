@@ -2098,14 +2098,23 @@ async function pfRefreshAuth(){
   const connected=!error&&!!data;
   $('#pf-connect').style.display=connected?'none':'block';$('#pf-connected').style.display=connected?'block':'none';$('#pf-products-card').style.display=connected?'block':'none';
   if(connected){PF.shops=data.shops||[];const sel=$('#pf-shop');sel.textContent='';for(const s of PF.shops){const o=document.createElement('option');o.value=s.id;o.textContent=s.title+(s.channel?' · '+s.channel:'');sel.append(o);}
-    PF.shop=PF.shops[0]?PF.shops[0].id:null;if(PF.shop){PF.page=1;pfLoadProducts();}else pfMsg('No shops found on this Printify account.');}
+    if(PF.shops.length>1){const o=document.createElement('option');o.value='all';o.textContent='All shops ('+PF.shops.map(x=>x.title).join(' + ')+')';sel.prepend(o);}
+    const want=LS.get('pfshop','all'),ok=want==='all'?PF.shops.length>1:PF.shops.some(x=>String(x.id)===String(want));
+    PF.shop=ok?(want==='all'?'all':+want):(PF.shops[0]?PF.shops[0].id:null);if(PF.shop)sel.value=String(PF.shop);
+    if(PF.shop){PF.page=1;pfLoadProducts();}else pfMsg('No shops found on this Printify account.');}
 }
 // several sign-in events fire on page load and each one loaded the list; their answers all got added, so every product showed 2-3 times.
 // Only the newest request now fills the list, and it's cleared right before filling.
-let PF_REQ=0;
+let PF_REQ=0;const PF_PSHOP=new Map(); // product id -> the shop it came from
+const pfShopOf=id=>PF_PSHOP.get(id)||(PF.shop==='all'?(PF.shops[0]||{}).id:PF.shop);
 async function pfLoadProducts(){
   const box=$('#pf-products'),my=++PF_REQ;box.textContent='';pfMsg('Loading products…');
-  try{const r=await pfCall('products',{shop_id:PF.shop,page:PF.page});if(my!==PF_REQ)return;box.textContent='';PF.last=r.last_page||1;pfMsg('');
+  try{const ids=PF.shop==='all'?PF.shops.map(x=>x.id):[PF.shop];
+    const rs=await Promise.all(ids.map(id=>pfCall('products',{shop_id:id,page:PF.page}).then(r=>({id,r})).catch(e=>({id,r:{products:[],last_page:1},err:e}))));
+    if(my!==PF_REQ)return;box.textContent='';if(rs.every(x=>x.err))throw rs[0].err;
+    const r={products:[],last_page:Math.max(1,...rs.map(x=>x.r.last_page||1))};
+    for(const x of rs)for(const p of x.r.products||[]){if(x.r.page&&x.r.page<PF.page)continue;PF_PSHOP.set(p.id,x.id);p._shop=x.id;r.products.push(p);}
+    PF.last=r.last_page;pfMsg(rs.some(x=>x.err)?'One shop couldn\'t be loaded: '+rs.find(x=>x.err).err.message:'');
     const seen=new Set();r.products=r.products.filter(p=>!seen.has(p.id)&&seen.add(p.id));
     $('#pf-page').textContent='Page '+PF.page+' of '+PF.last;$('#pf-prev').disabled=PF.page<=1;$('#pf-next').disabled=PF.page>=PF.last;
     if(!r.products.length){pfMsg('No products in this shop yet.');return;}
@@ -2114,7 +2123,7 @@ async function pfLoadProducts(){
       const im=document.createElement('img');im.alt='';im.loading='lazy';if(p.image)im.src=p.image;
       const b=document.createElement('div');b.className='b';
       const t=document.createElement('div');t.className='small';t.style.fontWeight='600';t.textContent=p.title;
-      const pos=document.createElement('div');pos.className='small muted';pos.textContent=p.positions.map(x=>x.replace('_',' ')).join(', ')||'No artwork';
+      const pos=document.createElement('div');pos.className='small muted';const sh=PF.shops.find(x=>x.id===p._shop);pos.textContent=(PF.shop==='all'&&sh?(sh.channel==='tiktok'?'TikTok':sh.channel==='etsy'?'Etsy':sh.title)+' · ':'')+(p.positions.map(x=>x.replace('_',' ')).join(', ')||'No artwork');
       const btn=document.createElement('button');btn.className='small primary';btn.textContent='Load into studio';btn.onclick=()=>pfLoadProduct(p.id,btn);
       const cb=document.createElement('label');cb.className='row small';cb.style.gap='6px';const ck=document.createElement('input');ck.type='checkbox';ck.checked=PFSEL.has(p.id);
       ck.onchange=()=>{if(ck.checked)PFSEL.set(p.id,p.title);else PFSEL.delete(p.id);pfSelUI();};cb.append(ck,'Include in listing kits');
@@ -2124,12 +2133,12 @@ async function pfLoadProducts(){
 }
 function b64Blob(b64,type){const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type});}
 async function pfFetchProduct(id,step,opts){ // loads a product's artwork and Printify placement without touching the studio
-  const p=await pfCall('product',{shop_id:PF.shop,product_id:id});
+  const SH=pfShopOf(id);const p=await pfCall('product',{shop_id:SH,product_id:id});
   const usable=p.placements.filter(x=>POS2SLOT[x.position]&&x.images.length&&x.area);
-  const out={p,usable,linked:{shop_id:PF.shop,product_id:p.id,title:p.title,parts:[]},slots:{},preview:false};
+  const out={p,usable,linked:{shop_id:SH,product_id:p.id,title:p.title,parts:[]},slots:{},preview:false};
   for(const pl of usable){
     const im=pl.images[0],slotName=POS2SLOT[pl.position];if(step)step(pl.position.replace('_',' '));
-    const art=await pfCall('image',{shop_id:PF.shop,image_id:im.id,src:im.src||''});
+    const art=await pfCall('image',{shop_id:SH,image_id:im.id,src:im.src||''});
     const file=new File([b64Blob(art.data,art.type)],art.name||'printify-art.png',{type:art.type});
     const d=await loadDesignFile(file);d.artFrac=1;d.artPx=im.width||d.w;if(art.preview)out.preview=true;
     const imgW=im.width||d.w,imgH=im.height||d.h,wPx=im.scale*pl.area.width,hPx=wPx*imgH/imgW;
@@ -2237,7 +2246,7 @@ $('#pf-connect-btn').onclick=async()=>{const t=$('#pf-token').value.trim();if(!t
   try{await pfCall('connect',{token:t});$('#pf-token').value='';pfMsg('Connected.');pfRefreshAuth();}catch(e){pfMsg(e.message);}finally{$('#pf-connect-btn').disabled=false;}};
 $('#pf-disconnect').onclick=async()=>{if(!await confirmDlg('Disconnect Printify?','Deletes your stored token. Your Printify account isn\'t changed.','Disconnect'))return;
   try{await pfCall('disconnect');PF.linked=null;pfLinkedUI();pfMsg('');pfRefreshAuth();}catch(e){pfMsg(e.message);}};
-$('#pf-shop').onchange=e=>{PF.shop=+e.target.value;PF.page=1;pfLoadProducts();};
+$('#pf-shop').onchange=e=>{const v=e.target.value;PF.shop=v==='all'?'all':+v;LS.set('pfshop',v);PF.page=1;pfLoadProducts();};
 $('#pf-refresh').onclick=()=>pfLoadProducts();
 $('#pf-prev').onclick=()=>{if(PF.page>1){PF.page--;pfLoadProducts();}};
 $('#pf-next').onclick=()=>{if(PF.page<PF.last){PF.page++;pfLoadProducts();}};
