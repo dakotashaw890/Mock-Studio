@@ -66,6 +66,10 @@ label.file strong{font-size:14px}
 .studio.panes #pane-left .card{margin-bottom:8px}
 #rtabs{position:sticky;top:0;z-index:5;display:flex;gap:6px;padding:4px 0 8px;margin-bottom:4px;background:var(--bg)}
 #rtabs button{flex:1;justify-content:center}
+#zoombar{position:absolute;right:8px;bottom:8px;display:flex;align-items:center;gap:2px;background:rgba(0,0,0,.55);border-radius:8px;padding:3px;z-index:3}
+#zoombar button{background:none;border:0;color:#fff;font:600 14px system-ui;padding:3px 8px;cursor:pointer;border-radius:6px}#zoombar button:hover{background:rgba(255,255,255,.15)}
+#zoom-pct{color:#fff;font:12px system-ui;min-width:42px;text-align:center;cursor:pointer}
+#view{transform-origin:0 0;will-change:transform}#view.panning{cursor:grabbing}
 .stage{position:relative;background:var(--soft);border-radius:12px;overflow:hidden;display:flex;justify-content:center}
 #view{display:block;max-width:100%;height:auto;max-height:78vh}
 .stage .hint{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.7);color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;pointer-events:none}
@@ -161,6 +165,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <div class="card" style="padding:10px">
         <div class="stage">
           <canvas id="view" width="10" height="10"></canvas>
+          <div id="zoombar" title="Zoom: Ctrl + scroll or pinch on the photo. Drag an empty spot to move around when zoomed in. Double-click the % to fit."><button data-z="-">−</button><span id="zoom-pct">100%</span><button data-z="+">+</button><button data-z="fit">Fit</button></div>
           <div class="hint" id="hint" style="display:none">Drag the 4 corners to the print area. Drag inside to move it.</div>
           <div class="busy" id="busy">Rendering…</div>
         </div>
@@ -1206,17 +1211,47 @@ async function restoreHidden(){LS.set('hidden',[]);await reload();toast('Built-i
 
 /* ---------- rendering UI ---------- */
 const view=$('#view'), vctx=view.getContext('2d',{willReadFrequently:true});
+/* ---------- zoom & pan on the big preview ---------- */
+const Z={s:1,tx:0,ty:0,hi:false,id:null};let hiCache={k:null,p:null};
+async function hiPack(t){const col=shirtHex()||'',k=t.id+'|'+col;if(hiCache.k===k)return hiCache.p;
+  let p;if(col){const s2=await shirtSrc(t);p=makePack(s2.img,1800,s2.rc);}else p=makePack(await tplImage(t),1800);hiCache={k,p};return p;}
+function zoomApply(){const st=view.parentElement,W=view.offsetWidth,H=view.offsetHeight;
+  if(Z.s<=1){Z.s=1;Z.tx=0;Z.ty=0;}else{Z.tx=Math.min(0,Math.max(W-W*Z.s,Z.tx));Z.ty=Math.min(0,Math.max(H-H*Z.s,Z.ty));}
+  view.style.transform=Z.s>1?`translate(${Z.tx}px,${Z.ty}px) scale(${Z.s})`:'';$('#zoom-pct').textContent=Math.round(Z.s*100)+'%';
+  const hi=Z.s>=1.5;if(hi!==Z.hi){Z.hi=hi;scheduleRender();}}
+function zoomTo(s,cx,cy){const W=view.offsetWidth,H=view.offsetHeight;s=Math.max(1,Math.min(6,s));if(cx==null){cx=W/2;cy=H/2;}
+  const ix=(cx-Z.tx)/Z.s,iy=(cy-Z.ty)/Z.s;Z.s=s;Z.tx=cx-ix*s;Z.ty=cy-iy*s;zoomApply();}
+document.querySelectorAll('#zoombar [data-z]').forEach(b=>b.onclick=()=>{const v=b.dataset.z;if(v==='fit')zoomTo(1);else zoomTo(Z.s*(v==='+'?1.5:1/1.5));});
+$('#zoom-pct').ondblclick=()=>zoomTo(1);
+view.addEventListener('wheel',e=>{if(!(e.ctrlKey||e.metaKey)&&Z.s<=1)return;e.preventDefault();const r=view.parentElement.getBoundingClientRect(),vr=view.getBoundingClientRect();
+  const ox=vr.left-Z.tx,oy=vr.top-Z.ty;if(e.ctrlKey||e.metaKey)zoomTo(Z.s*Math.exp(-e.deltaY*.004),e.clientX-ox,e.clientY-oy);else{Z.tx-=e.deltaX;Z.ty-=e.deltaY;zoomApply();}},{passive:false});
+document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test((e.target||{}).tagName||''))return;if(!$('#view').offsetParent)return;
+  if(e.key==='+'||e.key==='=')zoomTo(Z.s*1.5);else if(e.key==='-')zoomTo(Z.s/1.5);else if(e.key==='0')zoomTo(1);});
+// drag an empty spot (or middle button / space) to pan while zoomed
+let PAN=null,SPACE=false;document.addEventListener('keydown',e=>{if(e.code==='Space'&&Z.s>1&&!/INPUT|TEXTAREA/.test((e.target||{}).tagName||'')){SPACE=true;e.preventDefault();}});document.addEventListener('keyup',e=>{if(e.code==='Space')SPACE=false;});
+view.addEventListener('pointerdown',e=>{if(Z.s<=1)return;const force=e.button===1||SPACE;
+  if(!force){if(BRUSH_ON||editMode)return;try{if(hitLogo(canvasPt(e)))return;}catch(x){}}
+  e.stopImmediatePropagation();e.preventDefault();PAN={x:e.clientX,y:e.clientY,tx:Z.tx,ty:Z.ty};view.setPointerCapture(e.pointerId);view.classList.add('panning');},true);
+view.addEventListener('pointermove',e=>{if(!PAN)return;e.stopImmediatePropagation();Z.tx=PAN.tx+e.clientX-PAN.x;Z.ty=PAN.ty+e.clientY-PAN.y;zoomApply();},true);
+view.addEventListener('pointerup',e=>{if(!PAN)return;e.stopImmediatePropagation();PAN=null;view.classList.remove('panning');},true);
+// two-finger pinch on touch screens
+const TP=new Map();let PINCH=null;
+view.addEventListener('touchstart',e=>{if(e.touches.length===2){const [a,b]=e.touches,vr=view.getBoundingClientRect();PINCH={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),s:Z.s,cx:(a.clientX+b.clientX)/2-(vr.left-Z.tx),cy:(a.clientY+b.clientY)/2-(vr.top-Z.ty)};e.preventDefault();}},{passive:false});
+view.addEventListener('touchmove',e=>{if(PINCH&&e.touches.length===2){const [a,b]=e.touches;zoomTo(PINCH.s*Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)/PINCH.d,PINCH.cx,PINCH.cy);e.preventDefault();}},{passive:false});
+view.addEventListener('touchend',()=>{PINCH=null;});
 let rafPending=false;
 function scheduleRender(){ if(rafPending)return; rafPending=true; requestAnimationFrame(async()=>{rafPending=false; await renderView();}); }
 let slotPhoto=null;
 async function renderView(){
   const t=curT(); if(!t)return;
+  if(Z.id!==t.id){Z.id=t.id;if(Z.s>1){Z.s=1;zoomApply();}}
   let pack; try{pack=await previewPack(t);await ensureFit(t);}catch(e){toast('Couldn\'t load that photo.');return;}
+  if(Z.hi)try{pack=await hiPack(t);}catch(e){}
   if(view.width!==pack.w||view.height!==pack.h){view.width=pack.w;view.height=pack.h;}
   if(slotPhoto!==t.id&&viewOf(t)!=='front'&&viewOf(t)!==slot&&!editMode)setSlot(viewOf(t));
   else if(slotPhoto!==t.id&&viewOf(t)==='front'&&slot!=='front'&&!editMode)setSlot('front'); // new front photo: edit the chest design by default
   slotPhoto=t.id;
-  if(shirtHex())pack=await viewPack(t);
+  if(shirtHex()&&!Z.hi)pack=await viewPack(t);
   REC_BOX=true;LASTBOX={};try{renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);}finally{REC_BOX=false;}
   if(!editMode){stamp(vctx.canvas);drawHandles(vctx);drawBrush(vctx);}
   if(editMode)drawHandles(editQuad,pack);
