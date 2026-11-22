@@ -821,7 +821,7 @@ function occApply(t,pack,out){if(t.scene||occOff(t))return;const A=occAuto.get(t
       if(hide){o[i]=data[i];o[i+1]=data[i+1];o[i+2]=data[i+2];}}}}
 function occOff(t){return !!LS.get('occoff',{})[t.id];}
 // keep the turned front design on the shirt: undo any print pixels outside the body/shirt outline
-function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x,y)?1:0; // loose outline: the tight one ate into the chest edgefor(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(o[i]===snap[i]&&o[i+1]===snap[i+1]&&o[i+2]===snap[i+2])continue;const a=f((x+.5)/w,(y+.5)/h);if(a>=1)continue;for(let c=0;c<3;c++)o[i+c]=snap[i+c]+(o[i+c]-snap[i+c])*a;}}
+function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x,y)?1:0; /* loose outline: the tight one ate into the chest edge */for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(o[i]===snap[i]&&o[i+1]===snap[i+1]&&o[i+2]===snap[i+2])continue;const a=f((x+.5)/w,(y+.5)/h);if(a>=1)continue;for(let c=0;c<3;c++)o[i+c]=snap[i+c]+(o[i+c]-snap[i+c])*a;}}
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
