@@ -1009,16 +1009,23 @@ async function sideMask(t){if(sideMasks.has(t.id))return sideMasks.get(t.id);let
     else{const dm=await diffMask(t);if(dm)m=maskFrom(dm,'shirt');}
     if(!m){const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,640);const c=drawScaled(img,w,h);const ps=await loadPose();const r=await ps.run(c);if(r&&r.segmentationMask)m=maskFrom(r.segmentationMask,'seg');}}
   catch(e){m=null;}sideMasks.set(t.id,m);return m;}
-function fitSideChest(t,pack,mk){ // front print seen from the side: find the chest's front edge and the collar, size from the sleeve's true-size scale
+// side photos turned toward the camera (near three-quarter) defeat the strict search: retry looser, then fall back to an estimate you drag into place
+function fitSideChest(t,pack,mk){return fitSideChest0(t,pack,mk,false)||fitSideChest0(t,pack,mk,true)||sideChestGuess(t,pack);}
+function sideChestGuess(t,pack){if(!t.quad)return null;const {w,h}=pack,sq=t.quad.map(p=>[p.x*w,p.y*h]),xs=sq.map(p=>p[0]),ys=sq.map(p=>p[1]);
+  const qw=Math.max(...xs)-Math.min(...xs),cx=(Math.min(...xs)+Math.max(...xs))/2,top=Math.min(...ys),bot=Math.max(...ys),ppi=qw/3.1,dF=viewOf(t)==='left'?-1:1;
+  const xe=Math.max(0,Math.min(w,cx+dF*qw*2.3)),col=top-qw*.75,R=((t.sex||t.group)==='women'?4.5:4.75)*ppi,qW=R*1.3,y0=col+COLLAR_TO_AREA*ppi;
+  const xa=dF<0?xe:xe-qW,xb=dF<0?xe+qW:xe;
+  return {guess:true,quad:[{x:xa/w,y:y0/h},{x:xb/w,y:y0/h},{x:xb/w,y:(y0+qW)/h},{x:xa/w,y:(y0+qW)/h}],areaIn:qW/ppi,armX:(cx+dF*.86*qw)/w,hemY:(bot+.12*qw)/h};}
+function fitSideChest0(t,pack,mk,relax){ // front print seen from the side: find the chest's front edge and the collar, size from the sleeve's true-size scale
   const {w,h}=pack, sq=t.quad.map(p=>[p.x*w,p.y*h]); const xs=sq.map(p=>p[0]),ys=sq.map(p=>p[1]);
   const qw=Math.max(...xs)-Math.min(...xs), cx=(Math.min(...xs)+Math.max(...xs))/2, top=Math.min(...ys), bot=Math.max(...ys), ppi=qw/3.1, dF=viewOf(t)==='left'?-1:1;
   const F0=fabModel(pack,sq),F={fab:(x,y)=>F0.fab(x,y)&&(!mk||mk.at(x/w,y/h))}; if(!F.fab(cx,(top+bot)/2))return null;
-  const gap=Math.max(3,Math.round(qw*.25)); // jump the light crease between arm and chest
+  const gap=Math.max(3,Math.round(qw*(relax?.45:.25))); // jump the light crease between arm and chest
   const edgeAt=y=>{let last=null,miss=0,run=0;for(let x=Math.round(cx);x>=0&&x<w&&Math.abs(x-cx)<qw*6;x+=dF){if(F.fab(x,y)){if(++run>=3)last=x;miss=0;}else{run=0;if(last!==null&&++miss>gap)break;}}return last;};
   // the chest's front edge, measured just above the sleeve and down its length, taking the forward-most steady value
   const es=[];for(let y=Math.round(top-qw*.9);y<=bot;y+=3){const e=edgeAt(y);if(e!==null)es.push(e*dF);}
   if(es.length<5)return null;es.sort((a,b)=>b-a);const xe=es[Math.floor(es.length*.2)]*dF;
-  const reach=(xe-cx)*dF;if(reach<qw*.3||reach>qw*4)return null;
+  const reach=(xe-cx)*dF;if(reach<qw*.3||reach>qw*(relax?7:4))return null;
   // front of the collar: first shirt row from the top, just inside the chest edge
   // walk up from the sleeve top along the chest; the shirt ends at the neck (hair above can't fool this)
   let col=null;
@@ -1026,6 +1033,7 @@ function fitSideChest(t,pack,mk){ // front print seen from the side: find the ch
   for(let y=Math.round(top);y>Math.max(1,top-qw*4);y--){const e=edgeAt(y);let gone=e===null||(e-cx)*dF<qw*.15;
     if(!gone){let k=0;for(let j=1;j<=8;j++)if(F.fab(Math.round(e-dF*qw*.05*j),y))k++;gone=k<4;} // shirt continues inward from the edge
     if(gone){if(++miss>=Math.max(4,Math.round(qw*.08))){col=y+miss;break;}}else miss=0;}
+  if(relax&&(col===null||top-col<qw*.2))col=top-qw*.75;
   if(col===null||top-col<qw*.2)return null;
   const R=((t.sex||t.group)==='women'?4.5:4.75)*ppi, qW=R*1.3, y0=col+COLLAR_TO_AREA*ppi;
   const xa=dF<0?xe:xe-qW, xb=dF<0?xe+qW:xe;
@@ -1100,7 +1108,7 @@ async function ensureFit(t){
       }
     }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
       if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;
-      if(!r.chest)r.chest=fitSideChest(t,await previewPack(t),await sideMask(t))||{};if(r.chest.quad){t.chestQ=r.chest.quad;t.chestAreaIn=r.chest.areaIn;t.chestClip={x:r.chest.armX,y:r.chest.hemY};}}
+      if(!r.chest)r.chest=fitSideChest(t,await previewPack(t),await sideMask(t))||{};if(r.chest.quad){t.chestQ=r.chest.quad;t.chestGuess=!!r.chest.guess;t.chestAreaIn=r.chest.areaIn;t.chestClip={x:r.chest.armX,y:r.chest.hemY};}}
   }catch(e){}
 }
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
@@ -1473,7 +1481,7 @@ $$('#slots button').forEach(b=>b.onclick=()=>{
   const t=curT();
   // a side photo also shows the chest print, so the front design stays editable here instead of jumping to a front photo
   if(t&&v==='front'&&viewOf(t)!=='front'&&t.chestQ&&!sideFrontOn(t)){const m=LS.get('sidefront',{});m[t.id]=1;LS.set('sidefront',m);toast('Front design turned on for this side photo. Untick “Show the front design” in Adjust to hide it again.',4500);scheduleRender();}
-  if(t&&v==='front'&&viewOf(t)!=='front'){if(!t.chestQ)toast('The chest isn\'t visible enough on this photo to show the front design. Its sliders still save for this photo.',4500);}
+  if(t&&v==='front'&&viewOf(t)!=='front'){if(!t.chestQ)toast('Couldn\'t find this photo\'s sleeve area, so the front design can\'t be placed. Fix the sleeve area first (Adjust print area).',5000);else if(t.chestGuess)toast('The chest edge is hard to read on this photo, so the front design is placed by estimate. Click the logo and drag it into place, then Approve.',6000);}
   else if(t&&viewOf(t)!==v&&!(viewOf(t)==='front')){const m=shown().find(x=>viewOf(x)===v)||templates.find(x=>viewOf(x)===v);if(m){curId=m.id;renderThumbs();}}
   scheduleRender();
 });
