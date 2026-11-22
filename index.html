@@ -444,7 +444,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px" title="How close the camera is. Closer makes the model (and the shirt) bigger in the photo so small graphics read better.">Framing <select id="cf-zoom"><option value="1">Standard</option><option value="1.15" selected>Closer</option><option value="1.3">Close</option></select></label>
       <label class="row small" style="gap:4px" title="Three-quarter turn: the body turned about 45° with the face to the camera, so a chest graphic reads from an angle. Used for the front photo of each set.">Angle <select id="cf-angle"><option value="">Straight on</option><option value="s">Slight turn (shows a sleeve)</option><option value="q">Three-quarter turn</option><option value="mix">Mix</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
-      <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> Matching set (front + both sides)</label>
+      <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> <span id="cf-set-lab">Matching set (front + both sides)</span></label>
       <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
       <div class="row small" style="gap:8px;display:none"><span id="cf-colq" class="muted"></span><button class="small" id="cf-colstop">Stop colors</button></div>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
@@ -1813,6 +1813,9 @@ function menExtras(){const x=[];if(Math.random()<.35)x.push('wearing '+pick(VARY
   if(Math.random()<.4)x.push('a black-and-grey tattoo sleeve on his right forearm only (the left arm has no tattoos), showing '+pick(VARY.tatM));if(Math.random()<.4)x.push('a black rugged tactical wristwatch');return x.length?', '+x.join(', '):'';}
 const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
 function cfScene(){const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=COOL.concat(v==='any'?['studio']:[]);return ks[Math.floor(Math.random()*ks.length)];}
+const NO_TURN=['m08','f02','f05']; // hand-raised poses: turned skeletons came out broken
+function cfSetLab(){const l=$('#cf-set-lab');if(l)l.textContent=$('#cf-angle').value==='s'?'Matching set (turned left + turned right)':'Matching set (front + both sides)';}
+setTimeout(()=>{const a=$('#cf-angle');if(a){a.addEventListener('change',cfSetLab);cfSetLab();}},1000);
 function cfAngle(){const v=$('#cf-angle').value,d=Math.random()<.5?'l':'r';return v==='q'?'q'+d:v==='s'?'s'+d:v==='mix'?['','s'+d,'q'+d][Math.floor(Math.random()*3)]:'';}
 function cfArms(woman){const v=$('#cf-arms').value;
   if(!woman){if(v==='mix')return ['','','pocket','pocket','pocket','hip'][Math.floor(Math.random()*6)];return v==='hair'?'pocket':v;} // men: hands in pockets or relaxed, never hand-in-hair
@@ -1864,7 +1867,7 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
     const f=await detectFacing(c),want=viewOf(ref); // a left-sleeve photo faces the left edge, a right-sleeve photo the right edge
     if(f&&f!==want){const c2=document.createElement('canvas');c2.width=c.width;c2.height=c.height;const x=c2.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(c,0,0);
       ibf=await canvasBlob(c2,'image/png');}}catch(e){}}
-  const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?'front':viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
+  const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?(o.angle&&o.angle[0]==='s'?'turned '+(o.angle==='sl'?'left':'right'):'front'):viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
   const f=new File([ibf],out.filename,{type:ibf.type||'image/png'});
   const PS=.9,zt=v=>ZA?{x:ZA.x+(v.x-ZA.x)*ZA.z,y:ZA.y+(v.y-ZA.y)*ZA.z}:v,tq=q=>q.map(v=>zt({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre, then by the Framing zoom
   const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=tq(ref.sleeves[k].quad);
@@ -1877,7 +1880,10 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
     for(const b0 of bases)for(let k=1;k<=per;k++){const front=poseRef(b0);if(!front)continue;
       const o={scene:cfScene(),arms:cfArms(front.group==='women'),angle:cfAngle(),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
       o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
-      for(const id of [b0,b0+'l',b0+'r']){const r=poseRef(id);if(r)jobs.push([r,o,k]);}}}
+      // Slight turn: the set is two photos of the same person, turned left and turned right (each shows the chest print and one sleeve), no side profiles.
+      // Poses with a hand raised to the head have no turned version, so they keep the usual front + both sides.
+      if(o.angle&&o.angle[0]==='s'&&!NO_TURN.includes(b0)){for(const a of ['sl','sr'])jobs.push([front,{...o,angle:a},k]);}
+      else for(const id of [b0,b0+'l',b0+'r']){const r=poseRef(id);if(r)jobs.push([r,{...o,angle:id===b0?(o.angle&&o.angle[0]==='s'?'':o.angle):''},k]);}}}
   else for(const id of CF.sel){const r=poseRef(id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms(r.group==='women'),angle:viewOf(r)==='front'?cfAngle():''},k]);}
   const total=jobs.length;let done=0,fails=0;const newIds=[];
   try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
