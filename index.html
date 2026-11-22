@@ -1261,15 +1261,17 @@ async function renderView(){
   slotPhoto=t.id;
   if(shirtHex()&&!Z.hi)pack=await viewPack(t);
   REC_BOX=true;LASTBOX={};try{renderTo(pack,t,vctx,editMode?{slot:editSlot,quad:editQuad,turn:editSlot==='front'?null:editTurn}:null);}finally{REC_BOX=false;}
-  if(!editMode){stamp(vctx.canvas);drawHandles(vctx);drawBrush(vctx);}
+  if(!editMode){stamp(vctx.canvas);drawLogoHandles(vctx);drawBrush(vctx);}
   if(editMode)drawHandles(editQuad,pack);
   $('#tname').textContent=t.name+' · '+(t.kind==='hoodie'?'Hoodie':'Tee')+(viewOf(t)!=='front'?' · '+SLOT_NAMES[viewOf(t)]:'');
 }
 function drawHandles(quad,pack){
   const pts=quad.map(p=>[p.x*pack.w,p.y*pack.h]);
   const sc=view.width/view.getBoundingClientRect().width||1;
-  vctx.save();vctx.lineWidth=2*sc;vctx.setLineDash([6*sc,5*sc]);vctx.strokeStyle='#fff';vctx.shadowColor='rgba(0,0,0,.6)';vctx.shadowBlur=3*sc;
-  vctx.beginPath();pts.forEach((p,i)=>i?vctx.lineTo(...p):vctx.moveTo(...p));vctx.closePath();vctx.stroke();
+  vctx.save();const path=()=>{vctx.beginPath();pts.forEach((p,i)=>i?vctx.lineTo(...p):vctx.moveTo(...p));vctx.closePath();};
+  path();vctx.fillStyle='rgba(234,88,12,.12)';vctx.fill(); // tinted area so it reads on any shirt colour
+  vctx.lineWidth=5*sc;vctx.strokeStyle='rgba(0,0,0,.75)';path();vctx.stroke();
+  vctx.lineWidth=2.5*sc;vctx.setLineDash([8*sc,5*sc]);vctx.strokeStyle='#fff';path();vctx.stroke();
   vctx.setLineDash([]);
   pts.forEach(p=>{vctx.beginPath();vctx.arc(p[0],p[1],9*sc,0,Math.PI*2);vctx.fillStyle='#ea580c';vctx.fill();vctx.lineWidth=2.5*sc;vctx.strokeStyle='#fff';vctx.stroke();});
   vctx.restore();
@@ -1334,7 +1336,7 @@ function warpOf(){const o=ovOf(curT(),slot);return Array.isArray(o.warp)&&o.warp
 function warpSet(w){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll();if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk].warp;if(!Object.keys(A[dk]).length)delete A[dk];}}const o=A[k]||(A[k]={});if(w.every(v=>Math.abs(v[0])<1e-4&&Math.abs(v[1])<1e-4))delete o.warp;else o.warp=w.map(v=>[+v[0].toFixed(4),+v[1].toFixed(4)]);if(!Object.keys(o).length)delete A[k];ovMark(k);ovMark(ovDesignKey(t,slot));ovSave();ovUI();scheduleRender();scheduleGrid();}
 function fwdDesign(g,gx,gy){const X1=(gx-.5)*g.fw*g.A,Y1=(gy-.5)*g.fh,X=X1*g.rc-Y1*g.rs,Y=X1*g.rs+Y1*g.rc,du=X/(g.fw*g.A)+.5,dv=Y/g.fh+.5;return apply(g.M,g.u0+du*g.fw,g.v0+dv*g.fh);}
 function warpDots(B){const w=warpOf(),g=B.b;const out=[];for(let r=0;r<3;r++)for(let c=0;c<3;c++){const d=w[r*3+c];out.push(fwdDesign(g,c/2+d[0],r/2+d[1]));}return out;}
-function drawHandles(x){if(editMode||!designs[slot]||!curT()||(SEL!==curT().id&&!WARP_ON))return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
+function drawLogoHandles(x){if(editMode||!designs[slot]||!curT()||(SEL!==curT().id&&!WARP_ON))return;const B=curBox();if(!B)return;const sc=x.canvas.width/Math.max(1,view.getBoundingClientRect().width);
   x.save();x.lineWidth=1.5*sc;x.setLineDash([5*sc,4*sc]);x.strokeStyle='rgba(255,255,255,.9)';x.shadowColor='rgba(0,0,0,.6)';x.shadowBlur=3*sc;x.strokeRect(B.x0,B.y0,B.x1-B.x0,B.y1-B.y0);x.setLineDash([]);
   const dot=(px,py,r,f)=>{x.beginPath();x.arc(px,py,r*sc,0,Math.PI*2);x.fillStyle=f;x.fill();x.lineWidth=2*sc;x.strokeStyle='#fff';x.stroke();};
   for(const [px,py] of [[B.x0,B.y0],[B.x1,B.y0],[B.x1,B.y1],[B.x0,B.y1]])dot(px,py,6,'#ea580c');
