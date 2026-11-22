@@ -637,7 +637,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-let curTurn=0,curFlat=false;const TURN_RAD=.7;
+let curTurn=0,curFlat=false,CAPTURN=false;const TURN_RAD=.7;
 let REC_BOX=false,LASTBOX={};
 // arc length round a torso cross-section (ellipse, lateral half-width = TORSO_K x half-depth), per unit half-depth, by angle from the chest's front
 const TORSO_K=1.4,ELL=(()=>{const n=1024,t=new Float32Array(n+1);let acc=0;for(let i=1;i<=n;i++){const f=(i-.5)/n*Math.PI/2;acc+=Math.sqrt(TORSO_K*TORSO_K*Math.cos(f)**2+Math.sin(f)**2)*(Math.PI/2/n);t[i]=acc;}return t;})();
@@ -650,7 +650,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const topW=dist(q[0],q[1]),botW=dist(q[3],q[2]),lH=dist(q[0],q[3]),rH=dist(q[1],q[2]);
   const A=(topW+botW)/(lH+rH), D=design.w/design.h, s=P.size;
   let fw,fh; if(D>A){fw=s;fh=s*A/D;}else{fh=s;fw=s*D/A;}
-  if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(!(sm&&sm.side)){if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}}
+  if(TS.on&&areaIn){fw=(P.inches/areaIn)/(design.artFrac||1);fh=fw*A/D;if(!(sm&&sm.side)||sm.own){if(fh>1){fw/=fh;fh=1;}if(fw>1){fh/=fw;fw=1;}}}
   let u0=(1-fw)/2*(1+P.x); let v0=(1-fh)*P.y;
   if(TS.on&&areaIn&&typeof P.cx==='number')u0=0.5+P.cx/areaIn-fw/2;
   if(TS.on&&areaIn&&slot==='front'&&typeof P.top==='number'){const ppi=((topW+botW)/2)/areaIn,ah=(lH+rH)/2;v0=((P.top+AREA_TOP_SHIFT)*ppi)/ah;}
@@ -697,7 +697,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const wth=curFlat?0:(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
   // turned torso: the chest is a rounder surface seen from the side, so the wrap strengthens with the turn
   const TT=sm?0:Math.max(-1.2,Math.min(1.2,curTurn+(P.yaw||0)*Math.PI/180)); // body turn + the design's own turn
-  const sinWT=Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(TT)/.3)), wthT=Math.asin(sinWT), sinT=Math.sin(TT);
+  const sinT=Math.sin(TT), sinWT=Math.min(Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(TT)/.3)),CAPTURN?.97-Math.abs(sinT):1), wthT=Math.asin(sinWT); /* capped so the turn never pushes part of the box past the body's edge (that cut designs off along a straight line) */
   const m0=Mi[0],m1=Mi[1],m2=Mi[2],m3=Mi[3],m4=Mi[4],m5=Mi[5],m6=Mi[6],m7=Mi[7],m8=Mi[8];
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null,sideF=null;
@@ -783,21 +783,25 @@ const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units=
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
 function turnDefault(t,s){if(s==='front'&&viewOf(t)!=='front')return 90+(typeof t.turn==='number'?t.turn:0);if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
 function turnOf(t,s){const o=LS.get('turns',{})[t.id+':'+s];return typeof o==='number'?o:turnDefault(t,s);}
-function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front'){layersOf(t);return t._sfIn||(turnedOn(t)&&t.turnAreaIn?t.turnAreaIn:t.chestAreaIn)||14;}if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
+function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front'){layersOf(t);if(t._sfOwn&&PL.front.inches>0)return PL.front.inches/(designs.front&&designs.front.artFrac||1);return t._sfIn||(turnedOn(t)&&t.turnAreaIn?t.turnAreaIn:t.chestAreaIn)||14;}if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
 // side photos show only the sleeve unless you switch the front design on for that photo (a strict profile hides almost all of a chest print)
 function sideFrontOn(t){return !!LS.get('sidefront',{})[t.id]||!!LS.get('turned',{})[t.id];}
+// how wide the sleeve band is in real inches, used to size the front design on side photos. AI women's tees are a fitted cut with a narrower sleeve
+// than the unisex tee (your own women's sleeve setups came out about 20% smaller than the men's), so measuring her body with the men's 3.1" made every front design ~25% too big on women
+function sideSleeveIn(t){return 3.1;} // tried a narrower women's value: it moved the auto-found chest area and made things worse; your drawn front box now sets the size instead
 // "turned toward the camera": a side photo that is really a three-quarter view gets the front design drawn like a front photo, angled to the turn
 function turnedOn(t){return !!LS.get('turned',{})[t.id];}
 function turnedQuad(t){if(!t.chestQ||!t.quad)return null;const A=t._asp||.8,P=q=>q.map(p=>[p.x*A,p.y]); // work in square units
-  const sq=P(t.quad),cq=P(t.chestQ),dF=viewOf(t)==='left'?-1:1,xs=sq.map(p=>p[0]),qw=Math.max(...xs)-Math.min(...xs),ppi=qw/3.1;
+  const sq=P(t.quad),cq=P(t.chestQ),dF=viewOf(t)==='left'?-1:1,xs=sq.map(p=>p[0]),qw=Math.max(...xs)-Math.min(...xs),ppi=qw/sideSleeveIn(t);
   const xe=dF<0?Math.min(...cq.map(p=>p[0])):Math.max(...cq.map(p=>p[0])),arm=(Math.min(...xs)+Math.max(...xs))/2+dF*qw*.6;
   const W=Math.max(qw*1.5,Math.abs(xe-arm)*.9),cx=(xe+arm)/2,top=Math.min(...cq.map(p=>p[1])),H=W*1.2;
   t.turnAreaIn=W/ppi;const u=x=>x/A;return [{x:u(cx-W/2),y:top},{x:u(cx+W/2),y:top},{x:u(cx+W/2),y:top+H},{x:u(cx-W/2),y:top+H}];}
 // the front design's area on a side photo: your own saved area if you've drawn one, else the found chest (or the turned estimate)
 function sideFrontArea(t){const auto=turnedOn(t)?turnedQuad(t):t.chestQ;const own=LS.get('sidechest',{})[t.id+(turnedOn(t)?':t':'')];
+  t._sfOwn=!!own;
   if(!own)return auto?{q:auto,areaIn:turnedOn(t)?t.turnAreaIn:t.chestAreaIn}:null;
   const A=t._asp||.8,wd=q=>Math.hypot((q[1].x-q[0].x)*A,q[1].y-q[0].y),xs=(t.quad||[]).map(p=>p.x*A),qw=xs.length?Math.max(...xs)-Math.min(...xs):0;
-  return {q:own,areaIn:qw>0?wd(own)/(qw/3.1):(auto?(turnedOn(t)?t.turnAreaIn:t.chestAreaIn):14)};}
+  return {q:own,areaIn:qw>0?wd(own)/(qw/sideSleeveIn(t)):(auto?(turnedOn(t)?t.turnAreaIn:t.chestAreaIn):14)};}
 function layersOf(t){const v=viewOf(t);
   if(v!=='front'){const f=sideFrontOn(t)?sideFrontArea(t):null;if(f){t._sfIn=f.areaIn;return [['front',f.q,0],[v,t.quad,t.arc]];}return [[v,t.quad,t.arc]];}
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
@@ -825,7 +829,7 @@ function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
   occApply(t,pack,out);
   ctx.putImageData(out,0,0);
 }
@@ -1027,13 +1031,13 @@ async function sideMask(t){if(sideMasks.has(t.id))return sideMasks.get(t.id);let
 // side photos turned toward the camera (near three-quarter) defeat the strict search: retry looser, then fall back to an estimate you drag into place
 function fitSideChest(t,pack,mk){return fitSideChest0(t,pack,mk,false)||fitSideChest0(t,pack,mk,true)||sideChestGuess(t,pack);}
 function sideChestGuess(t,pack){if(!t.quad)return null;const {w,h}=pack,sq=t.quad.map(p=>[p.x*w,p.y*h]),xs=sq.map(p=>p[0]),ys=sq.map(p=>p[1]);
-  const qw=Math.max(...xs)-Math.min(...xs),cx=(Math.min(...xs)+Math.max(...xs))/2,top=Math.min(...ys),bot=Math.max(...ys),ppi=qw/3.1,dF=viewOf(t)==='left'?-1:1;
+  const qw=Math.max(...xs)-Math.min(...xs),cx=(Math.min(...xs)+Math.max(...xs))/2,top=Math.min(...ys),bot=Math.max(...ys),ppi=qw/sideSleeveIn(t),dF=viewOf(t)==='left'?-1:1;
   const xe=Math.max(0,Math.min(w,cx+dF*qw*2.3)),col=top-qw*.75,R=((t.sex||t.group)==='women'?4.5:4.75)*ppi,qW=R*1.3,y0=col+COLLAR_TO_AREA*ppi;
   const xa=dF<0?xe:xe-qW,xb=dF<0?xe+qW:xe;
   return {guess:true,quad:[{x:xa/w,y:y0/h},{x:xb/w,y:y0/h},{x:xb/w,y:(y0+qW)/h},{x:xa/w,y:(y0+qW)/h}],areaIn:qW/ppi,armX:(cx+dF*.86*qw)/w,hemY:(bot+.12*qw)/h};}
 function fitSideChest0(t,pack,mk,relax){ // front print seen from the side: find the chest's front edge and the collar, size from the sleeve's true-size scale
   const {w,h}=pack, sq=t.quad.map(p=>[p.x*w,p.y*h]); const xs=sq.map(p=>p[0]),ys=sq.map(p=>p[1]);
-  const qw=Math.max(...xs)-Math.min(...xs), cx=(Math.min(...xs)+Math.max(...xs))/2, top=Math.min(...ys), bot=Math.max(...ys), ppi=qw/3.1, dF=viewOf(t)==='left'?-1:1;
+  const qw=Math.max(...xs)-Math.min(...xs), cx=(Math.min(...xs)+Math.max(...xs))/2, top=Math.min(...ys), bot=Math.max(...ys), ppi=qw/sideSleeveIn(t), dF=viewOf(t)==='left'?-1:1;
   const F0=fabModel(pack,sq),F={fab:(x,y)=>F0.fab(x,y)&&(!mk||mk.at(x/w,y/h))}; if(!F.fab(cx,(top+bot)/2))return null;
   const gap=Math.max(3,Math.round(qw*(relax?.45:.25))); // jump the light crease between arm and chest
   const edgeAt=y=>{let last=null,miss=0,run=0;for(let x=Math.round(cx);x>=0&&x<w&&Math.abs(x-cx)<qw*6;x+=dF){if(F.fab(x,y)){if(++run>=3)last=x;miss=0;}else{run=0;if(last!==null&&++miss>gap)break;}}return last;};
