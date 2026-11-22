@@ -247,7 +247,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       </div>
       <div class="card">
         <h2>2. Placement <span class="muted small" id="pl-slot" style="font-weight:500">· Front</span></h2>
-        <label class="row small" id="sf-row" style="gap:6px;margin:-4px 0 8px;display:none"><input type="checkbox" id="sf-on"> Show the front design on this side photo</label>
+        <div id="sf-row" style="display:none;margin:-4px 0 8px"><label class="row small" style="gap:6px"><input type="checkbox" id="sf-on"> Show the front design on this side photo</label><label class="row small" style="gap:6px;margin-top:4px" title="For side photos turned partway toward the camera: draws the front design like a front photo, angled to the turn, instead of the strict side view"><input type="checkbox" id="tc-on"> Turned toward camera</label></div>
         <div class="row" id="pl-slots" style="gap:6px;margin:-4px 0 10px"><button class="pill" data-ps="front">Front</button><button class="pill" data-ps="left">Left sleeve</button><button class="pill" data-ps="right">Right sleeve</button></div>
         <div class="ctl"><label class="row small" style="font-weight:600"><input type="checkbox" id="ts-on"> True-to-size printing</label></div>
         <div id="ts-ctl" style="display:none">
@@ -637,7 +637,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-let curTurn=0,curFlat=false;
+let curTurn=0,curFlat=false;const TURN_RAD=.7;
 let REC_BOX=false,LASTBOX={};
 // arc length round a torso cross-section (ellipse, lateral half-width = TORSO_K x half-depth), per unit half-depth, by angle from the chest's front
 const TORSO_K=1.4,ELL=(()=>{const n=1024,t=new Float32Array(n+1);let acc=0;for(let i=1;i<=n;i++){const f=(i-.5)/n*Math.PI/2;acc+=Math.sqrt(TORSO_K*TORSO_K*Math.cos(f)**2+Math.sin(f)**2)*(Math.PI/2/n);t[i]=acc;}return t;})();
@@ -783,10 +783,18 @@ const toU=v=>TS.units==='px'?Math.round(v*300):+v.toFixed(2), fromU=v=>TS.units=
 function areaOf(t,s){if(!t)return null;if(s===viewOf(t))return t.quad;return t.sleeves&&t.sleeves[s]?t.sleeves[s].quad:null;}
 function turnDefault(t,s){if(s==='front'&&viewOf(t)!=='front')return 90+(typeof t.turn==='number'?t.turn:0);if(viewOf(t)==='front'){const sl=t.sleeves&&t.sleeves[s];return sl&&typeof sl.turn==='number'?sl.turn:90;}return typeof t.turn==='number'?t.turn:0;}
 function turnOf(t,s){const o=LS.get('turns',{})[t.id+':'+s];return typeof o==='number'?o:turnDefault(t,s);}
-function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front')return t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
+function areaInches(t,s){if(t.scene)return s==='front'?(t.areaIn||14):3.1;if(s==='front'&&viewOf(t)!=='front')return turnedOn(t)&&t.turnAreaIn?t.turnAreaIn:t.chestAreaIn||14;if(s==='front')return t.areaIn||(t.group==='women'?13:14);return 3.1;}
 // side photos show only the sleeve unless you switch the front design on for that photo (a strict profile hides almost all of a chest print)
-function sideFrontOn(t){return !!LS.get('sidefront',{})[t.id];}
-function layersOf(t){const v=viewOf(t);if(v!=='front')return t.chestQ&&sideFrontOn(t)?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
+function sideFrontOn(t){return !!LS.get('sidefront',{})[t.id]||!!LS.get('turned',{})[t.id];}
+// "turned toward the camera": a side photo that is really a three-quarter view gets the front design drawn like a front photo, angled to the turn
+function turnedOn(t){return !!LS.get('turned',{})[t.id];}
+function turnedQuad(t){if(!t.chestQ||!t.quad)return null;const A=t._asp||.8,P=q=>q.map(p=>[p.x*A,p.y]); // work in square units
+  const sq=P(t.quad),cq=P(t.chestQ),dF=viewOf(t)==='left'?-1:1,xs=sq.map(p=>p[0]),qw=Math.max(...xs)-Math.min(...xs),ppi=qw/3.1;
+  const xe=dF<0?Math.min(...cq.map(p=>p[0])):Math.max(...cq.map(p=>p[0])),arm=(Math.min(...xs)+Math.max(...xs))/2+dF*qw*.6;
+  const W=Math.max(qw*1.5,Math.abs(xe-arm)*.9),cx=(xe+arm)/2,top=Math.min(...cq.map(p=>p[1])),H=W*1.2;
+  t.turnAreaIn=W/ppi;const u=x=>x/A;return [{x:u(cx-W/2),y:top},{x:u(cx+W/2),y:top},{x:u(cx+W/2),y:top+H},{x:u(cx-W/2),y:top+H}];}
+function layersOf(t){const v=viewOf(t);if(v!=='front'&&turnedOn(t)){const q=turnedQuad(t);if(q)return [['front',q,0],[v,t.quad,t.arc]];}
+  if(v!=='front')return t.chestQ&&sideFrontOn(t)?[['front',t.chestQ,0],[v,t.quad,t.arc]]:[[v,t.quad,t.arc]];
   const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
 /* ---------- occlusion: print only shows on the shirt; a brush fixes what the outline gets wrong (arms, hair, hands in front) ---------- */
@@ -807,10 +815,12 @@ function occApply(t,pack,out){if(t.scene||occOff(t))return;const A=occAuto.get(t
       const b=B?B[by+Math.min(OCC_W-1,(x*OCC_W/w)|0)]:0;const hide=b===1||(b!==2&&A&&!A.g[ay+Math.min(A.w-1,(x*A.w/w)|0)]);
       if(hide){o[i]=data[i];o[i+1]=data[i+1];o[i+2]=data[i+2];}}}}
 function occOff(t){return !!LS.get('occoff',{})[t.id];}
+// keep the turned front design on the shirt: undo any print pixels outside the body/shirt outline
+function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=mk.soft||((x,y)=>mk.at(x,y)?1:0);for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(o[i]===snap[i]&&o[i+1]===snap[i+1]&&o[i+2]===snap[i+2])continue;const a=f((x+.5)/w,(y+.5)/h);if(a>=1)continue;for(let c=0;c<3;c++)o[i+c]=snap[i+c]+(o[i+c]-snap[i+c])*a;}}
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;curTurn=s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
   occApply(t,pack,out);
   ctx.putImageData(out,0,0);
 }
@@ -1066,6 +1076,7 @@ async function ensureFit(t){
   if(t._fitted)return; t._fitted=true; if(t.scene){t.fit={};return;}
   try{
     let r=fitRes.get(t.id);
+    try{const pp=await previewPack(t);t._asp=pp.w/pp.h;}catch(e){}
     if(!r){const p=await previewPack(t);
       const fm=!t.builtin&&viewOf(t)==='front'?canvasSampler(await maskImage(t)):null;if(fm)fitMasks.set(t.id,fm);
       // generated photos: start the sleeve search from this person's own arms (shoulder to elbow), not the reference pose
@@ -1114,7 +1125,7 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|approved|occ|occoff|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|turned|approved|occ|occoff|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
@@ -2138,8 +2149,9 @@ $('#pf-kit').onclick=async()=>{
       ed.addEventListener('pointermove',mv);ed.addEventListener('pointerup',up);});
     ed.addEventListener('dblclick',()=>{const full=getComputedStyle(de).getPropertyValue('--appw').trim()==='100vw';const w=full?1180:innerWidth;setW(w);LS.set('appw',full?1180:99999);requestAnimationFrame(sizePanes);scheduleRender();});}
 })();
-$('#sf-on').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('sidefront',{});if(e.target.checked)m[t.id]=1;else delete m[t.id];LS.set('sidefront',m);scheduleRender();scheduleGrid();};
-setInterval(()=>{const t=curT(),r=$('#sf-row');if(!t||!r)return;const side=viewOf(t)!=='front';r.style.display=side?'':'none';if(side)$('#sf-on').checked=sideFrontOn(t);},400);
+$('#sf-on').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('sidefront',{});if(e.target.checked)m[t.id]=1;else{delete m[t.id];const tm=LS.get('turned',{});delete tm[t.id];LS.set('turned',tm);}LS.set('sidefront',m);scheduleRender();scheduleGrid();};
+$('#tc-on').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('turned',{});if(e.target.checked){m[t.id]=1;const f=LS.get('sidefront',{});f[t.id]=1;LS.set('sidefront',f);toast('Front design now drawn as a turned front view. Click it to move or resize, use the Turn slider to match her angle, then Approve.',6000);}else delete m[t.id];LS.set('turned',m);scheduleRender();scheduleGrid();};
+setInterval(()=>{const t=curT(),r=$('#sf-row');if(!t||!r)return;const side=viewOf(t)!=='front';r.style.display=side?'':'none';if(side){$('#sf-on').checked=sideFrontOn(t)||turnedOn(t);$('#tc-on').checked=turnedOn(t);}},400);
 // slot switcher on the Adjust tab mirrors the one under Your designs
 document.querySelectorAll('#pl-slots button').forEach(b=>b.onclick=()=>{const o=document.querySelector('#slots button[data-slot='+b.dataset.ps+']');if(o)o.click();});
 setInterval(()=>{const on=(document.querySelector('#slots button.on')||{}).dataset;document.querySelectorAll('#pl-slots button').forEach(b=>b.classList.toggle('on',!!on&&b.dataset.ps===on.slot));},400);
@@ -2198,7 +2210,7 @@ async function cloudPull(){if(!CS.uid||!sb)return;CS.lastPull=Date.now();
   const cloud=(data&&data.data)||{},local=cloudSnapshot(),m=syncMeta();let changed=false,needPush=false;
   for(const k of new Set([...Object.keys(cloud),...Object.keys(local)])){const c=cloud[k],l=local[k];
     // per-photo maps merge photo by photo, so a newer save from another computer can't erase setups made here
-    const MAPK=/^(ov|approved|occ|occoff|sidefront)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
+    const MAPK=/^(ov|approved|occ|occoff|sidefront|turned)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
     if(MAPK){const mv={...l.v,...c.v};if(JSON.stringify(mv)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(mv));changed=true;}m[k]=Math.max(c.t,l.t);if(JSON.stringify(mv)!==JSON.stringify(c.v))needPush=true;}
     else if(c&&(!l||c.t>=l.t)){if(!l||JSON.stringify(c.v)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(c.v));changed=true;}m[k]=c.t;}
     else if(l)needPush=true;}
