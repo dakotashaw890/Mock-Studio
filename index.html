@@ -287,6 +287,10 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <option value="closeup">Close-up of the print (square)</option>
           </select></div>
         <p class="small muted" style="margin:0 0 10px">Crops keep the print centered in frame.</p>
+        <div class="ctl"><div class="lab">Shirt colors <span class="small muted" id="xc-count"></span></div>
+          <div class="row" id="xc-box" style="gap:6px;flex-wrap:wrap"></div>
+          <div class="row small" style="gap:8px;margin-top:6px"><button class="small" id="xc-listing">Listing colors</button><button class="small" id="xc-ai">All with AI photos</button><button class="small" id="xc-cur">Just the current color</button></div>
+          <p class="small muted" style="margin:6px 0 0">Each photo is exported once per color. ✓ = real AI color photos exist for the selected photos; others use the quick preview coloring.</p></div>
         <div class="row">
           <button class="primary" id="btn-dl">Download this one</button>
           <button id="btn-dl-all">Download selected (.zip)</button>
@@ -551,7 +555,7 @@ function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();
   for(const [n,hex] of allColors()){const b=document.createElement('button');const real=!hex||(t&&hasColor(t.id,hex));
     b.className='sw'+(cur===hex?' on':'')+(real?' real':'')+(sells.has(hex)?' sells':'');b.title=n+(hex&&real?' (AI color)':hex?' (quick preview)':'')+(sells.has(hex)?' · on your listing':'');b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
   const nm=(allColors().find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];
-  $('#shirt-name').textContent=nm+(cur&&t?(hasColor(t.id,cur)?' · AI color':' · quick preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();}
+  $('#shirt-name').textContent=nm+(cur&&t?(hasColor(t.id,cur)?' · AI color':' · quick preview'):'');if(cur)$('#shirt-custom').value=cur;colUI();if(typeof xcUI==='function')try{xcUI();}catch(e){}}
 async function maskImage(t){if(maskImgs.has(t.id))return maskImgs.get(t.id);let m=null;
   if(t.builtin){try{m=await loadImage('models/masks/'+t.id+'.png');}catch(e){m=null;}t._maskExact=!!m;}
   else{m=await diffMask(t);t._maskExact=!!m;if(!m)m=await poseShirtMask(t);}
@@ -1897,17 +1901,39 @@ function baseName(){const d=designs.front||designs.left||designs.right;return d?
 let CUR_TITLE='';
 function looksRandom(n){return !n||/^[0-9a-f-]{12,}$/i.test(n)||/^[a-z0-9]{20,}$/i.test(n)||!/[aeiou]{1}[a-z]*[aeiou]/i.test(n.replace(/[^a-z]/gi,''))&&n.length>10;}
 function modelLabel(t){let n=String(t.name||'model').replace(/\s*·\s*/g,' ');if(!/front|left|right|side/i.test(n))n+=' '+viewOf(t);return n;}
-function outName(t){const b=baseName();const title=CUR_TITLE||(looksRandom(b)?'Mockup':b);const col=shirtHex()?(allColors().find(c=>c[1]===shirtHex())||['Custom'])[0]:'';
+function outName(t){const b=baseName();const title=CUR_TITLE||(looksRandom(b)?'Mockup':b);const col=shirtHex()?(allColors().find(c=>c[1]===shirtHex())||['Custom'])[0]:(typeof XC!=='undefined'&&XC&&XC.length>1?'Black':'');
   return safeName([title,modelLabel(t),col].filter(Boolean).join(' - ')).replace(/-+/g,'-');}
 async function saveFile(filename,data){
   try{const u=URL.createObjectURL(data);const l=document.createElement('a');l.href=u;l.download=filename;document.body.append(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);}
   catch(e){toast('Couldn\'t save the file.');}
 }
 const busy=on=>{$('#busy').style.display=on?'block':'none';$('#btn-dl').disabled=$('#btn-dl-all').disabled=on;};
+/* ---------- export colors: pick which shirt colors to export; each photo renders once per color ---------- */
+let XC=null; // selected hexes ('' = black / original photo); null = just the current color
+function xcList(){return XC&&XC.length?XC:[shirtHex()];}
+function xcName(hex){return hex?(allColors().find(c=>c[1]===hex)||['Custom'])[0]:'Black';}
+function xcReal(hex,list){return !hex||list.every(t=>t.scene||hasColor(t.id,hex));}
+function xcUI(){const box=$('#xc-box');if(!box)return;box.textContent='';const sel=new Set(xcList()),list=shown().filter(t=>!excluded.has(t.id)),sells=new Set(LS.get('pfcolors',[]).map(c=>canonHex(c.name,c.hex)));
+  const cols=allColors().slice().sort((a,b)=>(sells.has(b[1])?1:0)-(sells.has(a[1])?1:0));
+  for(const [n,hex] of cols){const b=document.createElement('button');b.className='small'+(sel.has(hex)?' primary':'');const real=xcReal(hex,list);
+    b.innerHTML='<span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #888;vertical-align:-2px;margin-right:5px;background:'+(hex||'#161616')+'"></span>'+n+(real?' ✓':'');b.title=real?'Real AI color photos':'Quick preview coloring (no AI photos yet)';
+    b.onclick=()=>{const s2=new Set(xcList());if(s2.has(hex))s2.delete(hex);else s2.add(hex);XC=[...s2];if(!XC.length)XC=null;xcUI();};box.append(b);}
+  const k=xcList().length;$('#xc-count').textContent=k>1?'· '+k+' colors':'';$('#btn-dl').textContent=k>1?'Download this one ('+k+' colors, .zip)':'Download this one';}
+async function withColor(hex,fn){const keep=SHIRT;SHIRT={hex:hex||'',name:xcName(hex)};colorPacks.clear();smallPacks.clear();try{return await fn();}finally{SHIRT=keep;colorPacks.clear();smallPacks.clear();}}
+$('#xc-listing').onclick=()=>{const L=LS.get('pfcolors',[]).map(c=>canonHex(c.name,c.hex)).filter(h=>h!==null);XC=L.length?[...new Set(L)]:null;if(!L.length)toast('Load a Printify product first to use its colors.');xcUI();};
+$('#xc-ai').onclick=()=>{const list=shown().filter(t=>!excluded.has(t.id));XC=[...new Set(allColors().map(c=>c[1]).filter(h=>h&&xcReal(h,list)))];XC.unshift('');xcUI();};
+$('#xc-cur').onclick=()=>{XC=null;xcUI();};
+setTimeout(xcUI,1500);
+setInterval(()=>{const b=$('#xc-box');if(b&&b.offsetParent&&!b.matches(':hover'))xcUI();},3000);
 $('#btn-dl').onclick=async()=>{
   const t=curT();if(!t)return;if(!designs[viewOf(t)]){toast('Upload a '+SLOT_NAMES[viewOf(t)].toLowerCase()+' design first.');return;}
   if(editMode){toast('Save or cancel the print area first.');return;}
-  busy(true);try{const b=await renderFull(t);await saveFile(outName(t)+sizeTag()+'.jpg',b);}catch(e){toast('Export failed.');}finally{busy(false);}
+  const cols=xcList();
+  busy(true);try{if(cols.length<2){const b=await renderFull(t);await saveFile(outName(t)+sizeTag()+'.jpg',b);}
+    else{if(!window.JSZip){toast('Zip tool didn\'t load.');return;}const zip=new JSZip();let n=0;
+      for(const hex of cols){$('#busy').textContent='Color '+(++n)+' of '+cols.length+'…';await withColor(hex,async()=>{const b=await renderFull(t);zip.file(outName(t)+sizeTag()+'.jpg',b);});}
+      $('#busy').textContent='Zipping…';await saveFile(outName(t).replace(/ - [^-]*$/,'')+'-colors.zip',await zip.generateAsync({type:'blob'}));}}
+  catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
 };
 $('#btn-dl-all').onclick=async()=>{
   const list=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id));if(!list.length){toast('Nothing selected that has a design yet.');return;}
@@ -1915,7 +1941,8 @@ $('#btn-dl-all').onclick=async()=>{
   if(!window.JSZip){toast('Zip tool didn\'t load. Download one at a time.');return;}
   busy(true);
   try{const zip=new JSZip();let n=0;
-    for(const t of list){$('#busy').textContent='Rendering '+(++n)+' of '+list.length+'…';const b=await renderFull(t);zip.file(outName(t)+sizeTag()+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
+    const cols=xcList(),tot=list.length*cols.length;
+    for(const hex of cols)await withColor(hex,async()=>{const dir=cols.length>1?safeName(xcName(hex))+'/':'';for(const t of list){$('#busy').textContent='Rendering '+(++n)+' of '+tot+'…';const b=await renderFull(t);zip.file(dir+outName(t)+sizeTag()+'.jpg',b);await new Promise(r=>setTimeout(r,0));}});
     $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});
     await saveFile(safeName(baseName())+'-mockups.zip',z);
   }catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
@@ -1939,6 +1966,9 @@ function listingSteps(){
   for(const x of mix){if(steps.length>=9)break;steps.push([x,'sq','model']);}
   steps.push([hero,'story','tiktok-9x16']);
   return steps;}
+// with more than one export color, the set is made once per color in its own folder
+async function renderListingColors(zip,folder,label){const cols=xcList();if(cols.length<2)return renderListing(zip,folder,label);let n=0;
+  for(const hex of cols)n+=await withColor(hex,()=>renderListing(zip,folder+safeName(xcName(hex))+'/',(label?label+' · ':'')+xcName(hex)));return n;}
 async function renderListing(zip,folder,label){const steps=listingSteps();if(!steps)throw new Error('Pick a front photo first.');let n=0;
   for(const [t,k,lab] of steps){n++;$('#busy').textContent=(label?label+' · ':'')+'image '+n+' of '+steps.length+'…';const b=await renderFull(t,k);
     zip.file(folder+String(n).padStart(2,'0')+'-'+lab+'-'+safeName(t.name)+'.jpg',b);await new Promise(r=>setTimeout(r,0));}
@@ -1948,7 +1978,7 @@ $('#btn-set').onclick=async()=>{
   if(!designs.front){toast('Upload a front design first.');return;}
   if(!window.JSZip){toast('Zip tool didn\'t load.');return;}
   busy(true);
-  try{const zip=new JSZip();const n=await renderListing(zip,'');
+  try{const zip=new JSZip();const n=await renderListingColors(zip,'');
     $('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});await saveFile(safeName(baseName())+'-etsy-listing-set.zip',z);
     toast(n+' images, numbered in listing order.');
   }catch(e){toast(e.message||'Listing set failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
@@ -2137,7 +2167,7 @@ $('#pf-kit').onclick=async()=>{
       try{$('#busy').textContent=lab+' · loading artwork…';const r=await pfFetchProduct(id,null,{noSave:true});
         if(!r.usable.length||!r.slots.front&&!r.slots.left&&!r.slots.right){fails.push(title+' (no usable artwork)');continue;}
         pfApply(r);bindSlot('front');const folder=safeName(r.p.title)+'/';
-        imgs+=await renderListing(zip,folder,lab);
+        imgs+=await renderListingColors(zip,folder,lab);
         zip.file(folder+'listing.txt','Product: '+r.p.title+'\nPrintify product ID: '+r.p.id+'\nImages are numbered in Etsy listing order. 01 is the main photo.\n');
       }catch(e){fails.push(title+' ('+(e.message||'failed')+')');}}
     if(imgs){$('#busy').textContent='Zipping…';const z=await zip.generateAsync({type:'blob'});await saveFile('listing-kits-'+new Date().toISOString().slice(0,10)+'.zip',z);}
