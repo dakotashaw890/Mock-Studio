@@ -1158,7 +1158,12 @@ async function ensureFit(t){
       if(!t.builtin&&viewOf(t)==='front'){const pr=await poseOf(t);const lm=pr&&pr.poseLandmarks;
         if(lm){const fresh=!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'));const fc0=facingOf(t,lm),lay=fc0?turnedLayout(lm,fc0,p.w/p.h,p):null;
           t._turnLay=lay?{...lay,facing:fc0}:null;
-          if(fresh){if(lay){t.quad=lay.chest;
+          const learned=fresh&&fc0?await learnedLayout(t,lm,fc0,p.w/p.h):null;
+          if(learned){t._turnLay={chest:learned.chest,sleeve:learned.sleeve||(lay&&lay.sleeve),facing:fc0};t.quad=learned.chest;t.areaIn=learned.src.areaIn||12;
+            t.chestTurn=typeof learned.src.chestTurn==='number'?learned.src.chestTurn:0;t._learnFrom=learned.src.id;
+            // bring your adjustments along (not the warp: that fixed a wrinkle in the other photo)
+            const A2=ovAll();for(const sl of ['front',fc0]){const o=A2[learned.src.id+':'+sl];if(!o)continue;const c={...o};delete c.warp;for(const k2 of Object.keys(c))if(k2.endsWith('@'))delete c[k2];if(Object.keys(c).length){A2[t.id+':'+sl]=c;ovMark(t.id+':'+sl);}}ovSave();}
+          else if(fresh){if(lay){t.quad=lay.chest;
             // size: your saved fixes on turned photos made the print ~1 shoulder-width wide, i.e. the area ~12" (women) / ~14" (men) across
             t.areaIn=(t.sex||t.group)==='men'?14:12;
             // turn: the full body turn (~30°) wrapped the print round the chest and you were cancelling it with Turn (-31..+29) and Wrap 0 on every photo; a gentle one reads right
@@ -1193,7 +1198,7 @@ async function ensureFit(t){
       else r={side:fitSide(t,p)};
       fitRes.set(t.id,r);}
     else if(viewOf(t)==='front'&&r.quad&&!isManual(t,'front')){t.quad=r.quad;t.chestTurn=r.chestTurn;}
-    t.fit={};t._farHide=r.farHide||null;t._facing=r.facing||null;
+    t.fit={};t._farHide=r.farHide||t.farHide||null;t._facing=r.facing||t.facing||null;
     if(viewOf(t)==='front'){
       if(!t.builtin&&r.areaIn)t.areaIn=r.areaIn;
       t.sleeves=t.sleeves||{};
@@ -1206,6 +1211,8 @@ async function ensureFit(t){
     }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
       if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;
       if(!r.chest)r.chest=fitSideChest(t,await previewPack(t),await sideMask(t))||{};if(r.chest.quad){t.chestQ=r.chest.quad;t.chestGuess=!!r.chest.guess;t.chestAreaIn=r.chest.areaIn;t.chestClip={x:r.chest.armX,y:r.chest.hemY};}}
+    // photos you've approved or adjusted get their areas locked (once), so later changes to the automatic placement never move them
+    if(!t.builtin&&viewOf(t)==='front'&&!(t.manual&&t.manual.front)&&(isApproved(t)||Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'))))freezeAreas(t);
   }catch(e){console.warn('fit failed',t.id,e);}
 }
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
@@ -1257,7 +1264,7 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,setId:m.setId||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,facing:m.facing||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,setId:m.setId||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,facing:m.facing||null,areaIn:m.areaIn||undefined,chestTurn:typeof m.chestTurn==='number'?m.chestTurn:undefined,farHide:m.farHide||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
   // hidden built-ins leave the studio but stay available as poses for generating new models
   poseTemplates=bAll;const b=bAll.filter(t=>!hidden.includes(t.id));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
@@ -1378,7 +1385,33 @@ function drawHandles(quad,pack){
 }
 // a photo is "approved" once you've checked its print areas; approved photos are trusted for every design
 function isApproved(t){return !!LS.get('approved',{})[t.id];}
-function setApproved(t,on){const m=LS.get('approved',{});if(on)m[t.id]=Date.now();else delete m[t.id];LS.set('approved',m);renderThumbs();approveUI();}
+/* ---------- locking a photo's setup ----------
+   A photo you've adjusted or approved keeps its print areas exactly where they are now, saved with the photo. Before, the areas were
+   worked out again every time Studio loaded, so each change to the automatic placement quietly moved logos you had already fixed. */
+const FROZEN=new Set();
+async function freezeAreas(t){if(!t||t.builtin||viewOf(t)!=='front'||FROZEN.has(t.id)||memoryMode)return;FROZEN.add(t.id);
+  try{const man={...(t.manual||{})},patch={};const r4=q=>q.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));
+    if(!man.front&&t.quad){man.front=true;patch.quad=r4(t.quad);}
+    const sl={...(t.sleeves||{})};for(const s of ['left','right']){if(man[s]||!(sl[s]&&sl[s].quad))continue;if(t._farHide&&t._farHide[s])continue;man[s]=true;sl[s]={...sl[s],quad:r4(sl[s].quad)};}
+    Object.assign(patch,{manual:man,sleeves:sl,areaIn:t.areaIn||null,chestTurn:typeof t.chestTurn==='number'?t.chestTurn:null,farHide:t._farHide||null,facing:t._facing||t.facing||null});
+    t.manual=man;t.sleeves=sl;t.farHide=patch.farHide;await tplPatch(t.id,patch);}catch(e){FROZEN.delete(t.id);}}
+/* ---------- learning from your approved photos ----------
+   A new turned photo copies the setup of your approved photo with the same pose (else same sex) facing the same way: its print areas are
+   carried across body to body (shoulders, face, arm) and your adjustments come with them. Approve one good photo per pose/direction and
+   every new model of that kind starts there. */
+async function learnedLayout(t,lm,fc,A){if(!lm)return null;
+  const cands=templates.filter(x=>x!==t&&x.id!==t.id&&!x.builtin&&viewOf(x)==='front'&&isApproved(x)&&(x.facing||x._facing)===fc&&(x.sex||x.group)===(t.sex||t.group)&&x.manual&&x.manual.front);
+  if(!cands.length)return null;cands.sort((a,b)=>(b.pose===t.pose)-(a.pose===t.pose)||(LS.get('approved',{})[b.id]||0)-(LS.get('approved',{})[a.id]||0));
+  for(const src of cands){const pr=await poseOf(src),sl=pr&&pr.poseLandmarks;if(!sl)continue;
+    const Ns=sl[fc==='left'?11:12],Fs=sl[fc==='left'?12:11],Nt=lm[fc==='left'?11:12],Ft=lm[fc==='left'?12:11];if(!Ns||!Fs||!Nt||!Ft)continue;
+    const As=src._asp||A,ss=Math.abs(Ns.x-Fs.x)*As,st=Math.abs(Nt.x-Ft.x)*A;if(ss<.03||st<.03)continue;const k=st/ss;
+    const map=(q,cs,ct)=>q.map(p=>({x:(ct.x+((p.x*As)-cs.x)*k)/A,y:ct.y+(p.y-cs.y)*k}));
+    const mid=(a,b,AA)=>({x:(a.x+b.x)/2*AA,y:(a.y+b.y)/2});
+    const chest=map(src.quad,mid(Ns,Fs,As),mid(Nt,Ft,A));
+    const ns=src.sleeves&&src.sleeves[fc]&&src.sleeves[fc].quad,sleeve=ns?map(ns,{x:Ns.x*As,y:Ns.y},{x:Nt.x*A,y:Nt.y}):null;
+    return {src,chest,sleeve,k};}
+  return null;}
+function setApproved(t,on){if(on)freezeAreas(t);const m=LS.get('approved',{});if(on)m[t.id]=Date.now();else delete m[t.id];LS.set('approved',m);renderThumbs();approveUI();}
 function approveUI(){const t=curT(),b=$('#btn-approve');if(!b||!t)return;const on=isApproved(t);b.textContent=on?'✓ Approved — click to unapprove':'Approve this photo';b.classList.toggle('primary',!on);
   $('#appr-hint').textContent=on?'Every design uses this photo’s setup.':'Check the logo and sleeve spots look right on this photo, then approve. Set up once; every design reuses it.';}
 function renderThumbs(){setTimeout(approveUI,0);setTimeout(()=>{try{cropUI();}catch(e){}},0);requestAnimationFrame(fineUI);
@@ -1665,7 +1698,7 @@ function ovSet(key,v){const t=curT(),k=ovKey(t,slot);if(!k)return;const A=ovAll(
   if(OV_SCOPE==='photo'){const dk=ovDesignKey(t,slot);if(dk&&A[dk]){delete A[dk][key];if(!Object.keys(A[dk]).length)delete A[dk];}}
   const ref=OV_SCOPE==='design'?(ovPhoto(t,slot)[key]??baseOf(key)):baseOf(key);
   const o=A[k]||(A[k]={});if(typeof v==='number'&&Math.abs(v-ref)<1e-9){delete o[key];delete o[key+'@'];}else{o[key]=v;if(OV_SCOPE==='design')o._only=1;}
-  if(!Object.keys(o).filter(x=>x!=='_only').length)delete A[k];ovMark(k);ovMark(ovDesignKey(t,slot));ovSave();ovUI();}
+  if(!Object.keys(o).filter(x=>x!=='_only').length)delete A[k];ovMark(k);ovMark(ovDesignKey(t,slot));ovSave();ovUI();freezeAreas(t);}
 function ovUI(){const t=curT(),A=ovAll(),pk=ovPhotoKey(t,slot),dk=ovDesignKey(t,slot),np=Object.keys(ovPhoto(t,slot)).length,nd=Object.keys(ovDesign(t,slot)).length;
   $('#ov-bar').style.display='flex';$('#ov-msg').textContent=nd?'This photo has a tweak for this design only.':np?'Adjusted on this photo — every design uses it.':'Adjustments save to this photo and every design uses them.';
   $('#btn-ov-reset').style.display=np||nd?'':'none';$('#btn-ov-all').style.display=np||nd?'':'none';$('#ov-scope').checked=OV_SCOPE==='design';}
