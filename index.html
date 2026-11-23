@@ -652,6 +652,14 @@ let curTurn=0,curFlat=false,CAPTURN=false;const TURN_RAD=.7;
 let REC_BOX=false,LASTBOX={};
 // arc length round a torso cross-section (ellipse, lateral half-width = TORSO_K x half-depth), per unit half-depth, by angle from the chest's front
 const TORSO_K=1.4,ELL=(()=>{const n=1024,t=new Float32Array(n+1);let acc=0;for(let i=1;i<=n;i++){const f=(i-.5)/n*Math.PI/2;acc+=Math.sqrt(TORSO_K*TORSO_K*Math.cos(f)**2+Math.sin(f)**2)*(Math.PI/2/n);t[i]=acc;}return t;})();
+// fit a gentle curve (quadratic) through the per-row edge, ignoring outliers, so the print follows the arm without jagged steps
+function smoothEdge(hE){const xs=[],ys=[];for(let i=0;i<hE.length;i++)if(!isNaN(hE[i])){xs.push(i/Math.max(1,hE.length-1));ys.push(hE[i]);}
+  if(xs.length<6)return hE;let keep=xs.map(()=>true),co=null;
+  for(let pass=0;pass<3;pass++){let S=[0,0,0,0,0],T=[0,0,0];for(let k=0;k<xs.length;k++){if(!keep[k])continue;const x=xs[k],y=ys[k];let p=1;for(let d=0;d<5;d++){S[d]+=p;p*=x;}T[0]+=y;T[1]+=y*x;T[2]+=y*x*x;}
+    const A=[[S[0],S[1],S[2]],[S[1],S[2],S[3]],[S[2],S[3],S[4]]];const det=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+    const D=det(A);if(Math.abs(D)<1e-12)return hE;co=[0,1,2].map(c=>det(A.map((r,i)=>r.map((v,j)=>j===c?T[i]:v)))/D);
+    const res=xs.map((x,k)=>Math.abs(ys[k]-(co[0]+co[1]*x+co[2]*x*x))),srt=res.filter((r,k)=>keep[k]).sort((a,b)=>a-b),mad=srt[srt.length>>1]||0;keep=res.map(r=>r<=Math.max(.01,mad*2.5));}
+  const out=new Float32Array(hE.length);for(let i=0;i<hE.length;i++){const x=i/Math.max(1,hE.length-1);out[i]=co[0]+co[1]*x+co[2]*x*x;}return out;}
 function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const {w,h,data,L,Lb}=pack;
   const own=!outIn; const out=outIn||new ImageData(new Uint8ClampedArray(data),w,h);
@@ -737,11 +745,12 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
     }
     hE=new Float32Array(raw.length).fill(NaN);const R=4;
     for(let i=0;i<raw.length;i++){const vals=[];for(let j=i-R;j<=i+R;j++)if(j>=0&&j<raw.length&&!isNaN(raw[j]))vals.push(raw[j]);if(vals.length>=R){vals.sort((a,b)=>a-b);const m=vals[vals.length>>1];if(m>.45&&m<1.4)hE[i]=m;}}
+    hE=smoothEdge(hE); // the arm's edge is a smooth line over a logo's height; row-to-row jitter (hair, folds) made the sleeve logo break into shifted strips
   }
   for(let y=minY;y<=maxY;y++){
     for(let x=minX;x<=maxX;x++){
       const i=y*w+x;
-      const disp=(Lb[i]-mean)*amt;
+      const disp=(Lb[i]-mean)*(sm&&!sm.side?amt*.4:amt);
       const sx=x+.5+disp*.35, sy=y+.5+disp;
       const z=m6*sx+m7*sy+m8; const u=(m0*sx+m1*sy+m2)/z, v=(m3*sx+m4*sy+m5)/z;
       let du,cv=1-(2*u-1)*(2*u-1),eA=1;
