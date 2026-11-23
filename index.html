@@ -905,11 +905,17 @@ function facingOf(t,lm){if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z|
 // default placement for turned photos, measured from your own hand-placed examples (Nov 22): relative to the shoulders,
 // the chest print sits just inside the far shoulder line, its top ~0.3 shoulder-widths below the shoulders, ~1.05 shoulder-widths wide;
 // the sleeve logo sits a third of the way from shoulder to elbow, nudged to the outside of the arm, ~0.42 shoulder-widths across
-function turnedLayout(lm,fc,A){const N=lm[fc==='left'?11:12],F=lm[fc==='left'?12:11],E=lm[fc==='left'?13:14];if(!N||!F||(N.visibility||0)<.5||(F.visibility||0)<.5)return null;
+function turnedLayout(lm,fc,A,pk){const N=lm[fc==='left'?11:12],F=lm[fc==='left'?12:11],E=lm[fc==='left'?13:14];if(!N||!F||(N.visibility||0)<.5||(F.visibility||0)<.5)return null;
   const span=Math.abs(N.x-F.x);if(span<.08)return null;const shy=(N.y+F.y)/2,box=(cx,top,w)=>{const h=w*A;return [{x:cx-w/2,y:top},{x:cx+w/2,y:top},{x:cx+w/2,y:top+h},{x:cx-w/2,y:top+h}];};
   const nose=lm[0],cx=nose&&(nose.visibility||0)>.5?nose.x+(F.x-N.x)*.05:F.x+(N.x-F.x)*.1; // the face stays toward the camera, and the print lines up under it
   const cw=span*1.05,chest=box(cx,shy+span*.30*A,cw);
-  let sleeve=null;if(E&&(E.visibility||0)>.3){const out=Math.sign(N.x-F.x),cx=N.x+(E.x-N.x)*.32+out*span*.07,cy=N.y+(E.y-N.y)*.32,b=span*.42;sleeve=box(cx,cy-b*A/2,b);}
+  let sleeve=null;if(E&&(E.visibility||0)>.3){let tt=.32;
+    // where the sleeve ends along the arm (fabric colour taken just below the shoulder): the logo sits a little above the middle of the sleeve
+    if(pk){const {w,h,data}=pk,ix=(x,y)=>{const X=Math.min(w-1,Math.max(0,Math.round(x*w))),Y=Math.min(h-1,Math.max(0,Math.round(y*h)));return (Y*w+X)*4;};
+      const r0=ix(N.x+(E.x-N.x)*.1,N.y+(E.y-N.y)*.1),ref=[data[r0],data[r0+1],data[r0+2]];let hem=null,miss=0;
+      for(let k=1;k<=100;k++){const u=k/100,i=ix(N.x+(E.x-N.x)*u,N.y+(E.y-N.y)*u);if(Math.abs(data[i]-ref[0])+Math.abs(data[i+1]-ref[1])+Math.abs(data[i+2]-ref[2])<75){hem=u;miss=0;}else if(hem!==null&&++miss>3)break;}
+      if(hem!==null&&hem>.15&&hem<.9)tt=hem*.5;}
+    const cx=N.x+(E.x-N.x)*tt,cy=N.y+(E.y-N.y)*tt,b=span*.42;sleeve=box(cx,cy-b*A/2,b);}
   return {chest,sleeve};}
 function turnedSleeveQuad(lm,s,fm,A,pk){const S=lm[s==='left'?11:12],E=lm[s==='left'?13:14];if(!S||!E||(S.visibility||0)<.5)return null;
   const walk=f=>{let hx=null,hy=null,miss=0;for(let k=0;k<=90;k++){const u=k/90*1.1,x=S.x+(E.x-S.x)*u,y=S.y+(E.y-S.y)*u;if(f(x,y)){hx=x;hy=y;miss=0;}else if(hx!==null&&++miss>3)break;}return hx===null?null:[hx,hy];};
@@ -1150,7 +1156,7 @@ async function ensureFit(t){
       // generated photos: start the sleeve search from this person's own arms (shoulder to elbow), not the reference pose
       if(fm&&!t.builtin){const ps=await armSeeds(t,fm,p);if(ps)t.seedSleeves={...(t.seedSleeves||{}),...ps};}
       if(!t.builtin&&viewOf(t)==='front'){const pr=await poseOf(t);const lm=pr&&pr.poseLandmarks;
-        if(lm){const fresh=!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'));const fc0=facingOf(t,lm),lay=fc0?turnedLayout(lm,fc0,p.w/p.h):null;
+        if(lm){const fresh=!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'));const fc0=facingOf(t,lm),lay=fc0?turnedLayout(lm,fc0,p.w/p.h,p):null;
           t._turnLay=lay?{...lay,facing:fc0}:null;
           if(fresh){if(lay){t.quad=lay.chest;
             // size: your saved fixes on turned photos made the print ~1 shoulder-width wide, i.e. the area ~12" (women) / ~14" (men) across
