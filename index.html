@@ -1272,7 +1272,10 @@ view.addEventListener('pointerdown',e=>{if(Z.s<=1)return;const force=e.button===
   if(!force){if(BRUSH_ON||editMode||CROP_ON)return;try{if(hitLogo(canvasPt(e)))return;}catch(x){}}
   e.stopImmediatePropagation();e.preventDefault();PAN={x:e.clientX,y:e.clientY,tx:Z.tx,ty:Z.ty};view.setPointerCapture(e.pointerId);view.classList.add('panning');},true);
 view.addEventListener('pointermove',e=>{if(!PAN)return;e.stopImmediatePropagation();Z.tx=PAN.tx+e.clientX-PAN.x;Z.ty=PAN.ty+e.clientY-PAN.y;zoomApply();},true);
-view.addEventListener('pointerup',e=>{if(!PAN)return;e.stopImmediatePropagation();PAN=null;view.classList.remove('panning');},true);
+view.addEventListener('pointerup',e=>{if(!PAN)return;e.stopImmediatePropagation();const moved=Math.hypot(e.clientX-PAN.x,e.clientY-PAN.y)>4;PAN=null;view.classList.remove('panning');
+  if(!moved&&typeof SEL!=='undefined'&&SEL){SEL=null;scheduleRender();}},true); // a click (not a drag) on an empty spot still deselects the logo while zoomed
+// clicking the dark area around the photo also deselects
+view.parentElement.addEventListener('pointerdown',e=>{if(e.target===view||e.target.closest('#zoombar'))return;if(typeof SEL!=='undefined'&&SEL){SEL=null;scheduleRender();}});
 // two-finger pinch on touch screens
 const TP=new Map();let PINCH=null;
 view.addEventListener('touchstart',e=>{if(e.touches.length===2){const [a,b]=e.touches,vr=view.getBoundingClientRect();PINCH={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),s:Z.s,cx:(a.clientX+b.clientX)/2-(vr.left-Z.tx),cy:(a.clientY+b.clientY)/2-(vr.top-Z.ty)};e.preventDefault();}},{passive:false});
@@ -2448,7 +2451,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__pose=()=>loadPose();window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__pose=()=>loadPose();window.__sel=()=>JSON.stringify(SEL);window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
