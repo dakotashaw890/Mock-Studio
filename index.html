@@ -1122,7 +1122,7 @@ async function ensureFit(t){
       // generated photos: start the sleeve search from this person's own arms (shoulder to elbow), not the reference pose
       if(fm&&!t.builtin){const ps=await armSeeds(t,fm,p);if(ps)t.seedSleeves={...(t.seedSleeves||{}),...ps};}
       if(!t.builtin&&viewOf(t)==='front'){const pr=await poseOf(t);const lm=pr&&pr.poseLandmarks;
-        if(lm){t._farHide={left:farHidden(lm,'left'),right:farHidden(lm,'right')};if(!isManual(t,'front')){const pq=poseChestQuad(lm);if(pq)t.quad=pq;}}}
+        if(lm){t._farHide={left:farHidden(lm,'left'),right:farHidden(lm,'right')};if(!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'))){const pq=poseChestQuad(lm);if(pq)t.quad=pq;} /* photos you already set up keep their old area, so your saved adjustments still land where you put them */}}
       if(viewOf(t)==='front'){FIT_MASK=fm;let c;try{c=fitChest(t,p);}finally{FIT_MASK=null;}
         if(c&&c.ok&&!isManual(t,'front')){ // anchor the chest print to the neckline
           let q=t.quad.map(v=>({...v}));const qx=q.map(v=>v.x),qy=q.map(v=>v.y);
