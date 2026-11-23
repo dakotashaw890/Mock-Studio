@@ -2447,7 +2447,16 @@ async function mdlSync(){if(!CS.uid||!sb||memoryMode||!idb)return;if(MS.busy){MS
       if(r.deleted){if(l){await idbTx('readwrite',st=>st.delete(r.id));await colDropModel(r.id);localImgs.delete(r.id);changed=true;}continue;}
       if(!l){const {data:b,error:e}=await sb.storage.from('models').download(r.path);if(e||!b)continue;await idbTx('readwrite',st=>st.put({...r.meta,id:r.id,blob:b,updatedAt:rt}));changed=true;}
       else{const lt=l.updatedAt||l.createdAt||0;if(rt>lt+1000){await idbTx('readwrite',st=>st.put({...l,...r.meta,id:r.id,blob:l.blob,updatedAt:rt}));changed=true;}else if(lt>rt+1000)await mdlPush(l,false);}}
-    for(const l of local)if(!rm.has(l.id)&&!LS.get('mdldel',[]).includes(l.id))await mdlPush(l,true);
+    // photos only on this computer: new ones go up to your account. Old ones (made before your account had any photos) were most likely
+    // deleted on another computer before syncing existed, so they are not uploaded automatically: you choose once.
+    const first=rows.length?Math.min(...rows.map(r=>Date.parse(r.updated_at))):Infinity,born=l=>l.createdAt||(+String(l.id).replace(/^u/,''))||0;
+    const only=local.filter(l=>!rm.has(l.id)&&!LS.get('mdldel',[]).includes(l.id)),old=only.filter(l=>born(l)<first),keep=LS.get('mdlkeep',[]);
+    for(const l of only)if(!old.includes(l)||keep.includes(l.id))await mdlPush(l,true);
+    const ask=old.filter(l=>!keep.includes(l.id));
+    if(ask.length&&!MS.asked){MS.asked=true;
+      if(confirm(ask.length+' model photo'+(ask.length>1?'s are':' is')+' saved only on this computer and not in your account. They were probably deleted on your other computer.\n\nOK = remove them from this computer\nCancel = keep them and add them to your account')){
+        for(const l of ask){await idbTx('readwrite',st=>st.delete(l.id));await colDropModel(l.id);localImgs.delete(l.id);}changed=true;toast('Removed '+ask.length+' old photo'+(ask.length>1?'s':'')+' from this computer.');}
+      else{LS.set('mdlkeep',[...keep,...ask.map(l=>l.id)]);for(const l of ask)await mdlPush(l,true);}}
     const {data:crows}=await sb.from('model_colors').select('model_id,hex,path');const lc=(await colTx('readonly',st=>st.getAll()).catch(()=>[]))||[];
     const lk=new Set(lc.map(c=>c.k)),rk=new Set((crows||[]).map(c=>colKey(c.model_id,c.hex)));
     for(const c of crows||[]){if(lk.has(colKey(c.model_id,c.hex)))continue;const {data:b,error:e}=await sb.storage.from('models').download(c.path);if(e||!b)continue;await colPut(c.model_id,c.hex,b,false);changed=true;}
