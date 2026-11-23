@@ -262,6 +262,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="ctl fine" id="px-ctl"><div class="lab"><span id="px-lab">Left / right</span> <span id="v-px"></span></div><div class="frow"><button class="nb" data-n="px" data-d="-1" title="Nudge">−</button><input type="range" id="px"><button class="nb" data-n="px" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="curve-ctl"><div class="lab"><span id="curve-lab">Curve</span> <span id="v-curve"></span></div><div class="frow"><button class="nb" data-n="curve" data-d="-1" title="Nudge">−</button><input type="range" id="curve"><button class="nb" data-n="curve" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="rot-ctl"><div class="lab"><span id="rot-lab">Rotate</span> <span id="v-rot"></span></div><div class="frow"><button class="nb" data-n="rot" data-d="-1" title="Nudge">−</button><input type="range" id="rot"><button class="nb" data-n="rot" data-d="1" title="Nudge">+</button></div></div>
+        <div class="ctl fine" id="pitch-ctl"><div class="lab">Turn (up / down) <span id="v-pitch"></span></div><div class="frow"><button class="nb" data-n="pitch" data-d="-1" title="Nudge">−</button><input type="range" id="pitch"><button class="nb" data-n="pitch" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="yaw-ctl"><div class="lab"><span id="yaw-lab">Turn (left / right)</span> <span id="v-yaw"></span></div><div class="frow"><button class="nb" data-n="yaw" data-d="-1" title="Nudge">−</button><input type="range" id="yaw"><button class="nb" data-n="yaw" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="bend-ctl"><div class="lab"><span id="bend-lab">Bend (sideways curve)</span> <span id="v-bend"></span></div><div class="frow"><button class="nb" data-n="bend" data-d="-1" title="Nudge">−</button><input type="range" id="bend"><button class="nb" data-n="bend" data-d="1" title="Nudge">+</button></div></div>
         <div class="ctl fine" id="fshow-ctl" style="display:none"><div class="lab"><span id="fshow-lab">How much shows on this photo</span> <span id="v-fshow"></span></div><div class="frow"><button class="nb" data-n="fshow" data-d="-1" title="Nudge">−</button><input type="range" id="fshow"><button class="nb" data-n="fshow" data-d="1" title="Nudge">+</button></div></div>
@@ -705,6 +706,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
   const ex=Math.abs((P.yaw||0))/60*.5*fw;
+  const PT=(P.pitch||0)*Math.PI/180,sPT=Math.sin(PT),sWP=Math.min(.6,(.97-Math.abs(sPT))/1.4),wP=Math.asin(sWP); // Turn up/down
   const cK=(P.curve||0)*.35, rr=(P.rot||0)*Math.PI/180, rc=Math.cos(rr), rs=Math.sin(rr);
   const bK=(P.bend||0)*.35, eu=Math.abs(rs)*fh/A/2+.002+Math.abs(bK)*fw, ev=Math.abs(rs)*fw*A/2;
   const aA=Math.abs(curArc||0)*1.05+Math.abs(cK)*fh+ev; // the curve lifts the middle of the design, so draw a little beyond its box
@@ -770,6 +772,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       du=(uu-u0)/fw;}
       let dv=(v+arc*cv-v0)/fh;
       if(rr){const X=(du-.5)*fw*A,Y=(dv-.5)*fh;du=(X*rc+Y*rs)/(fw*A)+.5;dv=(-X*rs+Y*rc)/fh+.5;}
+      if(PT){const sy=2*(dv-.5)*sWP+sPT;if(sy<=-1||sy>=1)continue;dv=.5+(Math.asin(sy)-PT)/(2*wP);du=.5+(du-.5)/(1-.3*sPT*(2*dv-1));}
       if(cK)dv+=cK*(1-(2*du-1)*(2*du-1));
       if(bK)du-=bK*(1-(2*dv-1)*(2*dv-1));
       if(WP){const S=WN-1,gx=Math.min(S,Math.max(0,du*S)),gy=Math.min(S,Math.max(0,dv*S)),ix=Math.min(S-1,gx|0),iy=Math.min(S-1,gy|0),tx=gx-ix,ty=gy-iy,
@@ -1659,7 +1662,7 @@ $('#btn-ov-all').onclick=()=>{const t=curT(),o={...ovOf(t,slot)},A=ovAll(),d=des
   for(const [k,v] of Object.entries(o)){if(k==='fold'||k==='shade'||k==='opacity')P[k]=v;else{PL[slot][k]=v;if(k==='top')PL.front.top=v;}}
   for(const key of Object.keys(A)){const [,s2,...nm]=key.split(':');if(s2!==slot||(nm.length&&(!d||nm.join(':')!==d.name)))continue;for(const k of Object.keys(o)){delete A[key][k];delete A[key][k+'@'];}if(!Object.keys(A[key]).length)delete A[key];ovMark(key);}
   ovSave();savePlacement();fineUI();scheduleRender();scheduleGrid();toast('Applied to every photo.');};
-$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0,yaw:0,bend:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,yaw:0,bend:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
+$('#btn-reset').onclick=()=>{const d0=slot==='front'?{size:.85,y:.1,x:0,wrap:.35,curve:0,rot:0,yaw:0,pitch:0,bend:0}:{size:.95,y:.5,x:0,wrap:.7,hem:HEM_IN,curve:0,rot:0,yaw:0,pitch:0,bend:0};delete PL[slot].cx;delete P.cx;Object.assign(PL[slot],d0);Object.assign(P,{fold:DEFAULTS.fold,shade:DEFAULTS.shade,opacity:DEFAULTS.opacity},d0);syncSliders();scheduleRender();savePlacement();scheduleGrid();};
 
 /* ---------- true size + DPI ---------- */
 function tsUI(){$('#ts-on').checked=TS.on;$('#ts-ctl').style.display=TS.on?'block':'none';
@@ -1688,7 +1691,7 @@ function baseFor(key,s){if(s===slot)return baseOf(key);const ps=slot;slot=s;try{
 function ovPhoto(t,s){const A=ovAll(),pk=ovPhotoKey(t,s),o=(pk&&A[pk])||{},r={};for(const [k,v] of Object.entries(o))if(!k.endsWith('@'))r[k]=v;return r;}
 function ovDesign(t,s){const A=ovAll(),pk=ovPhotoKey(t,s),dk=ovDesignKey(t,s),d=dk&&A[dk];if(!d)return {};if(pk&&A[pk]&&!d._only)return {};const r={...d};delete r._only;return r;}
 function ovOf(t,s){return {...ovPhoto(t,s),...ovDesign(t,s)};}
-const BASE_DEF={size:.85,y:.1,x:0,curve:0,rot:0,yaw:0,bend:0,wrap:.35};
+const BASE_DEF={size:.85,y:.1,x:0,curve:0,rot:0,yaw:0,pitch:0,bend:0,wrap:.35};
 function baseOf(key){if(key==='inches')return PL[slot].inches;if(key==='top')return PL.front.top;if(key==='cx')return typeof PL[slot].cx==='number'?PL[slot].cx:0;
   if(key==='hem')return typeof PL[slot].hem==='number'?PL[slot].hem:HEM_IN;if(key==='fold'||key==='shade'||key==='opacity')return P[key];
   return typeof PL[slot][key]==='number'?PL[slot][key]:(slot!=='front'&&key==='wrap'?.7:slot!=='front'&&key==='size'?.95:slot!=='front'&&key==='y'?.5:BASE_DEF[key]);}
@@ -1713,6 +1716,7 @@ function fineDefs(){const sl=slot!=='front',ts=TS.on,u=v=>TS.units==='px'?Math.r
     curve:K('curve',{lab:'Curve (arch)',min:-1,max:1,step:.01,fmt:v=>sgn(Math.round(v*100),x=>x+'')+(v?(v>0?' up':' down'):'')}),
     rot:K('rot',{lab:'Rotate',min:-45,max:45,step:.1,fmt:v=>sgn(+v.toFixed(1),x=>x+'°')}),
     yaw:K('yaw',{lab:'Turn (left / right)',min:-60,max:60,step:.5,fmt:v=>v===0?'0°':(v<0?'left ':'right ')+Math.abs(v)+'°'}),
+    pitch:K('pitch',{lab:'Turn (up / down)',min:-45,max:45,step:.5,fmt:v=>v===0?'0°':(v<0?'top away ':'top toward you ')+Math.abs(v)+'°'}),
     bend:K('bend',{lab:'Bend (sideways curve)',min:-1,max:1,step:.01,fmt:v=>v===0?'0':(v<0?'( bulge left ':') bulge right ')+Math.round(Math.abs(v)*100)}),
     wrap:K('wrap',{lab:'Wrap around body',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
     fold:K('fold',{lab:'Follow folds',min:0,max:1,step:.01,fmt:v=>Math.round(v*100)+'%'}),
@@ -1724,8 +1728,8 @@ function fineUI(){const D=fineDefs();{const t=curT();$('#fshow-ctl').style.displ
 function fineSet(id,v){const d=fineDefs()[id];v=Math.max(d.min,Math.min(d.max,v));d.set(v);$('#'+id).value=v;$('#v-'+id).textContent=d.fmt(v);
   if(id==='size'||id==='py')dpiUI();if(id==='size'&&document.activeElement!==$('#ts-in'))$('#ts-in').value=toU(PL[slot].inches);if(id==='py'&&slot==='front'&&document.activeElement!==$('#ts-collar'))$('#ts-collar').value=toU(PL.front.top);
   scheduleRender();scheduleGrid();}
-for(const id of ['size','py','px','curve','rot','yaw','bend','fshow','wrap','fold','shade','op'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
-$$('.nb').forEach(b=>{let tm=null;const go=()=>{const id=b.dataset.n,d=fineDefs()[id];fineSet(id,d.get()+(+b.dataset.d)*(id==='curve'||id==='bend'?.01:id==='rot'||id==='yaw'?.5:id==='fshow'?1:d.step*(TS.on||id==='py'&&slot!=='front'?1:2.5)));};
+for(const id of ['size','py','px','curve','rot','yaw','pitch','bend','fshow','wrap','fold','shade','op'])$('#'+id).addEventListener('input',e=>fineSet(id,+e.target.value));
+$$('.nb').forEach(b=>{let tm=null;const go=()=>{const id=b.dataset.n,d=fineDefs()[id];fineSet(id,d.get()+(+b.dataset.d)*(id==='curve'||id==='bend'?.01:id==='rot'||id==='yaw'||id==='pitch'?.5:id==='fshow'?1:d.step*(TS.on||id==='py'&&slot!=='front'?1:2.5)));};
   b.addEventListener('pointerdown',e=>{e.preventDefault();go();tm=setTimeout(function rep(){go();tm=setTimeout(rep,60);},400);});
   for(const ev of ['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>{clearTimeout(tm);});});
 function dpiUI(){const el=$('#dpi');if(!design){el.textContent='';return;}
@@ -1742,7 +1746,7 @@ function placeKey(v){const d=designs[v];return d?'place_'+v+':'+d.name:null;}
 let saveT;
 function savePlacement(){clearTimeout(saveT);saveT=setTimeout(()=>{const k=placeKey(slot);if(k)LS.set(k,{...PL[slot],fold:P.fold,shade:P.shade,opacity:P.opacity});},300);}
 function loadPlacement(v){const k=placeKey(v);const s=k&&LS.get(k,null);if(!s)return false;
-  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot','yaw','bend'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
+  for(const kk of ['size','y','x','wrap','inches','top','cx','hem','curve','rot','yaw','pitch','bend'])if(typeof s[kk]==='number')PL[v][kk]=s[kk];
   for(const kk of ['fold','shade','opacity'])if(typeof s[kk]==='number')P[kk]=s[kk];return true;}
 
 /* ---------- grid preview ---------- */
