@@ -857,7 +857,7 @@ function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;GUARD=viewOf(t)==='front'&&!!t._facing&&(s==='front'||s===t._facing);const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front'&&t._facing!==s,noHem:viewOf(t)==='front'&&t._facing===s,fmask:viewOf(t)==='front'&&!(t._facing===s&&!t._maskExact)?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;const DRW=drawnOn(t,s)||!!(edit&&edit.slot===s);GUARD=!DRW&&viewOf(t)==='front'&&!!t._facing&&(s==='front'||s===t._facing);const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):(DRW?{front:false,noHem:true,fmask:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))-turnDefault(t,s)}:{front:viewOf(t)==='front'&&t._facing!==s,noHem:viewOf(t)==='front'&&t._facing===s,fmask:viewOf(t)==='front'&&!(t._facing===s&&!t._maskExact)?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))})),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
   occApply(t,pack,out);
   ctx.putImageData(out,0,0);
 }
@@ -1231,7 +1231,7 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|sidechest|turned|approved|crop|cropdef|occ|occoff|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|sidechest|turned|approved|crop|cropdef|drawn|occ|occoff|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
@@ -1318,7 +1318,7 @@ async function saveQuad(t,quad){
     else{const m=memMine.find(x=>x.id===t.id);if(m){m.quad=t.quad;m.manual=t.manual;}}}
   renderList();
 }
-async function resetQuad(t){{const sc=LS.get("sidechest",{});delete sc[t.id];delete sc[t.id+":t"];LS.set("sidechest",sc);}const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':front'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
+async function resetQuad(t){LS.set('drawn',(m=>{delete m[t.id];return m;})(LS.get('drawn',{})));{const sc=LS.get("sidechest",{});delete sc[t.id];delete sc[t.id+":t"];LS.set("sidechest",sc);}const tu=LS.get('turns',{});delete tu[t.id+':left'];delete tu[t.id+':front'];delete tu[t.id+':right'];LS.set('turns',tu);const q=LS.get('quads',{});delete q[t.id];delete q[t.id+':left'];delete q[t.id+':right'];LS.set('quads',q);await reload();}
 async function renameTemplate(t,name){
   t.name=name;
   if(t.builtin){const n=LS.get('names',{});n[t.id]=name;LS.set('names',n);}
@@ -1424,6 +1424,11 @@ async function learnedLayout(t,lm,fc,A){if(!lm)return null;
     const ns=src.sleeves&&src.sleeves[fc]&&src.sleeves[fc].quad,sleeve=ns?map(ns,{x:Ns.x*As,y:Ns.y},{x:Nt.x*A,y:Nt.y}):null;
     return {src,chest,sleeve,k};}
   return null;}
+/* ---------- manual mode ----------
+   A print area you drew and saved yourself is followed exactly: the logo sits in that area at its true size, with fabric shading,
+   folds and the gentle curve, but none of the automatic helpers (arm-edge snapping, hem measuring, fabric trimming) move it. */
+function drawnOn(t,s){return !!(LS.get('drawn',{})[t.id]||{})[s];}
+function setDrawn(t,s,on){const m=LS.get('drawn',{}),o={...(m[t.id]||{})};if(on)o[s]=1;else delete o[s];if(Object.keys(o).length)m[t.id]=o;else delete m[t.id];LS.set('drawn',m);}
 function setApproved(t,on){if(on)freezeAreas(t);const m=LS.get('approved',{});if(on)m[t.id]=Date.now();else delete m[t.id];LS.set('approved',m);renderThumbs();approveUI();}
 function approveUI(){const t=curT(),b=$('#btn-approve');if(!b||!t)return;const on=isApproved(t);b.textContent=on?'✓ Approved — click to unapprove':'Approve this photo';b.classList.toggle('primary',!on);
   $('#appr-hint').textContent=on?'Every design uses this photo’s setup.':'Check the logo and sleeve spots look right on this photo, then approve. Set up once; every design reuses it.';}
@@ -1606,7 +1611,7 @@ $('#btn-apply-sim').onclick=async()=>{
     endEdit();renderList();toast('Applied to '+(others.length+1)+' photos.');scheduleGrid();
   }catch(e){toast('Couldn\'t apply the change.');}
 };
-$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;
+$('#btn-save-area').onclick=async()=>{const t=curT();if(!t)return;const q=editQuad;setDrawn(t,editSlot,true);
   if(viewOf(t)!=='front'&&editSlot==='front'){const m=LS.get('sidechest',{});m[t.id+(turnedOn(t)?':t':'')]=q.map(p=>({x:+p.x.toFixed(4),y:+p.y.toFixed(4)}));LS.set('sidechest',m);endEdit();toast('Front print area saved for this photo.');scheduleGrid();return;}
   try{if(editSlot!=='front')saveTurn(t,editSlot,editTurn);await saveArea(t,editSlot,q);endEdit();toast('Print area saved.');scheduleGrid();}catch(e){toast('Couldn\'t save the print area.');}};
 
@@ -2469,7 +2474,7 @@ async function cloudPull(){if(!CS.uid||!sb)return;CS.lastPull=Date.now();
   const cloud=(data&&data.data)||{},local=cloudSnapshot(),m=syncMeta();let changed=false,needPush=false;
   for(const k of new Set([...Object.keys(cloud),...Object.keys(local)])){const c=cloud[k],l=local[k];
     // per-photo maps merge photo by photo, so a newer save from another computer can't erase setups made here
-    const MAPK=/^(ov|approved|occ|occoff|sidefront|sidechest|turned|crop)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
+    const MAPK=/^(ov|approved|occ|occoff|sidefront|sidechest|turned|crop|drawn)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
     if(MAPK){const mv={...l.v,...c.v};if(JSON.stringify(mv)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(mv));changed=true;}m[k]=Math.max(c.t,l.t);if(JSON.stringify(mv)!==JSON.stringify(c.v))needPush=true;}
     else if(c&&(!l||c.t>=l.t)){if(!l||JSON.stringify(c.v)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(c.v));changed=true;}m[k]=c.t;}
     else if(l)needPush=true;}
