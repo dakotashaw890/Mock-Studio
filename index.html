@@ -300,6 +300,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <div class="row">
           <button class="primary" id="btn-dl">Download this one</button>
           <button id="btn-dl-all">Download selected (.zip)</button>
+          <button id="btn-dl-blank" title="The model photo itself, with no design on it">Download blank photo</button>
         </div>
         <div class="note" id="pf-linked" style="display:none"><div class="small"><strong>Linked to Printify:</strong> <span id="pf-linked-name"></span></div><div class="row" style="margin-top:6px"><button class="small primary" id="pf-push">Push placement to Printify</button><button class="small" id="pf-unlink">Unlink</button></div></div>
         <div class="row" style="margin-top:8px"><button id="btn-set">Etsy listing set (10 images)</button></div>
@@ -715,7 +716,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   const wth=curFlat?0:(P.wrap||0)*1.25, sinW=Math.sin(wth), arc=curArc;
   // turned torso: the chest is a rounder surface seen from the side, so the wrap strengthens with the turn
   const TT=sm?0:Math.max(-1.2,Math.min(1.2,curTurn+(P.yaw||0)*Math.PI/180)); // body turn + the design's own turn
-  const sinT=Math.sin(TT), sinWT=Math.min(Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(TT)/.3)),CAPTURN?.97-Math.abs(sinT):1), wthT=Math.asin(sinWT); /* capped so the turn never pushes part of the box past the body's edge (that cut designs off along a straight line) */
+  const sinT=Math.sin(TT), sinWT=Math.min(Math.max(.05,sinW+(.6-sinW)*Math.min(1,Math.abs(TT)/.3)),(.97-Math.abs(sinT))/1.4), wthT=Math.asin(sinWT); /* capped so the turn never pushes part of the box past the body's edge (that cut designs off along a straight line) */
   const m0=Mi[0],m1=Mi[1],m2=Mi[2],m3=Mi[3],m4=Mi[4],m5=Mi[5],m6=Mi[6],m7=Mi[7],m8=Mi[8];
   // front photos: find the arm's real outer edge on every row so the print stops at the silhouette
   let hE=null,sideF=null;
@@ -896,8 +897,8 @@ function poseChestQuad(lm){const a=lm[11],b=lm[12],ha=lm[23],hb=lm[24];if(!a||!b
 /* ---------- turned photos (the 2-photo pairs) ----------
    Which way the body faces decides everything: facing the right of the frame, the person's RIGHT shoulder is toward the camera,
    so the right sleeve is the one to print and the left sleeve (behind the body) is skipped. Facing left: the opposite. */
-function facingOf(t,lm){if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z||0);if(Math.abs(dz)>.25)return dz<0?'right':'left';}
-  if(t.facing)return t.facing;const m=/turned (left|right)/.exec(t.name||'');return m?m[1]:null;}
+function facingOf(t,lm){if(t.facing)return t.facing; // set when the pair was made (and checked then), so it's the most reliable
+  if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z||0);if(Math.abs(dz)>.12)return dz<0?'right':'left';}const m=/turned (left|right)/.exec(t.name||'');return m?m[1]:null;}
 // the near sleeve's print area, from this person's own arm: shoulder to the sleeve hem along the arm, logo just above the hem, square to the arm
 function turnedSleeveQuad(lm,s,fm,A,pk){const S=lm[s==='left'?11:12],E=lm[s==='left'?13:14];if(!S||!E||(S.visibility||0)<.5)return null;
   const walk=f=>{let hx=null,hy=null,miss=0;for(let k=0;k<=90;k++){const u=k/90*1.1,x=S.x+(E.x-S.x)*u,y=S.y+(E.y-S.y)*u;if(f(x,y)){hx=x;hy=y;miss=0;}else if(hx!==null&&++miss>3)break;}return hx===null?null:[hx,hy];};
@@ -1233,7 +1234,7 @@ async function reload(){
   let mine=[];
   if(idb){try{mine=(await idbTx('readonly',st=>st.getAll()))||[];}catch(e){mine=[];}}
   for(const m of mine){if(!localImgs.has(m.id))localImgs.set(m.id,URL.createObjectURL(m.blob));}
-  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,setId:m.setId||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
+  const own=memoryMode?memMine:mine.map(m=>({arc:m.view&&m.view!=='front'?.2:0,id:m.id,name:m.name,kind:m.kind,view:m.view||'front',scene:m.scene||null,sex:m.sex||null,setId:m.setId||null,seedSleeves:m.seedSleeves||null,pose:m.pose||null,facing:m.facing||null,group:'mine',quad:m.quad,sleeves:m.sleeves||{},manual:m.manual||{},body:m.body||null,createdAt:m.createdAt}));
   // hidden built-ins leave the studio but stay available as poses for generating new models
   poseTemplates=bAll;const b=bAll.filter(t=>!hidden.includes(t.id));
   templates=[...b,...own.sort((x,y)=>x.createdAt-y.createdAt)];
@@ -2063,6 +2064,7 @@ $('#btn-dl').onclick=async()=>{
       $('#busy').textContent='Zipping…';await saveFile(outName(t).replace(/ - [^-]*$/,'')+'-colors.zip',await zip.generateAsync({type:'blob'}));}}
   catch(e){toast('Export failed.');}finally{$('#busy').textContent='Rendering…';busy(false);}
 };
+$('#btn-dl-blank').onclick=async()=>{const t=curT();if(!t)return;try{const b=await tplBlob(t);await saveFile(safeName(t.name||t.id)+'-blank.jpg',b);}catch(e){toast('Couldn\'t get that photo.');}};
 $('#btn-dl-all').onclick=async()=>{
   const list=shown().filter(t=>designs[viewOf(t)]&&!excluded.has(t.id));if(!list.length){toast('Nothing selected that has a design yet.');return;}
   if(editMode){toast('Save or cancel the print area first.');return;}
