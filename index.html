@@ -1792,7 +1792,9 @@ $('#btn-lib').onclick=libOpen;$('#mi-lib').onclick=libOpen;$('#lib-close').oncli
 /* ---------- ComfyUI on this computer: pose-guided blank models ---------- */
 window.CF={lastErr:'',ok:false,sel:new Set(),stop:false,busy:false};
 const cfBase=()=>($('#cf-url').value||'http://127.0.0.1:8188').replace(/\/+$/,'');
-function cfPoseList(){return poseTemplates.filter(t=>viewOf(t)==='front'&&!NO_TURN.includes(t.id));} // pairs are made from front poses; raised-arm poses hide a sleeve
+// the generator keeps 4 poses: two men (hands in pockets, arms relaxed) and two women (hands close, arms relaxed); Arms varies them
+const GEN_POSES=['m01','m03','f04','f07'];
+function cfPoseList(){return poseTemplates.filter(t=>GEN_POSES.includes(t.id));}
 const poseRef=id=>poseTemplates.find(t=>t.id===id)||templates.find(t=>t.id===id);
 function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
   for(const t of cfPoseList()){const d=document.createElement('div');d.className='gtile'+(CF.sel.has(t.id)?' sel':'');d.style.cssText='position:relative;padding:0;cursor:pointer;outline:'+(CF.sel.has(t.id)?'3px solid var(--accent,#2563eb)':'none');
@@ -1964,7 +1966,7 @@ $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#c
   const per=+$('#cf-per').value,str=+$('#cf-str').value;
   // every model is a pair: one straight-on photo, turned ~30° each way by Qwen (turned right shows the right sleeve, turned left the left sleeve)
   const jobs=[];// [ref, opts]
-  const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))].filter(b0=>!NO_TURN.includes(b0));
+  const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))].filter(b0=>GEN_POSES.includes(b0));
   for(const b0 of bases)for(let k=1;k<=per;k++){const front=poseRef(b0);if(!front)continue;
     const o={scene:cfScene(),arms:cfArms(front.group==='women'),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),shared:{}};
     o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
