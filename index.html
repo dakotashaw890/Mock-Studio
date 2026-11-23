@@ -1769,7 +1769,7 @@ $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
 function cfSaveUrl(){let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/\/+$/,'');try{localStorage.setItem('ms_cfurl',JSON.stringify(v));}catch(e){}return v;}
 $('#cf-url').addEventListener('input',cfSaveUrl);
 $('#cf-url').onchange=()=>{$('#cf-url').value=cfSaveUrl();CF.ok=false;cfCheck();};
-function cfPrompt(text,img,seed,str){return {
+function cfPrompt(text,img,seed,str,W,H){W=W||1024;H=H||1280;return {
   '1':{class_type:'UNETLoader',inputs:{unet_name:'z_image_turbo_bf16.safetensors',weight_dtype:'default'}},
   '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen_3_4b.safetensors',type:'lumina2',device:'default'}},
   '3':{class_type:'VAELoader',inputs:{vae_name:'ae.safetensors'}},
@@ -1779,7 +1779,7 @@ function cfPrompt(text,img,seed,str){return {
   '7':{class_type:'ModelSamplingAuraFlow',inputs:{model:['6',0],shift:3}},
   '8':{class_type:'CLIPTextEncode',inputs:{clip:['2',0],text}},
   '9':{class_type:'ConditioningZeroOut',inputs:{conditioning:['8',0]}},
-  '10':{class_type:'EmptySD3LatentImage',inputs:{width:1024,height:1280,batch_size:1}},
+  '10':{class_type:'EmptySD3LatentImage',inputs:{width:W,height:H,batch_size:1}},
   '11':{class_type:'KSampler',inputs:{model:['7',0],positive:['8',0],negative:['9',0],latent_image:['10',0],seed,steps:8,cfg:1,sampler_name:'res_multistep',scheduler:'simple',denoise:1}},
   '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
   '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
@@ -1852,11 +1852,12 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   let pb=await pr.blob();const ZM=+(o.zoom||$('#cf-zoom').value||1);let ZA=null;
   if(ZM>1.001){const im=await loadImage(URL.createObjectURL(pb)),W=im.naturalWidth,H=im.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(im,0,0);
     const d=x.getImageData(0,0,W,H).data;let top=H;for(let y=0;y<H&&top===H;y+=2)for(let i=0;i<W;i+=2){const k=(y*W+i)*4;if(d[k]+d[k+1]+d[k+2]>60){top=y;break;}}
-    ZA={x:.5,y:Math.max(0,top/H-.07),z:ZM};x.fillStyle='#000';x.fillRect(0,0,W,H);x.setTransform(ZM,0,0,ZM,ZA.x*W*(1-ZM),ZA.y*H*(1-ZM));x.drawImage(im,0,0);pb=await canvasBlob(c,'image/png');}
+    // the AI ignored a zoomed-in pose guide (it drew the person at the usual size), so Framing now renders a bigger picture with the normal-size pose and crops it
+    ZA={x:.5,y:Math.max(0,top/H-.07),z:ZM};const c2=document.createElement('canvas');c2.width=Math.round(1024*ZM/16)*16;c2.height=Math.round(1280*ZM/16)*16;c2.getContext('2d').drawImage(im,0,0,c2.width,c2.height);ZA.W=c2.width;ZA.H=c2.height;pb=await canvasBlob(c2,'image/png');}
   o._za=ZA;const fd=new FormData();fd.append('image',new File([pb],'ms-pose-'+pid+(ZA?'-z'+ZM:'')+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the pose image.');const u=await up.json();
   const seed=o.seed||Math.floor(Math.random()*2**48);
-  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,o.angle)+(ZA?(ZA.z>1.45?'\n\nClose medium shot: framed from the waist to just above the head, so the t-shirt fills most of the frame. The camera is close.':'\n\nMedium shot: framed from the hips to just above the head, so the t-shirt fills a large part of the frame. The camera is close.'):''),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str),client_id:'mockup-studio'})});
+  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,o.angle),u.subfolder?u.subfolder+'/'+u.name:u.name,seed,str,ZA&&ZA.W,ZA&&ZA.H),client_id:'mockup-studio'})});
   const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
   const id=j.prompt_id;let out=null;
   for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+id)).json();const e=h[id];
@@ -1865,7 +1866,9 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
   const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
   let ibf=ib;
-  if(viewOf(ref)!=='front'){try{const im=await loadImage(URL.createObjectURL(ib));const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);
+  if(ZA&&ZA.W){try{const im=await loadImage(URL.createObjectURL(ib)),W=im.naturalWidth,H=im.naturalHeight,cw=W/ZA.z,ch=H/ZA.z,sx=Math.max(0,Math.min(W-cw,ZA.x*W*(1-1/ZA.z))),sy=Math.max(0,Math.min(H-ch,ZA.y*H*(1-1/ZA.z)));
+    const c=document.createElement('canvas');c.width=Math.round(cw);c.height=Math.round(ch);const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,sx,sy,cw,ch,0,0,c.width,c.height);ibf=await canvasBlob(c,'image/png');}catch(e){ZA=null;}}
+  if(viewOf(ref)!=='front'){try{const im=await loadImage(URL.createObjectURL(ibf));const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);
     const f=await detectFacing(c),want=viewOf(ref); // a left-sleeve photo faces the left edge, a right-sleeve photo the right edge
     if(f&&f!==want){const c2=document.createElement('canvas');c2.width=c.width;c2.height=c.height;const x=c2.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(c,0,0);
       ibf=await canvasBlob(c2,'image/png');}}catch(e){}}
