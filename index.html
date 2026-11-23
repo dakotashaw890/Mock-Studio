@@ -858,7 +858,9 @@ function renderTo(pack,t,ctx,edit){
 let poseP=null;
 function loadPose(){if(poseP)return poseP;poseP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='vendor/pose/pose.js';sc.onload=async()=>{try{const ps=new Pose({locateFile:f=>'vendor/pose/'+f});
   ps.setOptions({modelComplexity:1,staticImageMode:true,smoothLandmarks:false,enableSegmentation:true,minDetectionConfidence:.5});let cb=null;ps.onResults(r=>{if(cb)cb(r);});await ps.initialize();
-  res({run:img=>new Promise(r2=>{cb=r2;ps.send({image:img});})});}catch(e){rej(e);}};sc.onerror=rej;document.head.append(sc);});return poseP;}
+  // one photo at a time: overlapping calls used to overwrite each other's callback, so a photo could get another photo's body (or none)
+  let chain=Promise.resolve();const one=img=>new Promise(r2=>{let done=false;const fin=v=>{if(!done){done=true;r2(v);}};cb=fin;setTimeout(()=>fin(null),15000);Promise.resolve(ps.send({image:img})).catch(()=>fin(null));});
+  res({run:img=>{const p2=chain.then(()=>one(img));chain=p2.catch(()=>null);return p2;}});}catch(e){rej(e);}};sc.onerror=rej;document.head.append(sc);});return poseP;}
 async function detectFacing(canvas){ // 'left' or 'right': which image edge a profile is facing (nose ahead of the ears)
   const ps=await loadPose();const r=await ps.run(canvas);if(!r||!r.poseLandmarks)return null;const L=r.poseLandmarks;
   const nose=L[0];if(!nose)return null;
@@ -886,7 +888,7 @@ async function sideArmSeed(t,fm,p){if(!fm)return null;try{const img=await tplIma
     const cx=hx-ux/n*sz*.6,cy=hy-uy/n*sz*.6*A; // centre a bit above the hem, along the arm
     return [{x:cx-sz/2,y:cy-sz*A/2},{x:cx+sz/2,y:cy-sz*A/2},{x:cx+sz/2,y:cy+sz*A/2},{x:cx-sz/2,y:cy+sz*A/2}];}catch(e){return null;}}
 const POSEC=new Map();
-async function poseOf(t){if(POSEC.has(t.id))return POSEC.get(t.id);let r=null;try{const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,640);r=await (await loadPose()).run(drawScaled(img,w,h));}catch(e){}POSEC.set(t.id,r);return r;}
+async function poseOf(t){if(POSEC.has(t.id))return POSEC.get(t.id);let r=null;try{const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,640);r=await (await loadPose()).run(drawScaled(img,w,h));}catch(e){}if(r&&r.poseLandmarks)POSEC.set(t.id,r);return r;}
 // a generated photo's own body decides where the chest print area sits (the reference pose is only a rough start; turned photos move a lot)
 // ratios measured on the 20 built-in photos: print area top at the shoulder line, 92% of shoulder span wide, 77% of shoulder-to-hip tall
 function poseChestQuad(lm){const a=lm[11],b=lm[12],ha=lm[23],hb=lm[24];if(!a||!b||!ha||!hb||(a.visibility||0)<.5||(b.visibility||0)<.5)return null;
@@ -897,8 +899,8 @@ function poseChestQuad(lm){const a=lm[11],b=lm[12],ha=lm[23],hb=lm[24];if(!a||!b
 /* ---------- turned photos (the 2-photo pairs) ----------
    Which way the body faces decides everything: facing the right of the frame, the person's RIGHT shoulder is toward the camera,
    so the right sleeve is the one to print and the left sleeve (behind the body) is skipped. Facing left: the opposite. */
-function facingOf(t,lm){if(t.facing)return t.facing; // set when the pair was made (and checked then), so it's the most reliable
-  if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z||0);if(Math.abs(dz)>.12)return dz<0?'right':'left';}const m=/turned (left|right)/.exec(t.name||'');return m?m[1]:null;}
+function facingOf(t,lm){if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z||0);if(Math.abs(dz)>.25)return dz<0?'right':'left';} // the photo itself, when it's clear
+  if(t.facing)return t.facing;if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z||0);if(Math.abs(dz)>.1)return dz<0?'right':'left';}const m=/turned (left|right)/.exec(t.name||'');return m?m[1]:null;}
 // the near sleeve's print area, from this person's own arm: shoulder to the sleeve hem along the arm, logo just above the hem, square to the arm
 // default placement for turned photos, measured from your own hand-placed examples (Nov 22): relative to the shoulders,
 // the chest print sits just inside the far shoulder line, its top ~0.3 shoulder-widths below the shoulders, ~1.05 shoulder-widths wide;
@@ -1194,7 +1196,7 @@ async function ensureFit(t){
     }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
       if(t.fit[s]!=='manual'&&f.quad&&f.conf==='ok')t.quad=f.quad;
       if(!r.chest)r.chest=fitSideChest(t,await previewPack(t),await sideMask(t))||{};if(r.chest.quad){t.chestQ=r.chest.quad;t.chestGuess=!!r.chest.guess;t.chestAreaIn=r.chest.areaIn;t.chestClip={x:r.chest.armX,y:r.chest.hemY};}}
-  }catch(e){}
+  }catch(e){console.warn('fit failed',t.id,e);}
 }
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
