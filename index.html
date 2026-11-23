@@ -436,15 +436,14 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends the prompt above to ComfyUI on your PC. Each pose comes from a calibrated built-in photo, so new models arrive with their print areas already set. Nothing leaves your computer.</p>
     <div class="row small" style="gap:8px;align-items:center;margin-bottom:8px"><span id="cf-st" class="status">Not connected</span><button class="small" id="cf-check">Connect</button>
       <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" autocomplete="off" value="http://127.0.0.1:8188" style="width:260px" title="On the computer running ComfyUI: http://127.0.0.1:8188. From another computer: your Tailscale address, e.g. https://your-pc.tailnet-name.ts.net"></label></div>
-    <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="front">Front poses</button><button class="small" data-pf="side">Side poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
+    <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="all">All poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".5" max="1.2" step=".05" value="1" style="width:110px"> <span id="cf-strv">1.00</span></label>
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px" title="How close the camera is. Closer makes the model (and the shirt) bigger in the photo so small graphics read better.">Framing <select id="cf-zoom"><option value="1">Standard</option><option value="1.35" selected>Closer (hips up)</option><option value="1.55">Close (waist up)</option></select></label>
-      <label class="row small" style="gap:4px" title="Three-quarter turn: the body turned about 45° with the face to the camera, so a chest graphic reads from an angle. Used for the front photo of each set.">Angle <select id="cf-angle"><option value="">Straight on</option><option value="s">Slight turn (shows a sleeve)</option><option value="q">Three-quarter turn</option><option value="mix">Mix</option></select></label>
-      <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="hair">Hand in hair</option><option value="mix" selected>Mix it up</option></select></label>
-      <label class="row small" style="gap:4px" title="For each pose, also makes the matching left and right side views with the same person, seed and scene, so a listing set belongs together"><input type="checkbox" id="cf-set" checked> <span id="cf-set-lab">Matching set (front + both sides)</span></label>
+      <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="mix" selected>Mix it up</option></select></label>
+      <span class="small muted" title="Each model is one straight-on photo turned about 30° each way by the Qwen edit model, so one photo shows the left sleeve and the other the right">Each model = 2 photos: turned left + turned right</span>
       <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
       <div class="row small" style="gap:8px;display:none"><span id="cf-colq" class="muted"></span><button class="small" id="cf-colstop">Stop colors</button></div>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
@@ -849,7 +848,7 @@ function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front',fmask:viewOf(t)==='front'?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front'&&t._facing!==s,fmask:viewOf(t)==='front'&&!(t._facing===s&&!t._maskExact)?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
   occApply(t,pack,out);
   ctx.putImageData(out,0,0);
 }
@@ -894,6 +893,23 @@ function poseChestQuad(lm){const a=lm[11],b=lm[12],ha=lm[23],hb=lm[24];if(!a||!b
   const dz=(a.z||0)-(b.z||0),turned=Math.abs(dz)>.3,farX=dz>0?a.x:b.x; // the far shoulder has the larger z
   let cx=(a.x+b.x)/2;if(turned)cx+=(farX-cx)*.12; // turned body: the breastbone sits a little toward the far shoulder
   const w=span*.92,h=tor*.77,top=shy+tor*.005;return [{x:cx-w/2,y:top},{x:cx+w/2,y:top},{x:cx+w/2,y:top+h},{x:cx-w/2,y:top+h}];}
+/* ---------- turned photos (the 2-photo pairs) ----------
+   Which way the body faces decides everything: facing the right of the frame, the person's RIGHT shoulder is toward the camera,
+   so the right sleeve is the one to print and the left sleeve (behind the body) is skipped. Facing left: the opposite. */
+function facingOf(t,lm){if(lm&&lm[11]&&lm[12]){const dz=(lm[12].z||0)-(lm[11].z||0);if(Math.abs(dz)>.25)return dz<0?'right':'left';}
+  if(t.facing)return t.facing;const m=/turned (left|right)/.exec(t.name||'');return m?m[1]:null;}
+// the near sleeve's print area, from this person's own arm: shoulder to the sleeve hem along the arm, logo just above the hem, square to the arm
+function turnedSleeveQuad(lm,s,fm,A,pk){const S=lm[s==='left'?11:12],E=lm[s==='left'?13:14];if(!S||!E||(S.visibility||0)<.5)return null;
+  const walk=f=>{let hx=null,hy=null,miss=0;for(let k=0;k<=90;k++){const u=k/90*1.1,x=S.x+(E.x-S.x)*u,y=S.y+(E.y-S.y)*u;if(f(x,y)){hx=x;hy=y;miss=0;}else if(hx!==null&&++miss>3)break;}return hx===null?null:[hx,hy];};
+  let hit=walk(fm);
+  // the shirt outline can miss the arm: fall back to "looks like the sleeve's own fabric" (colour taken just below the shoulder)
+  if(!hit&&pk){const {w,h,data}=pk,px=(x,y)=>{const X=Math.min(w-1,Math.max(0,Math.round(x*w))),Y=Math.min(h-1,Math.max(0,Math.round(y*h)));return (Y*w+X)*4;};
+    const rx=S.x+(E.x-S.x)*.15,ry=S.y+(E.y-S.y)*.15,rs=[[],[],[]];for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const i=px(rx+a*.004,ry+b*.004);for(let c=0;c<3;c++)rs[c].push(data[i+c]);}
+    const ref=rs.map(v=>v.sort((a,b)=>a-b)[12]);hit=walk((x,y)=>{const i=px(x,y);return Math.abs(data[i]-ref[0])+Math.abs(data[i+1]-ref[1])+Math.abs(data[i+2]-ref[2])<70;});}
+  if(!hit)return null;const hx=hit[0],hy=hit[1];const sx=S.x*A,sy=S.y,ex=hx*A,ey=hy,L=Math.hypot(sx-ex,sy-ey);if(L<.03)return null;
+  const vx=(sx-ex)/L,vy=(sy-ey)/L,px=-vy,py=vx,b=L*.62,cx=ex+vx*L*.42,cy=ey+vy*L*.42; // v: up the arm toward the shoulder
+  const P=(a,c)=>({x:(cx+px*a*b/2+vx*c*b/2)/A,y:cy+py*a*b/2+vy*c*b/2});
+  const right=px>0?1:-1;return [P(-right,1),P(right,1),P(right,-1),P(-right,-1)];}
 // arms the camera can't really see on a turned photo (far arm, elbow hidden) get no sleeve print by default
 function farHidden(lm,s){const S=s==='left'?11:12,O=s==='left'?12:11,E=s==='left'?13:14;if(!lm||!lm[S]||!lm[O])return false;return (lm[S].z||0)-(lm[O].z||0)>.35&&(lm[E].visibility||0)<.6;}
 async function armSeeds(t,fm,p){try{const r=await poseOf(t);
@@ -1122,7 +1138,7 @@ async function ensureFit(t){
       // generated photos: start the sleeve search from this person's own arms (shoulder to elbow), not the reference pose
       if(fm&&!t.builtin){const ps=await armSeeds(t,fm,p);if(ps)t.seedSleeves={...(t.seedSleeves||{}),...ps};}
       if(!t.builtin&&viewOf(t)==='front'){const pr=await poseOf(t);const lm=pr&&pr.poseLandmarks;
-        if(lm){t._farHide={left:farHidden(lm,'left'),right:farHidden(lm,'right')};if(!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'))){const pq=poseChestQuad(lm);if(pq)t.quad=pq;} /* photos you already set up keep their old area, so your saved adjustments still land where you put them */}}
+        if(lm){if(!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'))){const pq=poseChestQuad(lm);if(pq)t.quad=pq;} /* photos you already set up keep their old area, so your saved adjustments still land where you put them */}}
       if(viewOf(t)==='front'){FIT_MASK=fm;let c;try{c=fitChest(t,p);}finally{FIT_MASK=null;}
         if(c&&c.ok&&!isManual(t,'front')){ // anchor the chest print to the neckline
           let q=t.quad.map(v=>({...v}));const qx=q.map(v=>v.x),qy=q.map(v=>v.y);
@@ -1136,8 +1152,12 @@ async function ensureFit(t){
           t.chestTurn=bodyTurn(t); if(!t.builtin)t.areaIn=ain;
         }
         FIT_MASK=fm;try{r=fitFront(t,p);}finally{FIT_MASK=null;}r.quad=t.quad;r.chestTurn=t.chestTurn;
+        // turned photo: print the sleeve facing the camera (placed from the arm itself, outer side toward the camera), skip the one behind the body
+        if(!t.builtin&&fm){const pr=await poseOf(t),lm=pr&&pr.poseLandmarks,fc=lm?facingOf(t,lm):null;
+          if(fc){const near=fc,far=fc==='right'?'left':'right',q=turnedSleeveQuad(lm,near,fm,p.w/p.h,p);r.sleeves=r.sleeves||{};
+            if(q)r.sleeves[near]={quad:q,conf:'ok',turn:0};r.sleeves[far]=null;r.farHide={[far]:true};r.facing=fc;}}
         // generated photos: a fitted sleeve whose outer side isn't on the sleeve's real outer edge falls back to the arm-based box
-        if(fm&&r.sleeves)for(const sd of ['left','right']){const f=r.sleeves[sd];if(!f||!f.quad)continue;const dS=sd==='left'?1:-1,q=f.quad;
+        if(fm&&r.sleeves)for(const sd of ['left','right']){const f=r.sleeves[sd];if(!f||!f.quad||typeof f.turn==='number')continue;const dS=sd==='left'?1:-1,q=f.quad;
           const ox=dS>0?Math.max(...q.map(v=>v.x)):Math.min(...q.map(v=>v.x)),qy=q.reduce((a,v)=>a+v.y,0)/4,qw=Math.max(...q.map(v=>v.x))-Math.min(...q.map(v=>v.x));
           let ex=ox,mx=0;for(let k=1;k<150;k++){const x=ox+dS*k*.002;if(fm(x,qy)){ex=x;mx=0;}else if(++mx>3)break;}
           if(Math.abs(ex-ox)>qw*.25||!fm(ox-dS*qw*.2,qy))r.sleeves[sd]={conf:'low'};}
@@ -1149,14 +1169,14 @@ async function ensureFit(t){
       else r={side:fitSide(t,p)};
       fitRes.set(t.id,r);}
     else if(viewOf(t)==='front'&&r.quad&&!isManual(t,'front')){t.quad=r.quad;t.chestTurn=r.chestTurn;}
-    t.fit={};
+    t.fit={};t._farHide=r.farHide||null;t._facing=r.facing||null;
     if(viewOf(t)==='front'){
       if(!t.builtin&&r.areaIn)t.areaIn=r.areaIn;
       t.sleeves=t.sleeves||{};
       for(const s of ['left','right']){const f=r.sleeves&&r.sleeves[s];const seed=t.seedSleeves&&t.seedSleeves[s];if(!f&&!seed)continue;
         t.fit[s]=isManual(t,s)?'manual':f?f.conf:'low';
         if(isManual(t,s))continue;
-        if(f&&f.quad&&f.conf==='ok')t.sleeves[s]={...(t.sleeves[s]||{}),quad:f.quad};
+        if(f&&f.quad&&f.conf==='ok')t.sleeves[s]={...(t.sleeves[s]||{}),quad:f.quad,...(typeof f.turn==='number'?{turn:f.turn}:{})};
         else if(!(t.sleeves[s]&&t.sleeves[s].quad)&&(seed||f&&f.quad))t.sleeves[s]={...(t.sleeves[s]||{}),quad:seed||f.quad}; // never leave a photo without a sleeve area
       }
     }else{const f=r.side,s=viewOf(t);t.fit[s]=isManual(t,s)&&!t.builtin?'manual':(t.builtin&&isManual(t,s)?'manual':f.conf);
@@ -1772,7 +1792,7 @@ $('#btn-lib').onclick=libOpen;$('#mi-lib').onclick=libOpen;$('#lib-close').oncli
 /* ---------- ComfyUI on this computer: pose-guided blank models ---------- */
 window.CF={lastErr:'',ok:false,sel:new Set(),stop:false,busy:false};
 const cfBase=()=>($('#cf-url').value||'http://127.0.0.1:8188').replace(/\/+$/,'');
-function cfPoseList(){return poseTemplates;}
+function cfPoseList(){return poseTemplates.filter(t=>viewOf(t)==='front'&&!NO_TURN.includes(t.id));} // pairs are made from front poses; raised-arm poses hide a sleeve
 const poseRef=id=>poseTemplates.find(t=>t.id===id)||templates.find(t=>t.id===id);
 function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
   for(const t of cfPoseList()){const d=document.createElement('div');d.className='gtile'+(CF.sel.has(t.id)?' sel':'');d.style.cssText='position:relative;padding:0;cursor:pointer;outline:'+(CF.sel.has(t.id)?'3px solid var(--accent,#2563eb)':'none');
@@ -1782,7 +1802,7 @@ function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
     c.append(a,b);const sp=document.createElement('span');sp.textContent=t.id.toUpperCase()+(viewOf(t)==='front'?'':' side');d.append(c,sp);
     d.onclick=()=>{CF.sel.has(t.id)?CF.sel.delete(t.id):CF.sel.add(t.id);cfRenderPoses();};box.append(d);}
   $('#cf-n').textContent=CF.sel.size+' selected';$('#cf-go').disabled=!CF.ok||!CF.sel.size||CF.busy;}
-$$('[data-pf]').forEach(b=>b.onclick=()=>{const f=b.dataset.pf;for(const t of cfPoseList()){const fr=viewOf(t)==='front';if(f==='front'&&fr||f==='side'&&!fr||f===t.group)CF.sel.add(t.id);}cfRenderPoses();});
+$$('[data-pf]').forEach(b=>b.onclick=()=>{const f=b.dataset.pf;for(const t of cfPoseList())if(f==='all'||f===t.group)CF.sel.add(t.id);cfRenderPoses();});
 $('#cf-none').onclick=()=>{CF.sel.clear();cfRenderPoses();};
 async function cfCheck(){$('#cf-st').textContent='Connecting…';
   try{const r=await fetch(cfBase()+'/object_info/ModelPatchLoader');if(!r.ok)throw 0;const j=await r.json();
@@ -1791,7 +1811,7 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
-for(const id of ['cf-set','cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-angle','cf-zoom']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
+for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -1844,12 +1864,11 @@ function menExtras(){const x=[];if(Math.random()<.35)x.push('wearing '+pick(VARY
 const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
 function cfScene(){const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=COOL.concat(v==='any'?['studio']:[]);return ks[Math.floor(Math.random()*ks.length)];}
 const NO_TURN=['m08','f02','f05']; // hand-raised poses: turned skeletons came out broken
-function cfSetLab(){const l=$('#cf-set-lab');if(l)l.textContent=$('#cf-angle').value==='s'?'Matching set (turned left + turned right)':'Matching set (front + both sides)';}
-setTimeout(()=>{const a=$('#cf-angle');if(a){a.addEventListener('change',cfSetLab);cfSetLab();}},1000);
-function cfAngle(){const v=$('#cf-angle').value,d=Math.random()<.5?'l':'r';return v==='q'?'q'+d:v==='s'?'s'+d:v==='mix'?['','s'+d,'q'+d][Math.floor(Math.random()*3)]:'';}
+function cfSetLab_unused(){const l=$('#cf-set-lab');if(l)l.textContent=$('#cf-angle').value==='s'?'Matching set (turned left + turned right)':'Matching set (front + both sides)';}
+function cfAngle(){const v='s',d=Math.random()<.5?'l':'r';return v==='q'?'q'+d:v==='s'?'s'+d:v==='mix'?['','s'+d,'q'+d][Math.floor(Math.random()*3)]:'';}
 function cfArms(woman){const v=$('#cf-arms').value;
   if(!woman){if(v==='mix')return ['','','pocket','pocket','pocket','hip'][Math.floor(Math.random()*6)];return v==='hair'?'pocket':v;} // men: hands in pockets or relaxed, never hand-in-hair
-  return v==='mix'?['','hips','hip','pocket','hair','hip','pocket'][Math.floor(Math.random()*7)]:v;}
+  return v==='mix'?['','hips','hip','pocket','hip','pocket'][Math.floor(Math.random()*6)]:v==='hair'?'':v;}
 const MAN_POSE={'':'arms hanging relaxed and natural at his sides, a relaxed confident stance with his weight on one leg',pocket:'hands tucked into the front pockets of his jeans, a relaxed confident stance with his weight on one leg',
   hip:'one hand resting on his belt at the hip, the other arm relaxed at his side, a confident stance',hips:'both hands resting on his belt at the hips, a strong confident stance'};
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
@@ -1910,7 +1929,7 @@ async function cfSaveGen(ref,ibf,o,n,ZA,fname){
   const f=new File([ibf],fname,{type:ibf.type||'image/png'});
   const PS=.9,zt=v=>ZA?{x:ZA.x+(v.x-ZA.x)*ZA.z,y:ZA.y+(v.y-ZA.y)*ZA.z}:v,tq=q=>q.map(v=>zt({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre, then by the Framing zoom
   const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=tq(ref.sleeves[k].quad);
-  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:tq(ref.quad),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,quiet:true});
+  const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:tq(ref.quad),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,facing:o.angle==='sl'?'right':o.angle==='sr'?'left':null,quiet:true});
   return {newId,url:URL.createObjectURL(ibf),name};}
 /* slight turn: Z-Image Turbo won't turn the body from a pose guide, so make one straight-on photo, then have the Qwen edit model
    turn that photo left and right. Both turned photos come from the same base, so the person matches exactly. */
@@ -1942,17 +1961,14 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   try{const im=await loadImage(URL.createObjectURL(ob)),bi=await loadImage(URL.createObjectURL(b.blob));if(im.naturalWidth!==bi.naturalWidth){const c=drawScaled(im,bi.naturalWidth,bi.naturalHeight);ob=await canvasBlob(c,'image/png');}}catch(e){}
   return cfSaveGen(ref,ob,o,n,b.za,out.filename);}
 $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#cf-go').disabled=true;$('#cf-stop').style.display='';
-  const per=+$('#cf-per').value,str=+$('#cf-str').value,setMode=$('#cf-set').checked;
+  const per=+$('#cf-per').value,str=+$('#cf-str').value;
+  // every model is a pair: one straight-on photo, turned ~30° each way by Qwen (turned right shows the right sleeve, turned left the left sleeve)
   const jobs=[];// [ref, opts]
-  if(setMode){const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))];
-    for(const b0 of bases)for(let k=1;k<=per;k++){const front=poseRef(b0);if(!front)continue;
-      const o={scene:cfScene(),arms:cfArms(front.group==='women'),angle:cfAngle(),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
-      o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
-      // Slight turn: the set is two photos of the same person, turned left and turned right (each shows the chest print and one sleeve), no side profiles.
-      // Poses with a hand raised to the head have no turned version, so they keep the usual front + both sides.
-      if(o.angle&&o.angle[0]==='s'&&!NO_TURN.includes(b0)){o.shared={};for(const a of ['sl','sr'])jobs.push([front,{...o,angle:a},k]);}
-      else for(const id of [b0,b0+'l',b0+'r']){const r=poseRef(id);if(r)jobs.push([r,{...o,angle:id===b0?(o.angle&&o.angle[0]==='s'?'':o.angle):''},k]);}}}
-  else for(const id of CF.sel){const r=poseRef(id);if(r)for(let k=1;k<=per;k++)jobs.push([r,{scene:cfScene(),arms:cfArms(r.group==='women'),angle:viewOf(r)==='front'?cfAngle():''},k]);}
+  const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))].filter(b0=>!NO_TURN.includes(b0));
+  for(const b0 of bases)for(let k=1;k<=per;k++){const front=poseRef(b0);if(!front)continue;
+    const o={scene:cfScene(),arms:cfArms(front.group==='women'),person:cfPerson(front),seed:Math.floor(Math.random()*2**48),setId:'set'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),shared:{}};
+    o.setName=(front.group==='women'?'Woman':'Man')+' set '+o.setId.slice(-4).toUpperCase();
+    for(const a of ['sl','sr'])jobs.push([front,{...o,angle:a},k]);}
   const total=jobs.length;let done=0,fails=0;const newIds=[];
   try{for(const [ref,o,k] of jobs){if(CF.stop)break;done++;$('#cf-log').textContent='Generating '+done+' of '+total+' ('+(o.setName?o.setName+', ':'')+ref.id.toUpperCase()+' pose)… the first one takes longer while ComfyUI loads the models.';
       try{const r=await cfOne(ref,str,k,o);newIds.push(r.newId);const d=document.createElement('div');d.className='gtile';const im=document.createElement('img');im.src=r.url;im.style.cssText='width:100%;border-radius:8px';
@@ -1971,13 +1987,13 @@ function cropDefZ(){return LS.get('cropdef',{z:1}).z||1;}
 function cropRect(t,w,h,A){let cw,ch;if(w/h>A){ch=h;cw=h*A;}else{cw=w;ch=w/A;}const c=cropOf(t),z=Math.max(1,c?c.z:cropDefZ());cw/=z;ch/=z;
   let cx,cy;if(c&&c.cx!=null){cx=c.cx*w;cy=c.cy*h;}else{cx=t.quad.reduce((a,p)=>a+p.x,0)/4*w;const qc=t.quad.reduce((a,p)=>a+p.y,0)/4*h;cy=qc-ch*.45+ch/2;}
   const sx=Math.min(w-cw,Math.max(0,cx-cw/2)),sy=Math.min(h-ch,Math.max(0,cy-ch/2));return {sx,sy,cw,ch};}
-function cropAspect(key,w,h){if(key==='closeup')return null;const sz=SIZES[key];return sz?sz[0]/sz[1]:w/h;}
+function cropAspect(key,w,h){if(key==='closeup'||key==='sleeveclose')return null;const sz=SIZES[key];return sz?sz[0]/sz[1]:w/h;}
 async function renderCanvas(t,sizeKey){
   await ensureFit(t);const ss=await shirtSrc(t);const img=ss.img;const pack=makePack(img,FULL_MAX,ss.rc);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;renderTo(pack,t,c.getContext('2d'));
   const key=sizeKey||$('#out-size').value;
-  if(key==='closeup'){const q=t.quad.map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
-    const bw=Math.max(...xs)-Math.min(...xs),bh=Math.max(...ys)-Math.min(...ys),side=Math.min(pack.w,pack.h,Math.max(bw,bh)*1.7);
+  if(key==='closeup'||key==='sleeveclose'){const sq=key==='sleeveclose'&&t.sleeves&&t.sleeves[t._facing||t.facing]&&t.sleeves[t._facing||t.facing].quad;const q=(sq||t.quad).map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
+    const bw=Math.max(...xs)-Math.min(...xs),bh=Math.max(...ys)-Math.min(...ys),side=Math.min(pack.w,pack.h,Math.max(bw,bh)*(key==="sleeveclose"?3:1.7));
     const cx=(Math.max(...xs)+Math.min(...xs))/2,cy=(Math.max(...ys)+Math.min(...ys))/2;
     const sx=Math.min(pack.w-side,Math.max(0,cx-side/2)),sy=Math.min(pack.h-side,Math.max(0,cy-side/2));
     const W=Math.round(Math.min(2000,Math.max(1200,side*1.5)));const o=document.createElement('canvas');o.width=W;o.height=W;const x=o.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(c,sx,sy,side,side,0,0,W,W);stamp(o);return o;}
@@ -2067,10 +2083,13 @@ function listingSteps(){
   const sib=v=>hero.setId?templates.find(x=>x.setId===hero.setId&&viewOf(x)===v):null;
   const L=sib('left')||byId(hero.id+'l'),R=sib('right')||byId(hero.id+'r');
   const steps=[[hero,'sq','hero'],[hero,'closeup','print-closeup']];
+  // turned pairs: the other photo of the pair, then a close-up of each visible sleeve
+  const mate=hero.setId?templates.find(x=>x.setId===hero.setId&&x.id!==hero.id&&viewOf(x)==='front'):null;
+  if(mate){steps.push([mate,'sq','other-side']);for(const x of [hero,mate]){const s=x._facing||x.facing;if(s&&designs[s])steps.push([x,'sleeveclose',s+'-sleeve-closeup']);}}
   if(L&&(designs.left||designs.front))steps.push([L,'sq','left-side']);
   if(R&&(designs.right||designs.front))steps.push([R,'sq','right-side']);
   if(L&&designs.left)steps.push([L,'closeup','sleeve-closeup']);
-  const pool=shown().filter(x=>viewOf(x)==='front'&&x.id!==hero.id&&!excluded.has(x.id));
+  const pool=shown().filter(x=>viewOf(x)==='front'&&x.id!==hero.id&&(!mate||x.id!==mate.id)&&!excluded.has(x.id));
   const other=pool.filter(x=>x.group!==hero.group),same=pool.filter(x=>x.group===hero.group),mix=[];
   while((other.length||same.length)&&mix.length<9){if(other.length)mix.push(other.shift());if(same.length)mix.push(same.shift());}
   for(const x of mix){if(steps.length>=9)break;steps.push([x,'sq','model']);}
