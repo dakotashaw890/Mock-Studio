@@ -649,7 +649,7 @@ function designSampled(tw,th){
 }
 
 /* ---------- compositor ---------- */
-let curTurn=0,curFlat=false,CAPTURN=false;const TURN_RAD=.7;
+let curTurn=0,curFlat=false,CAPTURN=false,GUARD=false;const TURN_RAD=.7;
 let REC_BOX=false,LASTBOX={};
 // arc length round a torso cross-section (ellipse, lateral half-width = TORSO_K x half-depth), per unit half-depth, by angle from the chest's front
 const TORSO_K=1.4,ELL=(()=>{const n=1024,t=new Float32Array(n+1);let acc=0;for(let i=1;i<=n;i++){const f=(i-.5)/n*Math.PI/2;acc+=Math.sqrt(TORSO_K*TORSO_K*Math.cos(f)**2+Math.sin(f)**2)*(Math.PI/2/n);t[i]=acc;}return t;})();
@@ -680,6 +680,10 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
   // mean luminance over the print area
   let sum=0,cnt=0;for(let a=0;a<20;a++)for(let b=0;b<20;b++){const [x,y]=apply(M,(a+.5)/20,(b+.5)/20);const xi=Math.round(x),yi=Math.round(y);if(xi>=0&&yi>=0&&xi<w&&yi<h){sum+=Lb[yi*w+xi];cnt++;}}
   const mean=Math.max(.04,cnt?sum/cnt:.5);
+  // turned photos: ink only lands on the shirt's own fabric (not skin below a short sleeve, not the background beside the body)
+  let gRef=null,gTol=0;if(GUARD){const band=sm?[.3,.7,.04,.28]:[.3,.7,.3,.7],rs=[],gs=[],bs=[];
+    for(let a=0;a<10;a++)for(let b2=0;b2<8;b2++){const [x,y]=apply(M,band[0]+(band[1]-band[0])*(a+.5)/10,band[2]+(band[3]-band[2])*(b2+.5)/8);const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=w||yi>=h)continue;const j=(yi*w+xi)*4;rs.push(data[j]);gs.push(data[j+1]);bs.push(data[j+2]);}
+    if(rs.length>20){const md=a=>{const c=[...a].sort((x,y)=>x-y);return c[c.length>>1];};gRef=[md(rs),md(gs),md(bs)];const ds=rs.map((r,k)=>Math.abs(r-gRef[0])+Math.abs(gs[k]-gRef[1])+Math.abs(bs[k]-gRef[2])).sort((x,y)=>x-y);gTol=Math.max(48,ds[Math.floor(ds.length*.8)]*2.5);}}
   const amt=P.fold*Math.max(w,h)*.035;
   // bounding box of design region
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
@@ -756,6 +760,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       const sx=x+.5+disp*.35, sy=y+.5+disp;
       const z=m6*sx+m7*sy+m8; const u=(m0*sx+m1*sy+m2)/z, v=(m3*sx+m4*sy+m5)/z;
       let du,cv=1-(2*u-1)*(2*u-1),eA=1;
+      if(gRef){const j=i*4,dd=Math.abs(data[j]-gRef[0])+Math.abs(data[j+1]-gRef[1])+Math.abs(data[j+2]-gRef[2]);if(dd>gTol*1.35)continue;if(dd>gTol)eA*=(gTol*1.35-dd)/(gTol*.35);}
       if(sm){let uc=.5;if(hE){const ed=hE[y-minY],eo=isNaN(ed)?1:sm.side?Math.min(2.2,Math.max(.6,ed)):Math.min(1.04,Math.max(.8,ed));uc=dS>0?eo-AR:1-eo+AR;}
         if(sm.front&&L[i]>fThr+.22)continue; // never print on skin or background
         if(sm.fmask&&!sm.fmask((x+.5)/w,(y+.5)/h))continue;
@@ -791,7 +796,7 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
       let sv=1+(L[i]/mean-1)*sh; if(sv<0)sv=0; if(sv>1.8)sv=1.8;
       const dk=Math.min(sv,1), hl=Math.min(.45,Math.max(0,sv-1)*.55);
       r=r*dk;g=g*dk;b=b*dk; r+=(255-r)*hl; g+=(255-g)*hl; b+=(255-b)*hl;
-      const al=a*op*(sm&&sm.side?eA:1), j=i*4;if(al>.1){if(x<bb[0])bb[0]=x;if(y<bb[1])bb[1]=y;if(x>bb[2])bb[2]=x;if(y>bb[3])bb[3]=y;}
+      const al=a*op*(sm&&sm.side||gRef?eA:1), j=i*4;if(al>.1){if(x<bb[0])bb[0]=x;if(y<bb[1])bb[1]=y;if(x>bb[2])bb[2]=x;if(y>bb[3])bb[3]=y;}
       od[j]=od[j]*(1-al)+r*al; od[j+1]=od[j+1]*(1-al)+g*al; od[j+2]=od[j+2]*(1-al)+b*al;
     }
   }
@@ -852,7 +857,7 @@ function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x
 function renderTo(pack,t,ctx,edit){
   const out=new ImageData(new Uint8ClampedArray(pack.data),pack.w,pack.h);
   const L=layersOf(t).slice(); if(edit&&!L.some(l=>l[0]===edit.slot))L.push([edit.slot,edit.quad,.12]);
-  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front'&&t._facing!==s,noHem:viewOf(t)==='front'&&t._facing===s,fmask:viewOf(t)==='front'&&!(t._facing===s&&!t._maskExact)?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
+  for(const [s,q,arc] of L){const qq=edit&&edit.slot===s?edit.quad:q;if(!qq||!designs[s])continue;curFlat=!!t.scene;const TRN=s==='front'&&viewOf(t)!=='front'&&turnedOn(t);CAPTURN=TRN;GUARD=viewOf(t)==='front'&&!!t._facing&&(s==='front'||s===t._facing);const MKT=TRN?sideMasks.get(t.id):null,SNAP=MKT?new Uint8ClampedArray(out.data):null;curTurn=TRN?(viewOf(t)==='left'?-1:1)*TURN_RAD:s==='front'&&!(edit&&edit.slot==='front')&&typeof t.chestTurn==='number'?t.chestTurn:0;withSlot(s,()=>composite(pack,qq,ctx,arc,out,areaInches(t,s),s==='front'?(TRN?null:viewOf(t)!=='front'&&t.chestQ?{front:true,side:true,own:!!t._sfOwn,women:t.group==='women'||t.sex==='women',mask:sideMasks.get(t.id)||null,dS:viewOf(t)==='left'?-1:1,turn:turnOf(t,'front'),clip:t.chestClip?{x:t.chestClip.x*pack.w,y:t.chestClip.y*pack.h,d:viewOf(t)==='left'?-1:1}:null}:null):{front:viewOf(t)==='front'&&t._facing!==s,noHem:viewOf(t)==='front'&&t._facing===s,fmask:viewOf(t)==='front'&&!(t._facing===s&&!t._maskExact)?fitMasks.get(t.id)||null:null,turn:(edit&&edit.slot===s&&typeof edit.turn==='number'?edit.turn:turnOf(t,s))}),t);if(MKT)maskBack(out,SNAP,MKT,pack);}
   occApply(t,pack,out);
   ctx.putImageData(out,0,0);
 }
@@ -917,8 +922,8 @@ function turnedLayout(lm,fc,A,pk){const N=lm[fc==='left'?11:12],F=lm[fc==='left'
     if(pk){const {w,h,data}=pk,ix=(x,y)=>{const X=Math.min(w-1,Math.max(0,Math.round(x*w))),Y=Math.min(h-1,Math.max(0,Math.round(y*h)));return (Y*w+X)*4;};
       const r0=ix(N.x+(E.x-N.x)*.1,N.y+(E.y-N.y)*.1),ref=[data[r0],data[r0+1],data[r0+2]];let hem=null,miss=0;
       for(let k=1;k<=100;k++){const u=k/100,i=ix(N.x+(E.x-N.x)*u,N.y+(E.y-N.y)*u);if(Math.abs(data[i]-ref[0])+Math.abs(data[i+1]-ref[1])+Math.abs(data[i+2]-ref[2])<75){hem=u;miss=0;}else if(hem!==null&&++miss>3)break;}
-      if(hem!==null&&hem>.15&&hem<.9)tt=hem*.5;}
-    const cx=N.x+(E.x-N.x)*tt,cy=N.y+(E.y-N.y)*tt,b=span*.42;sleeve=box(cx,cy-b*A/2,b);}
+      if(hem!==null&&hem>.15&&hem<.9){tt=hem*.5;var sleeveLen=hem*Math.hypot(E.x-N.x,(E.y-N.y)/A);}}
+    const cx=N.x+(E.x-N.x)*tt,cy=N.y+(E.y-N.y)*tt,b=Math.min(span*.42,typeof sleeveLen==='number'?sleeveLen*.75:9); /* never bigger than the sleeve itself */sleeve=box(cx,cy-b*A/2,b);}
   return {chest,sleeve};}
 function turnedSleeveQuad(lm,s,fm,A,pk){const S=lm[s==='left'?11:12],E=lm[s==='left'?13:14];if(!S||!E||(S.visibility||0)<.5)return null;
   const walk=f=>{let hx=null,hy=null,miss=0;for(let k=0;k<=90;k++){const u=k/90*1.1,x=S.x+(E.x-S.x)*u,y=S.y+(E.y-S.y)*u;if(f(x,y)){hx=x;hy=y;miss=0;}else if(hx!==null&&++miss>3)break;}return hx===null?null:[hx,hy];};
@@ -1921,7 +1926,7 @@ function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=pick(V
   const eyes=eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
   // dreadlocks and braids only come up for Black models
   const hair=pick((woman?VARY.hairW:VARY.hairM).filter(h=>eth==='Black'||!/dreadlock|braid|locs/.test(h))).replace('{c}',c);
-  return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, with ${pick(VARY.bodyW)}, ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}${Math.random()<.35?', a fine-line black ink tattoo on her right forearm only (no other tattoos), showing '+pick(VARY.tatW):''}${Math.random()<.25?', with the front hem tied in a knot at her waist':''}`
+  return woman?`a ${eth==='Latino'?'Latina':eth} woman in her ${age}, with ${pick(VARY.bodyW)}, ${pick(VARY.lookW)}, ${eyes} eyes, ${hair} and ${pick(VARY.exprW)}${Math.random()<.35?', a fine-line black ink tattoo on her right forearm only (no other tattoos), showing '+pick(VARY.tatW):''}`
              :`${an(pick(VARY.build))} ${eth} man in his ${age} with ${pick(VARY.lookM)}, ${eyes} eyes, ${pick(VARY.faceM).replace(/^with /,'')}, ${hair} and ${pick(VARY.exprM)}`+menExtras();}
 function menExtras(){const x=[];if(Math.random()<.35)x.push('wearing '+pick(VARY.capM));if(Math.random()<.2)x.push('wearing dark wraparound sunglasses');
   if(Math.random()<.4)x.push('a black-and-grey tattoo sleeve on his right forearm only (the left arm has no tattoos), showing '+pick(VARY.tatM));if(Math.random()<.4)x.push('a black rugged tactical wristwatch');return x.length?', '+x.join(', '):'';}
@@ -1950,8 +1955,8 @@ function cfText(ref,person,scene,arms,angle){const cur=$('#g-model').value,want=
   // the pose image decides the stance; the written prompt only describes the person, shirt and scene
   p=p.replace(/Standing straight and facing the camera directly[^\n]*\n?/,'').replace(/\n{3,}/g,'\n\n');
   const side=viewOf(ref)!=='front';
-  p=p.replace(/crew-neck cotton t-shirt, regular fit\. /,'short-sleeve Bella+Canvas 3001 unisex jersey tee: lightweight soft 100% combed ringspun cotton jersey with a smooth surface and gentle natural drape, unisex retail fit that is trim but not skin-tight, side-seamed, a thin ribbed knit crew-neck collar, clean coverstitched sleeve hems, sleeves ending at mid upper arm with bare forearms, the hem ending at the hip, no pocket, worn untucked with fitted dark jeans. ');
-  p=/front hem tied/.test(m)?p.replace('the hem ending at the hip, no pocket, worn untucked with fitted dark jeans.','a full-length tee whose front hem is gathered and tied in a small knot at her waist, showing a little midriff, with fitted high-waisted dark jeans. The shirt is a normal full-length tee made shorter only by the knot; it is not a cut crop top.'):p+'\n\nThe tee is full length: the hem covers the waistband of the jeans at the hip. It is not a crop top and does not show the stomach.';
+  p=p.replace(/crew-neck cotton t-shirt, regular fit\. /,'short-sleeve Bella+Canvas 3001 unisex jersey tee: lightweight soft 100% combed ringspun cotton jersey with a smooth surface and gentle natural drape, unisex retail fit that is trim but not skin-tight, side-seamed, a thin ribbed knit crew-neck collar, clean coverstitched sleeve hems, classic unisex t-shirt sleeves that are roomy and reach about two-thirds of the way down the upper arm, ending a few inches above the elbow (not short cap sleeves, not a fitted womens-cut tee), bare forearms, the hem ending at the hip, no pocket, worn untucked with fitted dark jeans. ');
+  p=/front hem tied/.test(m)?p.replace('the hem ending at the hip, no pocket, worn untucked with fitted dark jeans.','a full-length tee whose front hem is gathered and tied in a small knot at her waist, showing a little midriff, with fitted high-waisted dark jeans. The shirt is a normal full-length tee made shorter only by the knot; it is not a cut crop top.'):p+'\n\nThe tee is full length and loose at the bottom: the hem hangs freely over the waistband of the jeans at the hip, completely untucked (not tucked in, not half-tucked, not tied, not knotted). It is not a crop top and does not show the stomach. It looks like a normal unisex t-shirt, the same cut a man would wear.';
   const dir=viewOf(ref)==='left'?'left':'right';
   // pose guides "~sl"/"~ql" face the RIGHT side of the frame and "~sr"/"~qr" the LEFT (this was inverted before, so the prompt fought the pose)
   const tdir=angle&&angle[1]==='l'?'right':'left',near=tdir==='right'?'left':'right';
@@ -2006,7 +2011,7 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   const wantRight=o.angle==='sl',src=wantRight?b.blob:await flip(b.blob);
   const fd=new FormData();fd.append('image',new File([src],'ms-turnsrc-'+ref.id+(wantRight?'':'-m')+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the photo.');const u=await up.json();
-  const prompt=`Change the camera angle slightly: show the same person turned about 30 degrees, with the torso and shoulders angled toward the right side of the photo, so the shoulder on the left side of the photo is closer to the camera and the outside of that short sleeve is clearly visible. The face turns back to look at the camera. Keep the same person, face, hair, skin, tattoos, the same blank t-shirt with no print or logo, the same jeans, background, lighting and framing. Hair stays behind the shoulders and off the shirt, the chest and the sleeves. Keep it a real photograph: the same natural skin texture, grain and lighting, natural proportions, no smoothing or retouching.`;
+  const prompt=`Change the camera angle slightly: show the same person turned about 30 degrees, with the torso and shoulders angled toward the right side of the photo, so the shoulder on the left side of the photo is closer to the camera and the outside of that short sleeve is clearly visible. The face turns back to look at the camera. Keep the same person, face, hair, skin, tattoos, the same blank t-shirt with no print or logo, the same jeans, background, lighting and framing. Hair stays behind the shoulders and off the shirt, the chest and the sleeves. The t-shirt keeps the same sleeve length and stays untucked. Keep it a real photograph: the same natural skin texture, grain and lighting, natural proportions, no smoothing or retouching.`;
   let seed0=0;for(const ch of (b.fn||ref.id)+o.angle)seed0=(seed0*31+ch.charCodeAt(0))%2147483647;
   const faces=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;if(!lm)return null;const dz=(lm[12].z||0)-(lm[11].z||0);return Math.abs(dz)<.15?'front':dz<0?'right':'left';}catch(e){return null;}};
   let ob=null,out=null;
