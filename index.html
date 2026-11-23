@@ -824,7 +824,7 @@ function sideFrontArea(t){const auto=turnedOn(t)?turnedQuad(t):t.chestQ;const ow
   return {q:own,areaIn:qw>0?wd(own)/(qw/sideSleeveIn(t)):(auto?(turnedOn(t)?t.turnAreaIn:t.chestAreaIn):14)};}
 function layersOf(t){const v=viewOf(t);
   if(v!=='front'){const f=sideFrontOn(t)?sideFrontArea(t):null;if(f){t._sfIn=f.areaIn;return [['front',f.q,0],[v,t.quad,t.arc]];}return [[v,t.quad,t.arc]];}
-  const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
+  const L=[['front',t.quad,t.arc]];for(const s of ['left','right']){if(t._farHide&&t._farHide[s]&&!isManual(t,s))continue;const q=areaOf(t,s);if(q)L.push([s,q,.12]);}return L;}
 function defaultSleeveQuad(s){return s==='right'?[{x:.17,y:.4},{x:.27,y:.4},{x:.27,y:.45},{x:.17,y:.45}]:[{x:.73,y:.4},{x:.83,y:.4},{x:.83,y:.45},{x:.73,y:.45}];}
 /* ---------- occlusion: print only shows on the shirt; a brush fixes what the outline gets wrong (arms, hair, hands in front) ---------- */
 const occAuto=new Map(),occBr=new Map();const OCC_W=160,OCC_H=200;
@@ -885,7 +885,18 @@ async function sideArmSeed(t,fm,p){if(!fm)return null;try{const img=await tplIma
     if(hx===null)return null;const A=p.w/p.h,ux=(b.x-a.x),uy=(b.y-a.y),n=Math.hypot(ux,uy)||1;let sz=L*.42;
     const cx=hx-ux/n*sz*.6,cy=hy-uy/n*sz*.6*A; // centre a bit above the hem, along the arm
     return [{x:cx-sz/2,y:cy-sz*A/2},{x:cx+sz/2,y:cy-sz*A/2},{x:cx+sz/2,y:cy+sz*A/2},{x:cx-sz/2,y:cy+sz*A/2}];}catch(e){return null;}}
-async function armSeeds(t,fm,p){try{const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(img,w,h));
+const POSEC=new Map();
+async function poseOf(t){if(POSEC.has(t.id))return POSEC.get(t.id);let r=null;try{const img=await tplImage(t);const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,640);r=await (await loadPose()).run(drawScaled(img,w,h));}catch(e){}POSEC.set(t.id,r);return r;}
+// a generated photo's own body decides where the chest print area sits (the reference pose is only a rough start; turned photos move a lot)
+// ratios measured on the 20 built-in photos: print area top at the shoulder line, 92% of shoulder span wide, 77% of shoulder-to-hip tall
+function poseChestQuad(lm){const a=lm[11],b=lm[12],ha=lm[23],hb=lm[24];if(!a||!b||!ha||!hb||(a.visibility||0)<.5||(b.visibility||0)<.5)return null;
+  const span=Math.abs(a.x-b.x),shy=(a.y+b.y)/2,tor=(ha.y+hb.y)/2-shy;if(span<.08||tor<.1)return null;
+  const dz=(a.z||0)-(b.z||0),turned=Math.abs(dz)>.3,farX=dz>0?a.x:b.x; // the far shoulder has the larger z
+  let cx=(a.x+b.x)/2;if(turned)cx+=(farX-cx)*.12; // turned body: the breastbone sits a little toward the far shoulder
+  const w=span*.92,h=tor*.77,top=shy+tor*.005;return [{x:cx-w/2,y:top},{x:cx+w/2,y:top},{x:cx+w/2,y:top+h},{x:cx-w/2,y:top+h}];}
+// arms the camera can't really see on a turned photo (far arm, elbow hidden) get no sleeve print by default
+function farHidden(lm,s){const S=s==='left'?11:12,O=s==='left'?12:11,E=s==='left'?13:14;if(!lm||!lm[S]||!lm[O])return false;return (lm[S].z||0)-(lm[O].z||0)>.35&&(lm[E].visibility||0)<.6;}
+async function armSeeds(t,fm,p){try{const r=await poseOf(t);
     if(!r||!r.poseLandmarks)return null;const lm=r.poseLandmarks,out={},A=p.w/p.h;
     const shW=Math.abs(lm[11].x-lm[12].x); // normalized shoulder width
     for(const [s,S,E] of [['left',11,13],['right',12,14]]){const a=lm[S],b=lm[E];if((a.visibility||0)<.4||(b.visibility||0)<.3)continue;
@@ -1110,6 +1121,8 @@ async function ensureFit(t){
       const fm=!t.builtin&&viewOf(t)==='front'?canvasSampler(await maskImage(t)):null;if(fm)fitMasks.set(t.id,fm);
       // generated photos: start the sleeve search from this person's own arms (shoulder to elbow), not the reference pose
       if(fm&&!t.builtin){const ps=await armSeeds(t,fm,p);if(ps)t.seedSleeves={...(t.seedSleeves||{}),...ps};}
+      if(!t.builtin&&viewOf(t)==='front'){const pr=await poseOf(t);const lm=pr&&pr.poseLandmarks;
+        if(lm){t._farHide={left:farHidden(lm,'left'),right:farHidden(lm,'right')};if(!isManual(t,'front')){const pq=poseChestQuad(lm);if(pq)t.quad=pq;}}}
       if(viewOf(t)==='front'){FIT_MASK=fm;let c;try{c=fitChest(t,p);}finally{FIT_MASK=null;}
         if(c&&c.ok&&!isManual(t,'front')){ // anchor the chest print to the neckline
           let q=t.quad.map(v=>({...v}));const qx=q.map(v=>v.x),qy=q.map(v=>v.y);
@@ -1904,18 +1917,27 @@ async function cfSaveGen(ref,ibf,o,n,ZA,fname){
 async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   if(!o.shared.base)o.shared.base=cfOne(ref,str,n,{...o,angle:'',_baseOnly:true});
   const b=await o.shared.base;if(CF.stop)throw new Error('Stopped.');
-  const fd=new FormData();fd.append('image',new File([b.blob],'ms-turnsrc-'+ref.id+'.png',{type:b.blob.type||'image/png'}));fd.append('overwrite','true');
+  // Qwen turned every photo the same way whatever the wording, so it is always asked for the turn it does reliably (toward the right of the frame).
+  // For a left-facing photo the base is mirrored first and the result mirrored back: the person ends up facing left, with tattoos and background the right way round.
+  const flip=async bl=>{const im=await loadImage(URL.createObjectURL(bl)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(im,0,0);return canvasBlob(c,'image/png');};
+  const wantRight=o.angle==='sl',src=wantRight?b.blob:await flip(b.blob);
+  const fd=new FormData();fd.append('image',new File([src],'ms-turnsrc-'+ref.id+(wantRight?'':'-m')+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the photo.');const u=await up.json();
-  const tdir=o.angle==='sl'?'right':'left',near=tdir==='right'?'left':'right';
-  const prompt=`Change the camera angle slightly: show the same person turned about 30 degrees, with the torso and shoulders angled toward the ${tdir} side of the photo, so the shoulder on the ${near} side of the photo is closer to the camera and the outside of that short sleeve is clearly visible. The face turns back to look at the camera. Keep the same person, face, hair, skin, tattoos, the same blank t-shirt with no print or logo, the same jeans, background, lighting and framing. Natural, realistic proportions.`;
-  let seed=0;for(const ch of (b.fn||ref.id)+o.angle)seed=(seed*31+ch.charCodeAt(0))%2147483647;
-  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:colGraph(u.subfolder?u.subfolder+'/'+u.name:u.name,prompt,seed),client_id:'mockup-studio'})});
-  const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the turn job. Check that the Qwen Image 2.1 models are installed.');
-  let out=null;for(let i=0;i<400&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
-    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error on the turn edit. Check its window for details.');
-    if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
-  if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
-  let ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  const prompt=`Change the camera angle slightly: show the same person turned about 30 degrees, with the torso and shoulders angled toward the right side of the photo, so the shoulder on the left side of the photo is closer to the camera and the outside of that short sleeve is clearly visible. The face turns back to look at the camera. Keep the same person, face, hair, skin, tattoos, the same blank t-shirt with no print or logo, the same jeans, background, lighting and framing. Natural, realistic proportions.`;
+  let seed0=0;for(const ch of (b.fn||ref.id)+o.angle)seed0=(seed0*31+ch.charCodeAt(0))%2147483647;
+  const faces=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;if(!lm)return null;const dz=(lm[12].z||0)-(lm[11].z||0);return Math.abs(dz)<.15?'front':dz<0?'right':'left';}catch(e){return null;}};
+  let ob=null,out=null;
+  for(let attempt=0;attempt<2&&!CF.stop;attempt++){
+    const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:colGraph(u.subfolder?u.subfolder+'/'+u.name:u.name,prompt,seed0+attempt*7919),client_id:'mockup-studio'})});
+    const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the turn job. Check that the Qwen Image 2.1 models are installed.');
+    out=null;for(let i=0;i<400&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
+      if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error on the turn edit. Check its window for details.');
+      if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
+    if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
+    ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+    const f=await faces(ob);if(f===null||f==='right')break; // turned the way we asked (in the edit's own frame): done; otherwise try once more with another seed
+  }
+  if(!wantRight)ob=await flip(ob);
   // keep the base photo's size so the print areas line up
   try{const im=await loadImage(URL.createObjectURL(ob)),bi=await loadImage(URL.createObjectURL(b.blob));if(im.naturalWidth!==bi.naturalWidth){const c=drawScaled(im,bi.naturalWidth,bi.naturalHeight);ob=await canvasBlob(c,'image/png');}}catch(e){}
   return cfSaveGen(ref,ob,o,n,b.za,out.filename);}
