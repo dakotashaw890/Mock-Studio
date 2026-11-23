@@ -1152,7 +1152,11 @@ async function ensureFit(t){
       if(!t.builtin&&viewOf(t)==='front'){const pr=await poseOf(t);const lm=pr&&pr.poseLandmarks;
         if(lm){const fresh=!isManual(t,'front')&&!isApproved(t)&&!Object.keys(ovAll()).some(k=>k===t.id+':front'||k.startsWith(t.id+':front:'));const fc0=facingOf(t,lm),lay=fc0?turnedLayout(lm,fc0,p.w/p.h):null;
           t._turnLay=lay?{...lay,facing:fc0}:null;
-          if(fresh){if(lay){t.quad=lay.chest;t.areaIn=(FIT.chestIn[t.sex||t.group]||20)*FIT.onBody;t.chestTurn=bodyTurn(t);}else{const pq=poseChestQuad(lm);if(pq)t.quad=pq;}} /* photos you already set up keep their old area, so your saved adjustments still land where you put them */}}
+          if(fresh){if(lay){t.quad=lay.chest;
+            // size: your saved fixes on turned photos made the print ~1 shoulder-width wide, i.e. the area ~12" (women) / ~14" (men) across
+            t.areaIn=(t.sex||t.group)==='men'?14:12;
+            // turn: the full body turn (~30°) wrapped the print round the chest and you were cancelling it with Turn (-31..+29) and Wrap 0 on every photo; a gentle one reads right
+            const bt=bodyTurn(t);t.chestTurn=(bt<0?-1:1)*Math.min(Math.abs(bt),.15);}else{const pq=poseChestQuad(lm);if(pq)t.quad=pq;}} /* photos you already set up keep their old area, so your saved adjustments still land where you put them */}}
       if(viewOf(t)==='front'){FIT_MASK=fm;let c;try{c=fitChest(t,p);}finally{FIT_MASK=null;}
         if(c&&c.ok&&!isManual(t,'front')&&!t._turnLay){ // anchor the chest print to the neckline (turned photos use their measured layout instead)
           let q=t.quad.map(v=>({...v}));const qx=q.map(v=>v.x),qy=q.map(v=>v.y);
