@@ -923,7 +923,12 @@ function turnedLayout(lm,fc,A,pk){const N=lm[fc==='left'?11:12],F=lm[fc==='left'
       const r0=ix(N.x+(E.x-N.x)*.1,N.y+(E.y-N.y)*.1),ref=[data[r0],data[r0+1],data[r0+2]];let hem=null,miss=0;
       for(let k=1;k<=100;k++){const u=k/100,i=ix(N.x+(E.x-N.x)*u,N.y+(E.y-N.y)*u);if(Math.abs(data[i]-ref[0])+Math.abs(data[i+1]-ref[1])+Math.abs(data[i+2]-ref[2])<75){hem=u;miss=0;}else if(hem!==null&&++miss>3)break;}
       if(hem!==null&&hem>.15&&hem<.9){tt=hem*.5;var sleeveLen=hem*Math.hypot(E.x-N.x,(E.y-N.y)/A);}}
-    const cx=N.x+(E.x-N.x)*tt,cy=N.y+(E.y-N.y)*tt,b=Math.min(span*.42,typeof sleeveLen==='number'?sleeveLen*.75:9); /* never bigger than the sleeve itself */sleeve=box(cx,cy-b*A/2,b);}
+    let cx=N.x+(E.x-N.x)*tt;const cy=N.y+(E.y-N.y)*tt,b=Math.min(span*.42,typeof sleeveLen==='number'?sleeveLen*.75:9); /* never bigger than the sleeve itself */
+    // keep the whole logo on the sleeve: find the sleeve's outer edge at that height and stay inside it
+    if(pk){const {w,h,data}=pk,out=Math.sign(N.x-F.x),ix=(x,y)=>{const X=Math.min(w-1,Math.max(0,Math.round(x*w))),Y=Math.min(h-1,Math.max(0,Math.round(y*h)));return (Y*w+X)*4;};
+      const r0=ix(cx,cy),ref=[data[r0],data[r0+1],data[r0+2]];let edge=cx,miss=0;for(let k=1;k<200;k++){const x=cx+out*k/w*2,i=ix(x,cy);if(Math.abs(data[i]-ref[0])+Math.abs(data[i+1]-ref[1])+Math.abs(data[i+2]-ref[2])<75){edge=x;miss=0;}else if(++miss>3)break;}
+      const lim=edge-out*b*.62;if(out>0?cx>lim:cx<lim)cx=lim;}
+    sleeve=box(cx,cy-b*A/2,b);}
   return {chest,sleeve};}
 function turnedSleeveQuad(lm,s,fm,A,pk){const S=lm[s==='left'?11:12],E=lm[s==='left'?13:14];if(!S||!E||(S.visibility||0)<.5)return null;
   const walk=f=>{let hx=null,hy=null,miss=0;for(let k=0;k<=90;k++){const u=k/90*1.1,x=S.x+(E.x-S.x)*u,y=S.y+(E.y-S.y)*u;if(f(x,y)){hx=x;hy=y;miss=0;}else if(hx!==null&&++miss>3)break;}return hx===null?null:[hx,hy];};
