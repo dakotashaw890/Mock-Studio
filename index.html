@@ -1928,7 +1928,7 @@ const VARY={
   bodyW:['fit, curvy hourglass figure, big bust, narrow waist, wide hips, toned arms','athletic curvy figure, full bust, toned arms and wide hips','fit hourglass figure, large natural bust, toned arms','curvy and fit, full bust, strong toned arms'],
   hairM:['a short {c} buzz cut','a short {c} crew cut','short, slightly messy {c} hair','a {c} high-and-tight cut','short textured {c} hair pushed back','close-cropped {c} hair','a shaved head','short {c} hair with a natural side part','short {c} dreadlocks'],
   // every style keeps the hair off the shirt: pulled back behind the shoulders, or short enough not to reach the chest
-  hairW:['long voluminous {c} hair with soft waves','long glossy {c} waves','messy high bun of {c} hair with loose strands','long tousled {c} beach waves','loose {c} updo with soft face-framing strands'],
+  hairW:['long voluminous {c} hair with soft waves','long glossy {c} waves with a side part','long tousled {c} beach waves','long sleek straight {c} hair with a middle part','shoulder-length {c} hair with soft curls'],
   dark:['black','dark brown','brown','jet black'],light:['light brown','auburn','blonde','dirty blonde','red','honey brown'],
   faceM:['with a full, thick beard','with a full, thick beard','with a short, well-kept beard','with a short, well-kept beard','with heavy stubble','with heavy stubble','with a goatee','clean-shaven'],
   tatM:['a bald eagle with an American flag and roses','a compass with a pocket watch and wisps of smoke','a lion head with clouds and roses','a skull with a helmet, dog tags and an American flag','a wolf head with pine trees and mountains'],
@@ -1983,11 +1983,11 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women';
   const m=person||randomPerson(woman);
   const col=($('#g-color')&&$('#g-color').value)||'black';
   const pose=woman?(W_POSE[arms||'']||W_POSE['']):(MAN_POSE[arms||'']||MAN_POSE['']);
-  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'');
+  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'').replace(/late-afternoon golden hour|golden-hour|golden hour( sunlight| sun)?|at sunset|sunset|moody warm light|moody|warm afternoon sun/gi,'bright sunny daytime').replace(/warm sun (shining )?on(to)? her from the front/gi,'bright sun on her from the front');
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
 POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
-ENVIRONMENT: ${sc}, the person and the shirt brightly lit from the front, background softly out of focus
+ENVIRONMENT: ${sc}, bright, high-key, well-exposed photo, the person and the shirt evenly lit from the front by soft daylight with a reflector, the black shirt's fabric and folds clearly visible, background softly out of focus
 FOV: framed from mid-thigh to just above the head, 85mm lens, shallow depth of field, photorealistic premium apparel catalog photo, natural skin texture, sharp focus on the shirt`;}
 const W_POSE={'':'arms relaxed at her sides with a natural, confident stance',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
@@ -2039,8 +2039,11 @@ async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file)
       if(e&&e.outputs&&e.outputs['5']){const o=e.outputs['5'].images[0];const ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:o.filename,subfolder:o.subfolder||'',type:o.type||'output'}))).blob();
         const im=await loadImage(URL.createObjectURL(ob)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);return await canvasBlob(c,'image/jpeg',.93);}}
   }catch(e){}return bl;}
+async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.drawImage(im,0,0);
+  const d=x.getImageData(0,0,c.width,c.height),a=d.data,L=new Uint8Array(256);for(let v=0;v<256;v++)L[v]=Math.round(255*Math.pow(v/255,.82));for(let i=0;i<a.length;i+=4){a[i]=L[a[i]];a[i+1]=L[a[i+1]];a[i+2]=L[a[i+2]];}
+  x.putImageData(d,0,0);return await canvasBlob(c,'image/jpeg',.94);}catch(e){return bl;}}
 async function cfSaveGen(ref,ibf,o,n,ZA,fname){
-  ibf=await cfUpscale(ibf);if(ibf.type==='image/jpeg')fname=fname.replace(/\.png$/i,'.jpg');
+  ibf=await cfUpscale(ibf);ibf=await cfLift(ibf);if(ibf.type==='image/jpeg')fname=fname.replace(/\.png$/i,'.jpg');
   const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?(o.angle&&o.angle[0]==='s'?'turned '+(o.angle==='sl'?'right':'left'):'front'):viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
   const f=new File([ibf],fname,{type:ibf.type||'image/png'});
   const PS=.9,zt=v=>ZA?{x:ZA.x+(v.x-ZA.x)*ZA.z,y:ZA.y+(v.y-ZA.y)*ZA.z}:v,tq=q=>q.map(v=>zt({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre, then by the Framing zoom
