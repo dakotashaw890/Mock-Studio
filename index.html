@@ -443,6 +443,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Strength <input id="cf-lora-str" type="number" min="0" max="1.5" step="0.05" value="0.6" style="width:60px"></label>
       <label class="row small" style="gap:4px" title="Trigger word, if the LoRA's page lists one">Trigger <input id="cf-lora-trig" style="width:100px"></label>
       <label class="row small" style="gap:4px" title="Upscale model file name in ComfyUI\'s models/upscale_models folder. Each finished photo is saved at about 2048 x 2560. Leave empty to skip.">Upscaler <input id="cf-up" list="cf-up-list" placeholder="pick or type the file" style="width:200px"><datalist id="cf-up-list"></datalist></label>
+      <button class="small" id="cf-sharpen" title="Runs the upscaler on your existing generated photos that are under 2000 px tall and saves the sharper version in place. Print areas stay where they are.">Sharpen my existing photos</button><span class="muted small" id="cf-sharpen-st"></span>
       </div>
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="all">All poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
@@ -492,7 +493,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 "use strict";
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
-const PREVIEW_MAX = 900, FULL_MAX = 2000, UPLOAD_MAX = 2400;
+const PREVIEW_MAX = 1400, FULL_MAX = 2000, UPLOAD_MAX = 2400;
 const DEFAULTS = {size:.85, y:.04, x:0, fold:.45, shade:.75, opacity:.94};
 
 let memoryMode=false;
@@ -1345,15 +1346,16 @@ const view=$('#view'), vctx=view.getContext('2d',{willReadFrequently:true});
 /* ---------- zoom & pan on the big preview ---------- */
 const Z={s:1,tx:0,ty:0,hi:false,id:null};let hiCache={k:null,p:null};
 async function hiPack(t){const col=shirtHex()||'',k=t.id+'|'+col;if(hiCache.k===k)return hiCache.p;
-  let p;if(col){const s2=await shirtSrc(t);p=makePack(s2.img,1800,s2.rc);}else p=makePack(await tplImage(t),1800);hiCache={k,p};return p;}
+  let p;if(col){const s2=await shirtSrc(t);p=makePack(s2.img,2600,s2.rc);}else p=makePack(await tplImage(t),2600);hiCache={k,p};return p;}
 function zoomApply(){const st=view.parentElement,W=view.offsetWidth,H=view.offsetHeight;
   if(Z.s<=1){Z.s=1;Z.tx=0;Z.ty=0;}else{Z.tx=Math.min(0,Math.max(W-W*Z.s,Z.tx));Z.ty=Math.min(0,Math.max(H-H*Z.s,Z.ty));}
   view.style.transform=Z.s>1?`translate(${Z.tx}px,${Z.ty}px) scale(${Z.s})`:'';$('#zoom-pct').textContent=Math.round(Z.s*100)+'%';
-  const hi=Z.s>=1.5;if(hi!==Z.hi){Z.hi=hi;scheduleRender();}}
+  const hi=Z.s>1.05;if(hi!==Z.hi){Z.hi=hi;scheduleRender();}}
 function zoomTo(s,cx,cy){const W=view.offsetWidth,H=view.offsetHeight;s=Math.max(1,Math.min(6,s));if(cx==null){cx=W/2;cy=H/2;}
   const ix=(cx-Z.tx)/Z.s,iy=(cy-Z.ty)/Z.s;Z.s=s;Z.tx=cx-ix*s;Z.ty=cy-iy*s;zoomApply();}
 document.querySelectorAll('#zoombar [data-z]').forEach(b=>b.onclick=()=>{const v=b.dataset.z;if(v==='fit')zoomTo(1);else zoomTo(Z.s*(v==='+'?1.5:1/1.5));});
 $('#zoom-pct').ondblclick=()=>zoomTo(1);
+setTimeout(()=>{const b=$('#cf-sharpen');if(b)b.onclick=cfSharpenAll;},0);
 view.addEventListener('wheel',e=>{if(!(e.ctrlKey||e.metaKey)&&Z.s<=1)return;e.preventDefault();const r=view.parentElement.getBoundingClientRect(),vr=view.getBoundingClientRect();
   const ox=vr.left-Z.tx,oy=vr.top-Z.ty;if(e.ctrlKey||e.metaKey)zoomTo(Z.s*Math.exp(-e.deltaY*.004),e.clientX-ox,e.clientY-oy);else{Z.tx-=e.deltaX;Z.ty-=e.deltaY;zoomApply();}},{passive:false});
 document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test((e.target||{}).tagName||''))return;if(!$('#view').offsetParent)return;
@@ -2026,8 +2028,9 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
 async function cfFileLists(){const base=cfBase();const opts=x=>{const v=x&&x[0];return Array.isArray(v)?v:(x&&x[1]&&x[1].options)||[];};
   try{const a=await (await fetch(base+'/object_info/LoraLoaderModelOnly')).json(),b=await (await fetch(base+'/object_info/UpscaleModelLoader')).json();
     const L=opts(a.LoraLoaderModelOnly.input.required.lora_name).filter(f=>/z.?image|zit|realis|skin|radiant|physio|detail/i.test(f)),U=opts(b.UpscaleModelLoader.input.required.model_name);
-    const fill=(id,list)=>{const d=$('#'+id);d.textContent='';for(const f of list){const o=document.createElement('option');o.value=f;d.append(o);}};fill('cf-lora-list',L);fill('cf-up-list',U);}catch(e){}}
-async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file)return bl;const base=cfBase();
+    const fill=(id,list)=>{const d=$('#'+id);d.textContent='';for(const f of list){const o=document.createElement('option');o.value=f;d.append(o);}};fill('cf-lora-list',L);fill('cf-up-list',U);CF.ups=U;
+    if(!$('#cf-up').value.trim()&&U.length){const p=U.find(f=>/z.?image/i.test(f))||U.find(f=>/ultrasharp|realesrgan|nmkd|siax|remacri/i.test(f))||U[0];$('#cf-up').value=p;$('#cf-up').dispatchEvent(new Event('change'));}}catch(e){}}
+async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file){if(!CF.upWarned){CF.upWarned=1;toast('No upscaler picked under Photo quality, so photos stay low-res (about 1000 x 1280).',6000);}return bl;}const base=cfBase();
   try{const fd=new FormData();fd.append('image',new File([bl],'ms-up.png',{type:bl.type||'image/png'}));fd.append('overwrite','true');
     const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)return bl;const u=await up.json();
     const g={'1':{class_type:'LoadImage',inputs:{image:u.subfolder?u.subfolder+'/'+u.name:u.name}},'2':{class_type:'UpscaleModelLoader',inputs:{model_name:file}},
@@ -2042,6 +2045,18 @@ async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file)
   }catch(e){}return bl;}
 // dark-fabric lift: raises the darkest tones and boosts local contrast only where the image is dark, so a black shirt shows its folds,
 // seams and the body's curves instead of a flat black shape. Faces, skin and highlights are left alone.
+/* re-upscale photos made before the upscaler was on. Same aspect, so every print area (stored as fractions) stays put */
+async function cfSharpenAll(){const st=$('#cf-sharpen-st');if(!$('#cf-up').value.trim()){toast('Pick an upscaler under Photo quality first (Connect fills the list).',5000);return;}
+  const list=[];for(const t of templates.filter(t=>!t.builtin&&!t.scene)){try{const im=await tplImage(t);if(Math.max(im.naturalWidth,im.naturalHeight)<2000)list.push(t);}catch(e){}}
+  if(!list.length){toast('All your photos are already sharp.');return;}
+  if(!confirm('Sharpen '+list.length+' photo'+(list.length>1?'s':'')+' with the upscaler on your PC? Takes a few seconds each.'))return;
+  CF.stop=false;let k=0;for(const t of list){if(CF.stop)break;st.textContent=' '+(++k)+' / '+list.length+'…';
+    try{const src=await (await fetch(tplSrc(t))).blob();const up=await cfUpscale(src);if(up===src)break;
+      const im=await loadImage(URL.createObjectURL(up)),[w,h]=fitSize(im.naturalWidth,im.naturalHeight,UPLOAD_MAX),blob=await canvasBlob(drawScaled(im,w,h),'image/jpeg',.92);
+      const r=await idbTx('readonly',s2=>s2.get(t.id));if(!r)continue;await idbTx('readwrite',s2=>s2.put({...r,blob,updatedAt:Date.now()}));mdlQueue(t.id,true);
+      localImgs.set(t.id,URL.createObjectURL(blob));imgCache.delete(t.id);packCache.delete(t.id);hiCache={k:null,p:null};for(const key of [...colorPacks.keys()])if(key.startsWith(t.id))colorPacks.delete(key);
+    }catch(e){}}
+  st.textContent=' Done: '+k+' sharpened.';scheduleRender();renderThumbs();}
 async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),W=im.naturalWidth,H=im.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(im,0,0);
   const b=document.createElement('canvas');b.width=W;b.height=H;const bx=b.getContext('2d');bx.filter='blur('+Math.max(4,Math.round(W/160))+'px)';bx.drawImage(im,0,0);
   const d=x.getImageData(0,0,W,H),a=d.data,bd=bx.getImageData(0,0,W,H).data;
@@ -2603,7 +2618,8 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
     if(e&&e.status&&e.status.status_str==='error'){const st=new Error(JSON.stringify(e.status.messages||[]).includes('interrupted')?'stopped in ComfyUI':'ComfyUI hit an error on a color job.');st.halt=true;throw st;}
     if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
   if(!out)throw new Error(CQ.cancel?'Cancelled.':'Timed out waiting for ComfyUI.');
-  const ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  let ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  if(a.naturalWidth>1400)ob=await cfUpscale(ob); // the edit comes back at about 1 MP: sharpen it to match the photo
   const b=await loadImage(URL.createObjectURL(ob));
   const chk=await colCheck(a,b);if(!chk.ok)throw new Error('kept the preview for '+(name||hex)+' on '+t.name+': '+chk.why);
   const c=document.createElement('canvas');c.width=a.naturalWidth;c.height=a.naturalHeight;const cx=c.getContext('2d');cx.drawImage(a,0,0);
