@@ -544,8 +544,8 @@ function safeName(s){return (s||'mockup').replace(/[^\w\- ]+/g,'').trim().replac
 /* ---------- photo analysis pack ---------- */
 function boxBlurH(s,d,w,h,r){const n=2*r+1;for(let y=0;y<h;y++){const o=y*w;let sum=0;for(let x=-r;x<=r;x++)sum+=s[o+Math.min(w-1,Math.max(0,x))];for(let x=0;x<w;x++){d[o+x]=sum/n;sum+=s[o+Math.min(w-1,x+r+1)]-s[o+Math.max(0,x-r)];}}}
 function boxBlurV(s,d,w,h,r){const n=2*r+1;for(let x=0;x<w;x++){let sum=0;for(let y=-r;y<=r;y++)sum+=s[Math.min(h-1,Math.max(0,y))*w+x];for(let y=0;y<h;y++){d[y*w+x]=sum/n;sum+=s[Math.min(h-1,y+r+1)*w+x]-s[Math.max(0,y-r)*w+x];}}}
-function makePack(img,max,rc){
-  const [w,h]=fitSize(img.naturalWidth,img.naturalHeight,max);
+function makePack(img,max,rc,up){ // up: enlarge small photos to max, so the design is drawn at full sharpness even when the photo is low-res
+  const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height,[w,h]=up?(s=>[Math.round(iw*s),Math.round(ih*s)])(Math.min(3,max/Math.max(iw,ih))):fitSize(iw,ih,max);
   const c=drawScaled(img,w,h);const data=c.getContext('2d').getImageData(0,0,w,h).data;
   if(rc)recolor(data,w,h,rc);
   const n=w*h, L=new Float32Array(n);
@@ -1350,7 +1350,7 @@ const view=$('#view'), vctx=view.getContext('2d',{willReadFrequently:true});
 /* ---------- zoom & pan on the big preview ---------- */
 const Z={s:1,tx:0,ty:0,hi:false,id:null};let hiCache={k:null,p:null};
 async function hiPack(t){const col=shirtHex()||'',k=t.id+'|'+col;if(hiCache.k===k)return hiCache.p;
-  let p;if(col){const s2=await shirtSrc(t);p=makePack(s2.img,2600,s2.rc);}else p=makePack(await tplImage(t),2600);hiCache={k,p};return p;}
+  let p;if(col){const s2=await shirtSrc(t);p=makePack(s2.img,2600,s2.rc,true);}else p=makePack(await tplImage(t),2600,null,true);hiCache={k,p};return p;}
 function zoomApply(){const st=view.parentElement,W=view.offsetWidth,H=view.offsetHeight;
   if(Z.s<=1){Z.s=1;Z.tx=0;Z.ty=0;}else{Z.tx=Math.min(0,Math.max(W-W*Z.s,Z.tx));Z.ty=Math.min(0,Math.max(H-H*Z.s,Z.ty));}
   view.style.transform=Z.s>1?`translate(${Z.tx}px,${Z.ty}px) scale(${Z.s})`:'';$('#zoom-pct').textContent=Math.round(Z.s*100)+'%';
@@ -2150,7 +2150,7 @@ function cropRect(t,w,h,A){let cw,ch;if(w/h>A){ch=h;cw=h*A;}else{cw=w;ch=w/A;}co
   const sx=Math.min(w-cw,Math.max(0,cx-cw/2)),sy=Math.min(h-ch,Math.max(0,cy-ch/2));return {sx,sy,cw,ch};}
 function cropAspect(key,w,h){if(key==='closeup'||key==='sleeveclose')return null;const sz=SIZES[key];return sz?sz[0]/sz[1]:w/h;}
 async function renderCanvas(t,sizeKey){
-  await ensureFit(t);const ss=await shirtSrc(t);const img=ss.img;const pack=makePack(img,FULL_MAX,ss.rc);
+  await ensureFit(t);const ss=await shirtSrc(t);const img=ss.img;const pack=makePack(img,2400,ss.rc,true);
   const c=document.createElement('canvas');c.width=pack.w;c.height=pack.h;renderTo(pack,t,c.getContext('2d'));
   const key=sizeKey||$('#out-size').value;
   if(key==='closeup'||key==='sleeveclose'){const sq=key==='sleeveclose'&&t.sleeves&&t.sleeves[t._facing||t.facing]&&t.sleeves[t._facing||t.facing].quad;const q=(sq||t.quad).map(p=>[p.x*pack.w,p.y*pack.h]);const xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
