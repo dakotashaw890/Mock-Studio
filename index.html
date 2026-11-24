@@ -1983,11 +1983,11 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women';
   const m=person||randomPerson(woman);
   const col=($('#g-color')&&$('#g-color').value)||'black';
   const pose=woman?(W_POSE[arms||'']||W_POSE['']):(MAN_POSE[arms||'']||MAN_POSE['']);
-  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'').replace(/late-afternoon golden hour|golden-hour|golden hour( sunlight| sun)?|at sunset|sunset|moody warm light|moody|warm afternoon sun/gi,'bright sunny daytime').replace(/warm sun (shining )?on(to)? her from the front/gi,'bright sun on her from the front');
+  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'').replace(/late-afternoon golden hour|golden-hour|golden hour( sunlight| sun)?|at sunset|sunset|moody warm light|moody|warm afternoon sun|bright sunny daytime/gi,'late afternoon').replace(/,? ?warm sun (shining )?on(to)? her from the front/gi,'');
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
 POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
-ENVIRONMENT: ${sc}, bright, well-exposed natural daylight with natural contrast and detailed facial features, the person and the shirt evenly lit from the front by soft daylight with a reflector, the black shirt's fabric and folds clearly visible, background softly out of focus
+ENVIRONMENT: ${sc}, the person standing in soft open shade (like under a covered roof or the shade of a building), lit by soft, diffused, even daylight from the front with no harsh sun on her, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed so the black shirt's fabric and folds are clearly visible
 FOV: framed from mid-thigh to just above the head, 85mm lens, shallow depth of field, photorealistic premium apparel catalog photo, natural skin texture, sharp focus on the shirt`;}
 const W_POSE={'':'arms relaxed at her sides with a natural, confident stance',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
