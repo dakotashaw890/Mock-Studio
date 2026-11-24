@@ -2042,10 +2042,13 @@ async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file)
 // dark-fabric lift: raises the darkest tones and boosts local contrast only where the image is dark, so a black shirt shows its folds,
 // seams and the body's curves instead of a flat black shape. Faces, skin and highlights are left alone.
 async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),W=im.naturalWidth,H=im.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(im,0,0);
-  const b=document.createElement('canvas');b.width=W;b.height=H;const bx=b.getContext('2d');bx.filter='blur('+Math.max(4,Math.round(W/220))+'px)';bx.drawImage(im,0,0);
+  const b=document.createElement('canvas');b.width=W;b.height=H;const bx=b.getContext('2d');bx.filter='blur('+Math.max(4,Math.round(W/160))+'px)';bx.drawImage(im,0,0);
   const d=x.getImageData(0,0,W,H),a=d.data,bd=bx.getImageData(0,0,W,H).data;
-  for(let i=0;i<a.length;i+=4){const lum=(a[i]*.3+a[i+1]*.59+a[i+2]*.11)/255,w=Math.pow(Math.max(0,1-lum/.45),2);if(w<=0)continue;const bl2=(bd[i]*.3+bd[i+1]*.59+bd[i+2]*.11)/255,wb=Math.max(0,1-bl2/.25); /* no detail boost next to bright areas (it drew dark halos) */
-    for(let k=0;k<3;k++){const u=a[i+k]/255,lift=.11*Math.pow(1-u,5),det=Math.max(-.05,Math.min(.07,(a[i+k]-bd[i+k])/255*2.2))*wb;a[i+k]=Math.max(0,Math.min(255,Math.round(255*(u+w*(lift+det)))));}}
+  /* black-fabric lift: only dark AND neutral (grey/black) areas, so brown hair, tattoo ink and skin stay as they are.
+     Multiplicative gain lifts the shirt to charcoal-black and scales its folds up with it, plus extra local contrast. */
+  for(let i=0;i<a.length;i+=4){const bl2=(bd[i]*.3+bd[i+1]*.59+bd[i+2]*.11)/255,w0=Math.pow(Math.max(0,1-bl2/.35),2);if(w0<=0)continue;
+    const ch=(Math.max(bd[i],bd[i+1],bd[i+2])-Math.min(bd[i],bd[i+1],bd[i+2]))/255,w=w0*Math.max(0,Math.min(1,(.07-ch)/.04));if(w<=0)continue;const g=1+1.2*w;
+    for(let k=0;k<3;k++){const u=a[i+k]/255,det=Math.max(-.06,Math.min(.08,(u-bd[i+k]/255)*1.8*w));a[i+k]=Math.max(0,Math.min(255,Math.round(255*(u*g+.02*w+det))));}}
   x.putImageData(d,0,0);return await canvasBlob(c,'image/jpeg',.94);}catch(e){return bl;}}
 async function cfSaveGen(ref,ibf,o,n,ZA,fname){
   ibf=await cfUpscale(ibf);ibf=await cfLift(ibf);if(ibf.type==='image/jpeg')fname=fname.replace(/\.png$/i,'.jpg');
