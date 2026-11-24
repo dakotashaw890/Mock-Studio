@@ -1963,8 +1963,8 @@ FACE: ${pick(VARY.lookM)}, ${eyes} eyes, natural skin texture
 EXPRESSION: ${pick(VARY.exprM)}${x?'\nEXTRAS: '+x.replace(/^, /,''):''}`;}
 function menExtras(){const x=[];if(Math.random()<.35)x.push('wearing '+pick(VARY.capM));if(Math.random()<.2)x.push('wearing dark wraparound sunglasses');
   if(Math.random()<.4)x.push('a black-and-grey tattoo sleeve on his right forearm only (the left arm has no tattoos), showing '+pick(VARY.tatM));if(Math.random()<.4)x.push('a black rugged tactical wristwatch');return x.length?', '+x.join(', '):'';}
-const COOL=['range','range','indoorrange','garage','musclegarage','musclegarage','moto','gym','gym','boxing','lake','lake','fishing','truck','truck','cabin','mountain','desert','bonfire','bbq','hunting','ranch','outdoor'];
-const COOL_W=['ranchsunset','tailgate','barn','flagwall','bbqlights','ranch','lake','truck','coffee'];
+const COOL=['range','range','lake','lake','fishing','truck','truck','cabin','mountain','desert','bbq','hunting','ranch','outdoor']; /* open-air only: roofs and indoor scenes darken the shirt */
+const COOL_W=['ranchsunset','tailgate','barn','flagwall','bbqlights','ranch','lake','truck']; /* open-air only: roofs and indoor scenes darken the shirt */
 function cfScene(woman){if(woman&&$('#cf-bg').value!=='same')return COOL_W[Math.floor(Math.random()*COOL_W.length)];const v=$('#cf-bg').value;if(v==='same')return $('#g-setting').value;const ks=COOL.concat(v==='any'?['studio']:[]);return ks[Math.floor(Math.random()*ks.length)];}
 const NO_TURN=['m08','f02','f05']; // hand-raised poses: turned skeletons came out broken
 function cfSetLab_unused(){const l=$('#cf-set-lab');if(l)l.textContent=$('#cf-angle').value==='s'?'Matching set (turned left + turned right)':'Matching set (front + both sides)';}
@@ -1987,7 +1987,7 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women';
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
 POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
-ENVIRONMENT: ${sc}, the person standing in soft open shade (like under a covered roof or the shade of a building), lit by soft, diffused, even daylight from the front with no harsh sun on her, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed, soft light catching the cotton so the shirt shows visible fabric texture, soft highlights on its folds and the shape of the body underneath
+ENVIRONMENT: ${sc}, outdoors in the open air with open sky overhead and nothing above the person, bright soft daylight from a lightly overcast sky lighting the person evenly from the front with no harsh sun, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed, soft light catching the cotton so the shirt shows visible fabric texture, soft highlights on its folds and the shape of the body underneath
 FOV: framed from mid-thigh to just above the head, 85mm lens, shallow depth of field, photorealistic premium apparel catalog photo, natural skin texture, sharp focus on the shirt`;}
 const W_POSE={'':'arms relaxed at her sides with a natural, confident stance',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
