@@ -1983,7 +1983,7 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women';
   const m=person||randomPerson(woman);
   const col=($('#g-color')&&$('#g-color').value)||'black';
   const pose=woman?(W_POSE[arms||'']||W_POSE['']):(MAN_POSE[arms||'']||MAN_POSE['']);
-  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'').replace(/late-afternoon golden hour|golden-hour|golden hour( sunlight| sun)?|at sunset|sunset|moody warm light|moody|warm afternoon sun|bright sunny daytime/gi,'late afternoon').replace(/,? ?warm sun (shining )?on(to)? her from the front/gi,'').replace(/,? ?(bright |warm |soft |harsh )*(late-afternoon |afternoon |morning |midday )?(sunlight|sun)\b/gi,'');
+  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'').replace(/late-afternoon golden hour|golden-hour|golden hour( sunlight| sun)?|at sunset|sunset|moody warm light|moody|warm afternoon sun|bright sunny daytime|late-afternoon golden light|golden light|warm late-afternoon light/gi,'late afternoon').replace(/,? ?warm sun (shining )?on(to)? her from the front/gi,'').replace(/,? ?(bright |warm |soft |harsh )*(late-afternoon |afternoon |morning |midday )?(sunlight|sun)\b/gi,'');
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
 POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
