@@ -437,9 +437,10 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <h2>Generate models with ComfyUI on this computer</h2>
     <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends the prompt above to ComfyUI on your PC. Each pose comes from a calibrated built-in photo, so new models arrive with their print areas already set. Nothing leaves your computer.</p>
     <div class="row small" style="gap:8px;align-items:center;margin-bottom:8px"><span id="cf-st" class="status">Not connected</span><button class="small" id="cf-check">Connect</button>
-      <label class="row small" style="gap:4px" title="Skin-realism LoRA: the exact file name in ComfyUI\'s models/loras folder. Leave empty to generate without it.">Realism LoRA <input id="cf-lora" placeholder="file name.safetensors" style="width:200px"></label>
+      <label class="row small" style="gap:4px" title="Skin-realism LoRA: the exact file name in ComfyUI\'s models/loras folder. Leave empty to generate without it.">Realism LoRA <input id="cf-lora" list="cf-lora-list" placeholder="pick or type the file" style="width:220px"><datalist id="cf-lora-list"></datalist></label>
       <label class="row small" style="gap:4px">Strength <input id="cf-lora-str" type="number" min="0" max="1.5" step="0.05" value="0.6" style="width:60px"></label>
       <label class="row small" style="gap:4px" title="Trigger word, if the LoRA's page lists one">Trigger <input id="cf-lora-trig" style="width:100px"></label>
+      <label class="row small" style="gap:4px" title="Upscale model file name in ComfyUI\'s models/upscale_models folder. Each finished photo is saved at about 2048 x 2560. Leave empty to skip.">Upscaler <input id="cf-up" list="cf-up-list" placeholder="pick or type the file" style="width:200px"><datalist id="cf-up-list"></datalist></label>
       <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" autocomplete="off" value="http://127.0.0.1:8188" style="width:260px" title="On the computer running ComfyUI: http://127.0.0.1:8188. From another computer: your Tailscale address, e.g. https://your-pc.tailnet-name.ts.net"></label></div>
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="all">All poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
@@ -1885,14 +1886,14 @@ function cfRenderPoses(){const box=$('#cf-poses');box.textContent='';
   $('#cf-n').textContent=CF.sel.size+' selected';$('#cf-go').disabled=!CF.ok||!CF.sel.size||CF.busy;}
 $$('[data-pf]').forEach(b=>b.onclick=()=>{const f=b.dataset.pf;for(const t of cfPoseList())if(f==='all'||f===t.group)CF.sel.add(t.id);cfRenderPoses();});
 $('#cf-none').onclick=()=>{CF.sel.clear();cfRenderPoses();};
-async function cfCheck(){$('#cf-st').textContent='Connecting…';
+async function cfCheck(){$('#cf-st').textContent='Connecting…';setTimeout(cfFileLists,500);
   try{const r=await fetch(cfBase()+'/object_info/ModelPatchLoader');if(!r.ok)throw 0;const j=await r.json();
     const names=JSON.stringify(j);CF.ok=true;
     $('#cf-st').textContent=names.includes('Z-Image-Turbo-Fun-Controlnet')?'✓ Connected to ComfyUI':'Connected, but the pose model (Z-Image-Turbo-Fun-Controlnet-Union) wasn\'t found in model_patches';}
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
-for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
+for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -2009,7 +2010,27 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
       ibf=await canvasBlob(c2,'image/png');}}catch(e){}}
   if(o._baseOnly)return {blob:ibf,za:ZA,fn:out.filename};
   return cfSaveGen(ref,ibf,o,n,ZA,out.filename);}
+// optional upscale of each finished photo: 4x model, then scaled back to 2x (about 2048 x 2560), saved as a high-quality JPEG
+// suggest the files ComfyUI actually has (LoRAs for Z-Image, upscale models)
+async function cfFileLists(){const base=cfBase();const opts=x=>{const v=x&&x[0];return Array.isArray(v)?v:(x&&x[1]&&x[1].options)||[];};
+  try{const a=await (await fetch(base+'/object_info/LoraLoaderModelOnly')).json(),b=await (await fetch(base+'/object_info/UpscaleModelLoader')).json();
+    const L=opts(a.LoraLoaderModelOnly.input.required.lora_name).filter(f=>/z.?image|zit|realis|skin|radiant|physio|detail/i.test(f)),U=opts(b.UpscaleModelLoader.input.required.model_name);
+    const fill=(id,list)=>{const d=$('#'+id);d.textContent='';for(const f of list){const o=document.createElement('option');o.value=f;d.append(o);}};fill('cf-lora-list',L);fill('cf-up-list',U);}catch(e){}}
+async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file)return bl;const base=cfBase();
+  try{const fd=new FormData();fd.append('image',new File([bl],'ms-up.png',{type:bl.type||'image/png'}));fd.append('overwrite','true');
+    const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)return bl;const u=await up.json();
+    const g={'1':{class_type:'LoadImage',inputs:{image:u.subfolder?u.subfolder+'/'+u.name:u.name}},'2':{class_type:'UpscaleModelLoader',inputs:{model_name:file}},
+      '3':{class_type:'ImageUpscaleWithModel',inputs:{upscale_model:['2',0],image:['1',0]}},'4':{class_type:'ImageScaleBy',inputs:{image:['3',0],upscale_method:'lanczos',scale_by:.5}},
+      '5':{class_type:'SaveImage',inputs:{images:['4',0],filename_prefix:'mockup-studio/up'}}};
+    const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:g,client_id:'mockup-studio'})});const j=await r.json();
+    if(!r.ok||j.error){toast('Upscale skipped: ComfyUI couldn\'t run it. Check the upscaler file name.',5000);return bl;}
+    for(let i=0;i<200&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1000));const h=await (await fetch(base+'/history/'+j.prompt_id)).json(),e=h[j.prompt_id];
+      if(e&&e.status&&e.status.status_str==='error'){toast('Upscale skipped: ComfyUI hit an error.',5000);return bl;}
+      if(e&&e.outputs&&e.outputs['5']){const o=e.outputs['5'].images[0];const ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:o.filename,subfolder:o.subfolder||'',type:o.type||'output'}))).blob();
+        const im=await loadImage(URL.createObjectURL(ob)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);return await canvasBlob(c,'image/jpeg',.93);}}
+  }catch(e){}return bl;}
 async function cfSaveGen(ref,ibf,o,n,ZA,fname){
+  ibf=await cfUpscale(ibf);if(ibf.type==='image/jpeg')fname=fname.replace(/\.png$/i,'.jpg');
   const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?(o.angle&&o.angle[0]==='s'?'turned '+(o.angle==='sl'?'right':'left'):'front'):viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
   const f=new File([ibf],fname,{type:ibf.type||'image/png'});
   const PS=.9,zt=v=>ZA?{x:ZA.x+(v.x-ZA.x)*ZA.z,y:ZA.y+(v.y-ZA.y)*ZA.z}:v,tq=q=>q.map(v=>zt({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre, then by the Framing zoom
