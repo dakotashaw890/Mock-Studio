@@ -437,6 +437,9 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <h2>Generate models with ComfyUI on this computer</h2>
     <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends the prompt above to ComfyUI on your PC. Each pose comes from a calibrated built-in photo, so new models arrive with their print areas already set. Nothing leaves your computer.</p>
     <div class="row small" style="gap:8px;align-items:center;margin-bottom:8px"><span id="cf-st" class="status">Not connected</span><button class="small" id="cf-check">Connect</button>
+      <label class="row small" style="gap:4px" title="Skin-realism LoRA: the exact file name in ComfyUI\'s models/loras folder. Leave empty to generate without it.">Realism LoRA <input id="cf-lora" placeholder="file name.safetensors" style="width:200px"></label>
+      <label class="row small" style="gap:4px">Strength <input id="cf-lora-str" type="number" min="0" max="1.5" step="0.05" value="0.6" style="width:60px"></label>
+      <label class="row small" style="gap:4px" title="Trigger word, if the LoRA's page lists one">Trigger <input id="cf-lora-trig" style="width:100px"></label>
       <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" autocomplete="off" value="http://127.0.0.1:8188" style="width:260px" title="On the computer running ComfyUI: http://127.0.0.1:8188. From another computer: your Tailscale address, e.g. https://your-pc.tailnet-name.ts.net"></label></div>
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="all">All poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
@@ -1889,7 +1892,7 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';
   catch(e){CF.ok=false;$('#cf-st').textContent='Can\'t reach ComfyUI. Make sure it\'s open on this computer. If Chrome asks to allow access to local devices, click Allow.';}
   cfRenderPoses();}
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
-for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
+for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -1897,20 +1900,21 @@ $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
 function cfSaveUrl(){let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/\/+$/,'');try{localStorage.setItem('ms_cfurl',JSON.stringify(v));}catch(e){}return v;}
 $('#cf-url').addEventListener('input',cfSaveUrl);
 $('#cf-url').onchange=()=>{$('#cf-url').value=cfSaveUrl();CF.ok=false;cfCheck();};
-function cfPrompt(text,img,seed,str,W,H){W=W||1024;H=H||1280;return {
+function cfLora(){const f=($('#cf-lora').value||'').trim();return f?{file:f,str:+$('#cf-lora-str').value||.6,trig:($('#cf-lora-trig').value||'').trim()}:null;}
+function cfPrompt(text,img,seed,str,W,H){W=W||1024;H=H||1280;const LR=cfLora();if(LR&&LR.trig)text=LR.trig+', '+text;const g={
   '1':{class_type:'UNETLoader',inputs:{unet_name:'z_image_turbo_bf16.safetensors',weight_dtype:'default'}},
   '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen_3_4b.safetensors',type:'lumina2',device:'default'}},
   '3':{class_type:'VAELoader',inputs:{vae_name:'ae.safetensors'}},
   '4':{class_type:'ModelPatchLoader',inputs:{name:'Z-Image-Turbo-Fun-Controlnet-Union.safetensors'}},
   '5':{class_type:'LoadImage',inputs:{image:img}},
-  '6':{class_type:'QwenImageDiffsynthControlnet',inputs:{model:['1',0],model_patch:['4',0],vae:['3',0],image:['5',0],strength:str}},
+  '6':{class_type:'QwenImageDiffsynthControlnet',inputs:{model:[LR?'20':'1',0],model_patch:['4',0],vae:['3',0],image:['5',0],strength:str}},
   '7':{class_type:'ModelSamplingAuraFlow',inputs:{model:['6',0],shift:3}},
   '8':{class_type:'CLIPTextEncode',inputs:{clip:['2',0],text}},
   '9':{class_type:'ConditioningZeroOut',inputs:{conditioning:['8',0]}},
   '10':{class_type:'EmptySD3LatentImage',inputs:{width:W,height:H,batch_size:1}},
   '11':{class_type:'KSampler',inputs:{model:['7',0],positive:['8',0],negative:['9',0],latent_image:['10',0],seed,steps:8,cfg:1,sampler_name:'res_multistep',scheduler:'simple',denoise:1}},
   '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
-  '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};}
+  '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};if(LR)g['20']={class_type:'LoraLoaderModelOnly',inputs:{model:['1',0],lora_name:LR.file,strength_model:LR.str}};return g;}
 const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
   ageM:['mid 20s','late 20s','late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s'],
@@ -1928,8 +1932,8 @@ const VARY={
   lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
   exprM:['a tough, serious expression','an intense stare','a slight confident smirk','a hard, focused look','a calm, stern expression','a serious look, gazing slightly off to the side'],
   // glam that still photographs as real: makeup described the way a makeup artist would, with skin texture showing through it
-  lookW:['a beautiful face with high cheekbones and full lips, professionally done glam makeup: a soft brown smoky eye, lash extensions, sculpted brows, warm bronzer and a nude lip, with real skin texture and pores visible through a satin foundation','a striking face with light eyes and full lips, polished makeup by a makeup artist: winged liner, full lashes, contoured cheeks and a glossy pink-nude lip, real skin texture showing through the makeup','a gorgeous tanned face with full lips, influencer-style glam: bronzed contour, shimmery champagne eyeshadow, lashes and a lined nude lip, with natural skin pores and fine texture still visible','a confident, beautiful face with sharp cheekbones, a sultry makeup look: smudged dark brown liner, full lashes, matte bronze skin and a mauve lip, real skin texture under the makeup'],
-  exprW:['a confident, flirty half smile','a soft, knowing smirk','a bright, warm smile','a sultry, confident look straight into the camera','a playful smile with a slight head tilt'],
+  lookW:['a beautiful face with high cheekbones and naturally shaped lips, professionally done glam makeup: a soft brown smoky eye, lash extensions, sculpted brows, warm bronzer and a nude lip, with real skin texture and pores visible through a satin foundation','a striking face with light eyes and natural lips, polished makeup by a makeup artist: winged liner, full lashes, contoured cheeks and a glossy pink-nude lip, real skin texture showing through the makeup','a gorgeous tanned face with full lips, influencer-style glam: bronzed contour, shimmery champagne eyeshadow, lashes and a lined nude lip, with natural skin pores and fine texture still visible','a confident, beautiful face with sharp cheekbones, a sultry makeup look: smudged dark brown liner, full lashes, matte bronze skin and a mauve lip, real skin texture under the makeup'],
+  exprW:['a big, genuine smile showing her teeth, with relaxed lips and smile lines around her eyes','a warm, natural open smile with her teeth showing, eyes slightly squinting from the smile','a bright, happy grin mid-laugh','a relaxed, easy smile with her lips gently parted'],
   eyesLight:['green','blue','hazel','blue','green'],eyesDark:['brown','dark brown','brown','hazel']};
 const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
 function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=pick(VARY.eth);
@@ -2588,7 +2592,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
   colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
-window.__pose=()=>loadPose();window.__sel=()=>JSON.stringify(SEL);window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
+window.__pose=()=>loadPose();window.__sel=()=>JSON.stringify(SEL);window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={cfPrompt,get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
 /* model photo sync: your added and generated model photos follow your login */
 const MS={busy:false,timers:new Map(),again:false};
