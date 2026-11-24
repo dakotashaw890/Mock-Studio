@@ -1548,25 +1548,29 @@ view.addEventListener('pointerup',endLD);view.addEventListener('pointercancel',e
 let ROT_SIGN=1;
 // hide/show brush
 let BRUSH_ON=false,BRUSH_M=1,BRUSH_G=null,BRUSH_DOWN=false;
-function brushUI(){setTimeout(brushCursor,0);$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('primary',+b.dataset.bm===BRUSH_M));const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
+function brushUI(){setTimeout(()=>brushCursor(),0);$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('primary',+b.dataset.bm===BRUSH_M));const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
 function brushSave(){const t=curT();if(!t||!BRUSH_G)return;const m=LS.get('occ',{});if(BRUSH_G.some(v=>v))m[t.id]=occEnc(BRUSH_G);else delete m[t.id];LS.set('occ',m);}
-let BRUSH_LAST=null,BRUSH_CUR='';
-/* round outline cursor at the real brush size, so you can see exactly what you'll paint */
-function brushCursor(){if(!BRUSH_ON){if(view.style.cursor)view.style.cursor='';BRUSH_CUR='';return;}const r=view.getBoundingClientRect();
-  const d=Math.max(4,Math.min(126,Math.round(+$('#brush-size').value/OCC_OW*r.width))),k=d+'|'+BRUSH_M;if(k===BRUSH_CUR)return;BRUSH_CUR=k;const c=d/2+1,sz=d+2;
-  const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${sz}' height='${sz}'><circle cx='${c}' cy='${c}' r='${d/2}' fill='none' stroke='black' stroke-opacity='.6' stroke-width='2'/><circle cx='${c}' cy='${c}' r='${d/2}' fill='none' stroke='white' stroke-width='1'/></svg>`;
-  view.style.cursor=`url("data:image/svg+xml,${encodeURIComponent(svg)}") ${c} ${c}, crosshair`;}
+let BRUSH_LAST=null;
+/* round outline at the real brush size, so you can see exactly what you'll paint. A floating ring, not a CSS cursor:
+   browsers cap cursor images at 128 px, which made the ring smaller than the brush when zoomed in */
+let BRUSH_RING=null;
+function brushCursor(e){if(!BRUSH_RING){BRUSH_RING=document.createElement('div');BRUSH_RING.style.cssText='position:fixed;pointer-events:none;border-radius:50%;border:1px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.6);z-index:50;display:none;transform:translate(-50%,-50%)';document.body.append(BRUSH_RING);}
+  if(!BRUSH_ON){BRUSH_RING.style.display='none';if(view.style.cursor)view.style.cursor='';return;}
+  view.style.cursor='none';const r=view.getBoundingClientRect(),d=+$('#brush-size').value/OCC_OW*r.width;
+  if(e){BRUSH_RING.style.left=e.clientX+'px';BRUSH_RING.style.top=e.clientY+'px';BRUSH_RING.style.display='block';}
+  BRUSH_RING.style.width=BRUSH_RING.style.height=d+'px';}
 function brushDab(cx,cy,rad){for(let y=Math.max(0,Math.floor(cy-rad));y<Math.min(OCC_H,Math.ceil(cy+rad));y++)for(let x=Math.max(0,Math.floor(cx-rad));x<Math.min(OCC_W,Math.ceil(cx+rad));x++)if(Math.hypot(x+.5-cx,y+.5-cy)<=rad)BRUSH_G[y*OCC_W+x]=BRUSH_M;}
 function brushAt(e){const t=curT();if(!t)return;const r=view.getBoundingClientRect(),nx=(e.clientX-r.left)/r.width,ny=(e.clientY-r.top)/r.height,rad=+$('#brush-size').value/2*(OCC_W/OCC_OW);
   const cx=nx*OCC_W,cy=ny*OCC_H,L=BRUSH_LAST||{x:cx,y:cy},d=Math.hypot(cx-L.x,cy-L.y),n=Math.max(1,Math.ceil(d/Math.max(1,rad*.35)));
   for(let k=1;k<=n;k++)brushDab(L.x+(cx-L.x)*k/n,L.y+(cy-L.y)*k/n,rad);BRUSH_LAST={x:cx,y:cy};
   const m=LS.get('occ',{});occBr.set(t.id,{s:'live',g:BRUSH_G});scheduleRender();}
 view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
-view.addEventListener('pointermove',e=>{if(!BRUSH_ON)return;e.stopImmediatePropagation();brushCursor();if(BRUSH_DOWN)brushAt(e);},true);
+view.addEventListener('pointermove',e=>{if(!BRUSH_ON)return;e.stopImmediatePropagation();brushCursor(e);if(BRUSH_DOWN)brushAt(e);},true);
+view.addEventListener('pointerleave',()=>{if(BRUSH_RING)BRUSH_RING.style.display='none';});
 view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!BRUSH_DOWN)return;e.stopImmediatePropagation();BRUSH_DOWN=false;BRUSH_LAST=null;brushSave();occBr.delete((curT()||{}).id);scheduleRender();scheduleGrid();},true);
 $('#btn-brush').onclick=()=>{BRUSH_ON=!BRUSH_ON;if(BRUSH_ON){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');toast('Paint over an arm, hand or hair to hide the print there. “Show print” forces it back. Saves to this photo for every design.',5000);}brushUI();scheduleRender();};
 document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.onclick=()=>{BRUSH_M=+b.dataset.bm;brushUI();});
-$('#brush-size').addEventListener('input',brushCursor);addEventListener('resize',()=>{BRUSH_CUR='';brushCursor();});
+$('#brush-size').addEventListener('input',()=>brushCursor());
 $('#brush-clear').onclick=()=>{const t=curT();if(!t)return;const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
 $('#brush-done').onclick=()=>{BRUSH_ON=false;brushUI();scheduleRender();};
 $('#occ-auto').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('occoff',{});if(e.target.checked)delete m[t.id];else m[t.id]=1;LS.set('occoff',m);scheduleRender();scheduleGrid();};
