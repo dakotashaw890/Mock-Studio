@@ -1939,11 +1939,12 @@ const VARY={
   // glam that still photographs as real: makeup described the way a makeup artist would, with skin texture showing through it
   lookW:['natural glamorous makeup with defined brows, soft smoky eyes, long lashes and glossy lips','stunning face, high cheekbones, glam makeup with winged liner, long lashes and a nude lip','beautiful model face, bronzed glam makeup, soft smoky eyes and glossy lips','gorgeous face with full lips, soft glam makeup, defined brows and long lashes'],
   exprW:['big genuine smile','warm, bright smile','flirty smile','confident, happy smile','playful smile'],
-  eyesLight:['green','blue','hazel','blue','green'],eyesDark:['brown','dark brown','brown','hazel']};
+  eyesLight:['green','blue','hazel','blue','green'],blonde:['golden blonde','honey blonde','platinum blonde','sandy blonde','dirty blonde','golden blonde'],eyesBlonde:['bright blue','light blue','blue','green','pale green','grey-blue'],eyesDark:['brown','dark brown','brown','hazel']};
 const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
-function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=pick(VARY.eth);
-  const lightOk=/white|mixed|Latino/.test(eth);const c=pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);
-  const eyes=eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
+function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=woman&&Math.random()<.6?'white':pick(VARY.eth); /* women: weighted toward white */
+  const lightOk=/white|mixed|Latino/.test(eth),blondeW=woman&&eth==='white'&&Math.random()<.75; /* most white women are blonde with light eyes */
+  const c=blondeW?pick(VARY.blonde):pick(Math.random()<(lightOk?.5:.12)?VARY.light:VARY.dark);
+  const eyes=blondeW?pick(VARY.eyesBlonde):eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
   // dreadlocks and braids only come up for Black models
   const hair=pick((woman?VARY.hairW:VARY.hairM).filter(h=>eth==='Black'||!/dreadlock|braid|locs/.test(h))).replace('{c}',c);
   if(woman){const r=Math.random(),tat=r<.2?'a full black-and-grey floral tattoo sleeve on her right arm only':r<.45?'a small fine-line tattoo on her right forearm only, '+pick(VARY.tatW):'none';
