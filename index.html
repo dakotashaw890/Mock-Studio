@@ -173,7 +173,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <span>Brush:</span><button class="small primary" data-bm="1">Hide print</button><button class="small" data-bm="2">Show print</button><button class="small" data-bm="0">Eraser</button>
           <label class="row small" style="gap:4px">Size <input type="range" id="brush-size" min="0.5" max="24" step="0.5" value="6" style="width:90px"></label>
           <label class="row small" style="gap:4px" title="Untick to stop trimming the print to the shirt outline on this photo"><input type="checkbox" id="occ-auto" checked> Trim to shirt outline</label>
-          <button class="small" id="brush-clear">Clear brush</button><button class="small" id="brush-done">Done</button>
+          <button class="small" id="ln-tool" title="Draw a line along an arm or hair edge, bend it to the curve, then click the side to hide">Edge line</button><span id="ln-bar" style="display:none;gap:6px;align-items:center"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span><button class="small" id="brush-clear">Clear brush</button><button class="small" id="brush-done">Done</button>
         </div>
         <div class="row" style="margin-top:10px;justify-content:space-between">
           <div class="row">
@@ -854,15 +854,39 @@ function occEnc(g){let s='v2|',v=g[0],n=0;for(let i=0;i<=g.length;i++){if(i<g.le
 function occDec(s){const v2=s.startsWith('v2|'),W=v2?OCC_W:OCC_OW,H=v2?OCC_H:OCC_OH,g=new Uint8Array(W*H);let i=0;for(const p of (v2?s.slice(3):s).split(',')){if(!p)continue;const [v,n]=p.split(':').map(Number);g.fill(v,i,i+n);i+=n;}
   if(v2)return g;const o=new Uint8Array(OCC_W*OCC_H),kx=OCC_W/W,ky=OCC_H/H;for(let y=0;y<OCC_H;y++)for(let x=0;x<OCC_W;x++)o[y*OCC_W+x]=g[((y/ky)|0)*W+((x/kx)|0)];return o;} // older brush work, scaled up to the finer grid
 function occBrush(t){const s=LS.get('occ',{})[t.id];if(!s)return null;let c=occBr.get(t.id);if(!c||c.s!==s){c={s,g:occDec(s)};occBr.set(t.id,c);}return c.g;}
-function occApply(t,pack,out){if(t.scene||occOff(t))return;const A=occAuto.get(t.id),B=occBrush(t);if(!A&&!B)return;const {w,h,data}=pack,o=out.data;
+function occApply(t,pack,out){if(t.scene)return;const off=occOff(t),A=off?null:occAuto.get(t.id),B=off?null:occBrush(t),LM=lineMask(t);if(!A&&!B&&!LM)return;const {w,h,data}=pack,o=out.data;
   for(let y=0;y<h;y++){const ay=A?Math.min(A.h-1,(y*A.h/h)|0)*A.w:0,by=0;
     for(let x=0;x<w;x++){const i=(y*w+x)*4;if(o[i]===data[i]&&o[i+1]===data[i+1]&&o[i+2]===data[i+2])continue;
       const auto=A&&!A.g[ay+Math.min(A.w-1,(x*A.w/w)|0)]?1:0;let a=auto;
       if(B){const fx=Math.max(0,Math.min(OCC_W-1.001,(x+.5)*OCC_W/w-.5)),fy=Math.max(0,Math.min(OCC_H-1.001,(y+.5)*OCC_H/h-.5)),x0=fx|0,y0=fy|0,tx=fx-x0,ty=fy-y0,k=y0*OCC_W+x0;
         const hv=v=>v===1?1:v===2?0:auto; // painted hide = 1, painted show = 0, unpainted = automatic
         a=(hv(B[k])*(1-tx)+hv(B[k+1])*tx)*(1-ty)+(hv(B[k+OCC_W])*(1-tx)+hv(B[k+OCC_W+1])*tx)*ty;}
+      if(LM){const fx=Math.max(0,Math.min(LM.w-1.001,(x+.5)*LM.w/w-.5)),fy=Math.max(0,Math.min(LM.h-1.001,(y+.5)*LM.h/h-.5)),x0=fx|0,y0=fy|0,tx=fx-x0,ty=fy-y0,k=y0*LM.w+x0;
+        const sm=G=>(G[k]*(1-tx)+G[k+1]*tx)*(1-ty)+(G[k+LM.w]*(1-tx)+G[k+LM.w+1]*tx)*ty;if(LM.hide)a=Math.max(a,sm(LM.hide));if(LM.show)a*=1-sm(LM.show);}
       if(a>0){if(a>=1){o[i]=data[i];o[i+1]=data[i+1];o[i+2]=data[i+2];}else for(let c=0;c<3;c++)o[i+c]=Math.round(o[i+c]+(data[i+c]-o[i+c])*a);}}}}
 function occOff(t){return !!LS.get('occoff',{})[t.id];}
+/* ---------- edge lines: a bendable line along an arm/hair edge; everything on the chosen side of it is hidden (or forced shown).
+   Stored as points (0-1 of the photo) so it stays editable, and turned into a mask at render time ---------- */
+const occLines=t=>LS.get('occline',{})[t.id]||[];
+function occLinesSet(t,L){const m=LS.get('occline',{});if(L.length)m[t.id]=L;else delete m[t.id];LS.set('occline',m);LMC.k=null;}
+function crSample(P,steps){steps=steps||14;if(P.length<2)return P.map(p=>({x:p[0],y:p[1],seg:0}));const out=[];
+  for(let i=0;i<P.length-1;i++){const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)];
+    for(let k=0;k<steps;k++){const t=k/steps,t2=t*t,t3=t2*t,f=(a,b,c,d)=>.5*(2*b+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);out.push({x:f(p0[0],p1[0],p2[0],p3[0]),y:f(p0[1],p1[1],p2[1],p3[1]),seg:i});}}
+  const e=P[P.length-1];out.push({x:e[0],y:e[1],seg:P.length-2});return out;}
+const LMC={k:null,v:null};
+function lineMask(t){const L=occLines(t).filter(l=>l.p&&l.p.length>=2&&l.s);if(!L.length)return null;const key=t.id+JSON.stringify(L);if(LMC.k===key)return LMC.v;
+  const im=imgCache.get(t.id),ar=im?im.naturalHeight/im.naturalWidth:1.25,h=900,w=Math.round(h/ar);const v={w,h,hide:null,show:null};
+  for(const ln of L){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});
+    const S=crSample(ln.p).map(p=>[p.x*w,p.y*h]),ext=(a,b)=>{const dx=a[0]-b[0],dy=a[1]-b[1],n=Math.hypot(dx,dy)||1;return [a[0]+dx/n*(w+h)*2,a[1]+dy/n*(w+h)*2];};
+    const pts=[ext(S[0],S[Math.min(2,S.length-1)]),...S,ext(S[S.length-1],S[Math.max(0,S.length-3)])];
+    x.strokeStyle='#fff';x.lineWidth=2;x.beginPath();pts.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.stroke();
+    const d=x.getImageData(0,0,w,h).data,bar=new Uint8Array(w*h);for(let i=0;i<w*h;i++)bar[i]=d[i*4]>40?1:0;
+    const g=new Float32Array(w*h);let sx=Math.round(ln.s[0]*w),sy=Math.round(ln.s[1]*h);sx=Math.max(0,Math.min(w-1,sx));sy=Math.max(0,Math.min(h-1,sy));
+    const st=[sy*w+sx];if(!bar[st[0]])g[st[0]]=1;else st.pop();
+    while(st.length){const i=st.pop(),px=i%w;for(const j of [px>0?i-1:-1,px<w-1?i+1:-1,i-w,i+w]){if(j<0||j>=w*h||g[j]||bar[j])continue;g[j]=1;st.push(j);}}
+    for(let i=0;i<w*h;i++)if(bar[i]){const px=i%w;if((px>0&&g[i-1]===1)||(px<w-1&&g[i+1]===1)||(i>=w&&g[i-w]===1)||(i+w<w*h&&g[i+w]===1))g[i]=.5;}
+    const key2=ln.m===2?'show':'hide';if(!v[key2])v[key2]=g;else{const G=v[key2];for(let i=0;i<w*h;i++)G[i]=Math.max(G[i],g[i]);}}
+  LMC.k=key;LMC.v=v;return v;}
 // keep the turned front design on the shirt: undo any print pixels outside the body/shirt outline
 function maskBack(out,snap,mk,pack){const o=out.data,{w,h}=pack,f=(x,y)=>mk.at(x,y)?1:0; /* loose outline: the tight one ate into the chest edge */for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(o[i]===snap[i]&&o[i+1]===snap[i+1]&&o[i+2]===snap[i+2])continue;const a=f((x+.5)/w,(y+.5)/h);if(a>=1)continue;for(let c=0;c<3;c++)o[i+c]=snap[i+c]+(o[i+c]-snap[i+c])*a;}}
 function renderTo(pack,t,ctx,edit){
@@ -1242,7 +1266,7 @@ async function ensureFit(t){
 async function ensureFitAll(list){for(const t of list)await ensureFit(t);}
 
 /* ---------- templates: storage ---------- */
-const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|sidechest|turned|approved|crop|cropdef|drawn|occ|occoff|place_.+)$/.test(k);
+const SYNC_KEY=k=>/^(ov|turns|quads|names|hidden|excluded|ts|wm|wmimg|shirt|pfcolors|sidefront|sidechest|turned|approved|crop|cropdef|drawn|occ|occoff|occline|place_.+)$/.test(k);
 const LS={get(k,d){try{const v=localStorage.getItem('ms_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   set(k,v){try{localStorage.setItem('ms_'+k,JSON.stringify(v));if(SYNC_KEY(k)){const m=syncMeta();m[k]=Date.now();localStorage.setItem('ms__meta',JSON.stringify(m));cloudQueue();}}catch(e){}}};
 function syncMeta(){try{return JSON.parse(localStorage.getItem('ms__meta')||'{}');}catch(e){return {};}}
@@ -1564,15 +1588,15 @@ function brushAt(e){const t=curT();if(!t)return;const r=view.getBoundingClientRe
   const cx=nx*OCC_W,cy=ny*OCC_H,L=BRUSH_LAST||{x:cx,y:cy},d=Math.hypot(cx-L.x,cy-L.y),n=Math.max(1,Math.ceil(d/Math.max(1,rad*.35)));
   for(let k=1;k<=n;k++)brushDab(L.x+(cx-L.x)*k/n,L.y+(cy-L.y)*k/n,rad);BRUSH_LAST={x:cx,y:cy};
   const m=LS.get('occ',{});occBr.set(t.id,{s:'live',g:BRUSH_G});scheduleRender();}
-view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
-view.addEventListener('pointermove',e=>{if(!BRUSH_ON)return;e.stopImmediatePropagation();brushCursor(e);if(BRUSH_DOWN)brushAt(e);},true);
+view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
+view.addEventListener('pointermove',e=>{if(!BRUSH_ON||LN.tool)return;e.stopImmediatePropagation();brushCursor(e);if(BRUSH_DOWN)brushAt(e);},true);
 view.addEventListener('pointerleave',()=>{if(BRUSH_RING)BRUSH_RING.style.display='none';});
 view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!BRUSH_DOWN)return;e.stopImmediatePropagation();BRUSH_DOWN=false;BRUSH_LAST=null;brushSave();occBr.delete((curT()||{}).id);scheduleRender();scheduleGrid();},true);
-$('#btn-brush').onclick=()=>{BRUSH_ON=!BRUSH_ON;if(BRUSH_ON){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');toast('Paint over an arm, hand or hair to hide the print there. “Show print” forces it back. Saves to this photo for every design.',5000);}brushUI();scheduleRender();};
-document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.onclick=()=>{BRUSH_M=+b.dataset.bm;brushUI();});
+$('#btn-brush').onclick=()=>{BRUSH_ON=!BRUSH_ON;if(!BRUSH_ON){LN.tool=false;LN.draft=null;LN.sel=-1;LN.side=-1;lnUI();}if(BRUSH_ON){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');toast('Paint over an arm, hand or hair to hide the print there. “Show print” forces it back. Saves to this photo for every design.',5000);}brushUI();scheduleRender();};
+document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.onclick=()=>{BRUSH_M=+b.dataset.bm;if(LN.tool&&BRUSH_M){LN.m=BRUSH_M;if(LN.sel>=0){const t=curT(),L=occLines(t);if(L[LN.sel]){L[LN.sel].m=BRUSH_M;occLinesSet(t,L);scheduleRender();scheduleGrid();}}}brushUI();});
 $('#brush-size').addEventListener('input',()=>brushCursor());
 $('#brush-clear').onclick=()=>{const t=curT();if(!t)return;const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
-$('#brush-done').onclick=()=>{BRUSH_ON=false;brushUI();scheduleRender();};
+$('#brush-done').onclick=()=>{LN.tool=false;LN.draft=null;LN.sel=-1;LN.side=-1;BRUSH_ON=false;brushUI();scheduleRender();};
 $('#occ-auto').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('occoff',{});if(e.target.checked)delete m[t.id];else m[t.id]=1;LS.set('occoff',m);scheduleRender();scheduleGrid();};
 let CROP_ON=false,CROP_DRAG=null;
 function drawCrop(x){if(!CROP_ON)return;const t=curT();if(!t||!t.quad)return;const W=x.canvas.width,H=x.canvas.height,A=cropAspect($('#out-size').value,W,H);if(!A)return;
@@ -1593,10 +1617,51 @@ $('#crop-def').oninput=e=>{LS.set('cropdef',{z:+e.target.value/100});cropUI();sc
 $('#out-size').addEventListener('change',()=>scheduleRender());
 setTimeout(cropUI,1500);
 let BRUSH_OV=null;
+/* edge-line tool */
+const LN={tool:false,draft:null,sel:-1,side:-1,drag:null,m:1};
+function lnUI(){$('#ln-tool').classList.toggle('primary',LN.tool);$('#ln-bar').style.display=LN.tool&&LN.sel>=0?'inline-flex':'none';if(LN.tool&&BRUSH_RING)BRUSH_RING.style.display='none';view.style.cursor=LN.tool?'crosshair':(BRUSH_ON?'none':'');}
+function lnNorm(e){const p=canvasPt(e);return {x:p.x/view.width,y:p.y/view.height,sc:p.sc};}
+function lnHit(t,q){const W=view.width,H=view.height,tol=9*q.sc,L=occLines(t),d2=(a,b)=>Math.hypot((a[0]-b.x)*W,(a[1]-b.y)*H);
+  if(LN.sel>=0&&L[LN.sel]){const ln=L[LN.sel];for(let i=0;i<ln.p.length;i++)if(d2(ln.p[i],q)<tol)return {line:LN.sel,pt:i};if(ln.s&&d2(ln.s,q)<tol)return {line:LN.sel,side:true};}
+  for(let li=L.length-1;li>=0;li--){const S=crSample(L[li].p);let best=1e9,seg=0;for(const p of S){const d=Math.hypot((p.x-q.x)*W,(p.y-q.y)*H);if(d<best){best=d;seg=p.seg;}}if(best<tol)return {line:li,seg};}
+  return null;}
+function lnFinish(){const t=curT();if(!t||!LN.draft)return;if(LN.draft.length<2){LN.draft=null;scheduleRender();return;}
+  const L=occLines(t);L.push({p:LN.draft.map(p=>[+p[0].toFixed(4),+p[1].toFixed(4)]),s:null,m:LN.m});occLinesSet(t,L);LN.draft=null;LN.sel=L.length-1;LN.side=LN.sel;
+  toast('Now click the side of the line to '+(LN.m===2?'show':'hide')+' the print on.',4000);lnUI();scheduleRender();}
+view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||!LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT(),q=lnNorm(e),L=occLines(t);
+  if(LN.side>=0&&L[LN.side]){L[LN.side].s=[+q.x.toFixed(4),+q.y.toFixed(4)];occLinesSet(t,L);LN.side=-1;lnUI();scheduleRender();scheduleGrid();return;}
+  if(LN.draft){if(e.detail>=2){lnFinish();return;}LN.draft.push([q.x,q.y]);scheduleRender();return;}
+  const h=lnHit(t,q);
+  if(h&&h.line===LN.sel&&h.pt!=null){LN.drag={pt:h.pt};view.setPointerCapture(e.pointerId);return;}
+  if(h&&h.line===LN.sel&&h.side){LN.drag={side:true};view.setPointerCapture(e.pointerId);return;}
+  if(h&&h.line===LN.sel&&h.seg!=null){L[LN.sel].p.splice(h.seg+1,0,[q.x,q.y]);occLinesSet(t,L);LN.drag={pt:h.seg+1};view.setPointerCapture(e.pointerId);scheduleRender();return;} // click on the line: add a bend point
+  if(h){LN.sel=h.line;lnUI();scheduleRender();return;}
+  if(LN.sel>=0){LN.sel=-1;lnUI();scheduleRender();return;}
+  LN.draft=[[q.x,q.y]];toast('Click along the edge to add points. Double-click (or Enter) to finish the line.',4000);scheduleRender();},true);
+view.addEventListener('pointermove',e=>{if(!BRUSH_ON||!LN.tool)return;e.stopImmediatePropagation();if(!LN.drag)return;const t=curT(),q=lnNorm(e),L=occLines(t),ln=L[LN.sel];if(!ln)return;
+  const v=[+Math.max(0,Math.min(1,q.x)).toFixed(4),+Math.max(0,Math.min(1,q.y)).toFixed(4)];if(LN.drag.side)ln.s=v;else ln.p[LN.drag.pt]=v;occLinesSet(t,L);scheduleRender();},true);
+view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!LN.tool)return;e.stopImmediatePropagation();if(LN.drag){LN.drag=null;scheduleGrid();}},true);
+document.addEventListener('keydown',e=>{if(!BRUSH_ON||!LN.tool||/INPUT|TEXTAREA|SELECT/.test((e.target||{}).tagName||''))return;const t=curT();if(!t)return;
+  if(e.key==='Enter'&&LN.draft){e.preventDefault();lnFinish();}
+  else if(e.key==='Escape'){LN.draft=null;LN.side=-1;LN.sel=-1;lnUI();scheduleRender();}
+  else if((e.key==='Delete'||e.key==='Backspace')&&LN.sel>=0){e.preventDefault();$('#ln-del').click();}});
+$('#ln-tool').onclick=()=>{LN.tool=!LN.tool;LN.draft=null;LN.side=-1;if(!LN.tool)LN.sel=-1;LN.m=BRUSH_M===2?2:1;lnUI();scheduleRender();
+  if(LN.tool)toast('Edge line: click points along the arm or hair edge, double-click to finish, then click the side to '+(LN.m===2?'show':'hide')+'. Click the line to add a bend point, drag points to shape it.',7000);};
+$('#ln-flip').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;const L=occLines(t),ln=L[LN.sel];if(!ln||!ln.s)return;
+  const S=crSample(ln.p);let best=1e9,bi=0;S.forEach((p,i)=>{const d=Math.hypot(p.x-ln.s[0],p.y-ln.s[1]);if(d<best){best=d;bi=i;}});const n=S[bi];ln.s=[+(2*n.x-ln.s[0]).toFixed(4),+(2*n.y-ln.s[1]).toFixed(4)].map(v=>Math.max(0,Math.min(1,v)));occLinesSet(t,L);scheduleRender();scheduleGrid();};
+$('#ln-del').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;const L=occLines(t);L.splice(LN.sel,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();};
+function drawLines(x){const t=curT();if(!t||!BRUSH_ON)return;const W=x.canvas.width,H=x.canvas.height,lw=Math.max(2,W/500),L=occLines(t).slice();
+  const draw=(P,sel,draft,m)=>{const S=crSample(P);if(S.length>1){x.beginPath();S.forEach((p,i)=>i?x.lineTo(p.x*W,p.y*H):x.moveTo(p.x*W,p.y*H));x.lineWidth=lw+2;x.strokeStyle='rgba(0,0,0,.6)';x.stroke();x.lineWidth=lw;x.strokeStyle=m===2?'#22c55e':'#facc15';x.stroke();}
+    if(sel&&S.length>2){x.save();x.setLineDash([lw*3,lw*3]);x.lineWidth=lw;x.strokeStyle='rgba(250,204,21,.8)';for(const [a,c] of [[S[0],S[2]],[S[S.length-1],S[S.length-3]]]){const dx=(a.x-c.x)*W,dy=(a.y-c.y)*H,n=Math.hypot(dx,dy)||1;x.beginPath();x.moveTo(a.x*W,a.y*H);x.lineTo(a.x*W+dx/n*W*.12,a.y*H+dy/n*W*.12);x.stroke();}x.restore();} // the line keeps going past its ends
+    if(sel||draft)for(const p of P){x.beginPath();x.arc(p[0]*W,p[1]*H,lw*2.6,0,Math.PI*2);x.fillStyle='#fff';x.fill();x.lineWidth=lw*.8;x.strokeStyle='#111';x.stroke();}};
+  L.forEach((ln,i)=>{draw(ln.p,LN.tool&&i===LN.sel,false,ln.m);if(ln.s&&LN.tool&&i===LN.sel){const r=lw*3.2;x.beginPath();x.arc(ln.s[0]*W,ln.s[1]*H,r,0,Math.PI*2);x.fillStyle=ln.m===2?'#22c55e':'#ef4444';x.fill();x.lineWidth=lw*.8;x.strokeStyle='#fff';x.stroke();
+    x.strokeStyle='#fff';x.lineWidth=lw*.7;x.beginPath();if(ln.m===2){x.moveTo(ln.s[0]*W-r*.5,ln.s[1]*H);x.lineTo(ln.s[0]*W+r*.5,ln.s[1]*H);x.moveTo(ln.s[0]*W,ln.s[1]*H-r*.5);x.lineTo(ln.s[0]*W,ln.s[1]*H+r*.5);}else{x.moveTo(ln.s[0]*W-r*.45,ln.s[1]*H-r*.45);x.lineTo(ln.s[0]*W+r*.45,ln.s[1]*H+r*.45);x.moveTo(ln.s[0]*W+r*.45,ln.s[1]*H-r*.45);x.lineTo(ln.s[0]*W-r*.45,ln.s[1]*H+r*.45);}x.stroke();}});
+  if(LN.draft)draw(LN.draft,false,true,LN.m);}
 function drawBrush(x){if(!BRUSH_ON)return;const t=curT();if(!t)return;const W=x.canvas.width,H=x.canvas.height;x.save();const g=(occBr.get(t.id)||{}).g||occBrush(t);
   if(g){if(!BRUSH_OV){BRUSH_OV=document.createElement('canvas');BRUSH_OV.width=OCC_W;BRUSH_OV.height=OCC_H;}const bx=BRUSH_OV.getContext('2d'),im=bx.createImageData(OCC_W,OCC_H),d=im.data;
     for(let i=0;i<g.length;i++){const v=g[i];if(!v)continue;const j=i*4;if(v===1){d[j]=239;d[j+1]=68;d[j+2]=68;}else{d[j]=34;d[j+1]=197;d[j+2]=94;}d[j+3]=100;}
     bx.putImageData(im,0,0);x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(BRUSH_OV,0,0,W,H);}
+  drawLines(x);
   x.restore();}
 $('#btn-warp').onclick=()=>{WARP_ON=!WARP_ON;if(WARP_ON&&curT())SEL=curT().id;$('#btn-warp').classList.toggle('primary',WARP_ON);$('#btn-warp-reset').style.display=WARP_ON?'':'none';if(WARP_ON)toast('Drag the green dots to bend that part of the logo. Saves to this photo only.',4000);scheduleRender();};
 $('#btn-warp-reset').onclick=()=>{warpSet(Array.from({length:WARP_N*WARP_N},()=>[0,0]));};
@@ -2560,7 +2625,7 @@ async function cloudPull(){if(!CS.uid||!sb)return;CS.lastPull=Date.now();
   const cloud=(data&&data.data)||{},local=cloudSnapshot(),m=syncMeta();let changed=false,needPush=false;
   for(const k of new Set([...Object.keys(cloud),...Object.keys(local)])){const c=cloud[k],l=local[k];
     // per-photo maps merge photo by photo, so a newer save from another computer can't erase setups made here
-    const MAPK=/^(ov|approved|occ|occoff|sidefront|sidechest|turned|crop|drawn)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
+    const MAPK=/^(ov|approved|occ|occoff|occline|sidefront|sidechest|turned|crop|drawn)$/.test(k)&&c&&l&&c.v&&l.v&&typeof c.v==='object'&&typeof l.v==='object'&&!Array.isArray(c.v);
     if(MAPK){const mv={...l.v,...c.v};if(JSON.stringify(mv)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(mv));changed=true;}m[k]=Math.max(c.t,l.t);if(JSON.stringify(mv)!==JSON.stringify(c.v))needPush=true;}
     else if(c&&(!l||c.t>=l.t)){if(!l||JSON.stringify(c.v)!==JSON.stringify(l.v)){localStorage.setItem('ms_'+k,JSON.stringify(c.v));changed=true;}m[k]=c.t;}
     else if(l)needPush=true;}
