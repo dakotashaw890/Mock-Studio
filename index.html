@@ -173,7 +173,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <span>Brush:</span><button class="small primary" data-bm="1">Hide print</button><button class="small" data-bm="2">Show print</button><button class="small" data-bm="0">Eraser</button>
           <label class="row small" style="gap:4px">Size <input type="range" id="brush-size" min="0.5" max="24" step="0.5" value="6" style="width:90px"></label>
           <label class="row small" style="gap:4px" title="Untick to stop trimming the print to the shirt outline on this photo"><input type="checkbox" id="occ-auto" checked> Trim to shirt outline</label>
-          <button class="small" id="ln-tool" title="Draw a line along an arm or hair edge, bend it to the curve, then click the side to hide">Edge line</button><span id="ln-bar" style="display:none;gap:6px;align-items:center"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span><button class="small" id="brush-clear">Clear brush</button><button class="small" id="brush-done">Done</button>
+          <button class="small" id="ln-tool" title="Draw a line along an arm or hair edge, bend it to the curve, then click the side to hide">Edge line</button><span id="ln-bar" style="display:none;gap:6px;align-items:center"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span><button class="small" id="brush-clear">Clear all</button><button class="small" id="brush-done">Done</button>
         </div>
         <div class="row" style="margin-top:10px;justify-content:space-between">
           <div class="row">
@@ -1588,14 +1588,14 @@ function brushAt(e){const t=curT();if(!t)return;const r=view.getBoundingClientRe
   const cx=nx*OCC_W,cy=ny*OCC_H,L=BRUSH_LAST||{x:cx,y:cy},d=Math.hypot(cx-L.x,cy-L.y),n=Math.max(1,Math.ceil(d/Math.max(1,rad*.35)));
   for(let k=1;k<=n;k++)brushDab(L.x+(cx-L.x)*k/n,L.y+(cy-L.y)*k/n,rad);BRUSH_LAST={x:cx,y:cy};
   const m=LS.get('occ',{});occBr.set(t.id,{s:'live',g:BRUSH_G});scheduleRender();}
-view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
+view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();if(BRUSH_M===0&&lnErase(e))return;const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
 view.addEventListener('pointermove',e=>{if(!BRUSH_ON||LN.tool)return;e.stopImmediatePropagation();brushCursor(e);if(BRUSH_DOWN)brushAt(e);},true);
 view.addEventListener('pointerleave',()=>{if(BRUSH_RING)BRUSH_RING.style.display='none';});
 view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!BRUSH_DOWN)return;e.stopImmediatePropagation();BRUSH_DOWN=false;BRUSH_LAST=null;brushSave();occBr.delete((curT()||{}).id);scheduleRender();scheduleGrid();},true);
 $('#btn-brush').onclick=()=>{BRUSH_ON=!BRUSH_ON;if(!BRUSH_ON){LN.tool=false;LN.draft=null;LN.sel=-1;LN.side=-1;lnUI();}if(BRUSH_ON){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');toast('Paint over an arm, hand or hair to hide the print there. “Show print” forces it back. Saves to this photo for every design.',5000);}brushUI();scheduleRender();};
 document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.onclick=()=>{BRUSH_M=+b.dataset.bm;if(LN.tool&&BRUSH_M){LN.m=BRUSH_M;if(LN.sel>=0){const t=curT(),L=occLines(t);if(L[LN.sel]){L[LN.sel].m=BRUSH_M;occLinesSet(t,L);scheduleRender();scheduleGrid();}}}brushUI();});
 $('#brush-size').addEventListener('input',()=>brushCursor());
-$('#brush-clear').onclick=()=>{const t=curT();if(!t)return;const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
+$('#brush-clear').onclick=()=>{const t=curT();if(!t)return;if(occLines(t).length&&!confirm('Clear all brush strokes and edge lines on this photo?'))return;occLinesSet(t,[]);LN.sel=-1;LN.side=-1;LN.draft=null;lnUI();const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
 $('#brush-done').onclick=()=>{LN.tool=false;LN.draft=null;LN.sel=-1;LN.side=-1;BRUSH_ON=false;brushUI();scheduleRender();};
 $('#occ-auto').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('occoff',{});if(e.target.checked)delete m[t.id];else m[t.id]=1;LS.set('occoff',m);scheduleRender();scheduleGrid();};
 let CROP_ON=false,CROP_DRAG=null;
@@ -1625,11 +1625,13 @@ function lnHit(t,q){const W=view.width,H=view.height,tol=9*q.sc,L=occLines(t),d2
   if(LN.sel>=0&&L[LN.sel]){const ln=L[LN.sel];for(let i=0;i<ln.p.length;i++)if(d2(ln.p[i],q)<tol)return {line:LN.sel,pt:i};if(ln.s&&d2(ln.s,q)<tol)return {line:LN.sel,side:true};}
   for(let li=L.length-1;li>=0;li--){const S=crSample(L[li].p);let best=1e9,seg=0;for(const p of S){const d=Math.hypot((p.x-q.x)*W,(p.y-q.y)*H);if(d<best){best=d;seg=p.seg;}}if(best<tol)return {line:li,seg};}
   return null;}
+function lnErase(e){const t=curT(),h=t&&lnHit(t,lnNorm(e));if(!h)return false;const L=occLines(t);L.splice(h.line,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();toast('Line erased.');return true;}
 function lnFinish(){const t=curT();if(!t||!LN.draft)return;if(LN.draft.length<2){LN.draft=null;scheduleRender();return;}
   const L=occLines(t);L.push({p:LN.draft.map(p=>[+p[0].toFixed(4),+p[1].toFixed(4)]),s:null,m:LN.m});occLinesSet(t,L);LN.draft=null;LN.sel=L.length-1;LN.side=LN.sel;
   toast('Now click the side of the line to '+(LN.m===2?'show':'hide')+' the print on.',4000);lnUI();scheduleRender();}
 view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||!LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT(),q=lnNorm(e),L=occLines(t);
   if(LN.side>=0&&L[LN.side]){L[LN.side].s=[+q.x.toFixed(4),+q.y.toFixed(4)];occLinesSet(t,L);LN.side=-1;lnUI();scheduleRender();scheduleGrid();return;}
+  if(BRUSH_M===0&&!LN.draft&&LN.side<0){lnErase(e);return;}
   if(LN.draft){if(e.detail>=2){lnFinish();return;}LN.draft.push([q.x,q.y]);scheduleRender();return;}
   const h=lnHit(t,q);
   if(h&&h.line===LN.sel&&h.pt!=null){LN.drag={pt:h.pt};view.setPointerCapture(e.pointerId);return;}
