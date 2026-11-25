@@ -877,7 +877,7 @@ function loadSeg(){if(SEGP)return SEGP;const B=new URL('vendor/tasks-vision/',lo
   /* runs in its own hidden frame: the body-pose engine already owns the page's global "Module", and two of them clash */
   SEGP=(async()=>{const fr=document.createElement('iframe');fr.style.display='none';fr.srcdoc='<!doctype html><title>seg</title>';document.body.append(fr);
     await new Promise(r=>fr.onload=r);const W=fr.contentWindow;const mp=await W.eval("import('"+B+"vision_bundle.mjs')");const fs=await mp.FilesetResolver.forVisionTasks(B+'wasm');
-    const seg=await mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetBuffer:await segModel()},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
+    const seg=await mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetBuffer:new W.Uint8Array(await segModel())},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
     return {segment(c){const k=W.document.createElement('canvas');k.width=c.width;k.height=c.height;k.getContext('2d').drawImage(c,0,0);return seg.segment(k);}};})();
   SEGP.catch(()=>{SEGP=null;});return SEGP;}
 async function segHide(t){const seg=await loadSeg(),img=await tplImage(t),[w,h]=fitSize(img.naturalWidth,img.naturalHeight,1600);
