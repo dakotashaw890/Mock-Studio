@@ -874,8 +874,11 @@ async function segModel(){const G='https://storage.googleapis.com/mediapipe-mode
   /* some networks (work PCs) block Google storage: same model, served through our Supabase project */
   const r=await fetch(SB_URL+'/functions/v1/seg-model',{headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY}});if(!r.ok)throw new Error('model download failed ('+r.status+')');return new Uint8Array(await r.arrayBuffer());}
 function loadSeg(){if(SEGP)return SEGP;const B=new URL('vendor/tasks-vision/',location.href).href; // served with the site, so no outside CDN is needed
-  SEGP=(async()=>{const mp=await import(B+'vision_bundle.mjs');const fs=await mp.FilesetResolver.forVisionTasks(B+'wasm');
-    return mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetBuffer:await segModel()},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});})();
+  /* runs in its own hidden frame: the body-pose engine already owns the page's global "Module", and two of them clash */
+  SEGP=(async()=>{const fr=document.createElement('iframe');fr.style.display='none';fr.srcdoc='<!doctype html><title>seg</title>';document.body.append(fr);
+    await new Promise(r=>fr.onload=r);const W=fr.contentWindow;const mp=await W.eval("import('"+B+"vision_bundle.mjs')");const fs=await mp.FilesetResolver.forVisionTasks(B+'wasm');
+    const seg=await mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetBuffer:await segModel()},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
+    return {segment(c){const k=W.document.createElement('canvas');k.width=c.width;k.height=c.height;k.getContext('2d').drawImage(c,0,0);return seg.segment(k);}};})();
   SEGP.catch(()=>{SEGP=null;});return SEGP;}
 async function segHide(t){const seg=await loadSeg(),img=await tplImage(t),[w,h]=fitSize(img.naturalWidth,img.naturalHeight,1600);
   const r=seg.segment(drawScaled(img,w,h));const cm=r.confidenceMasks[4],mw=cm.width,mh=cm.height,f=cm.getAsFloat32Array().slice();if(r.close)r.close();
