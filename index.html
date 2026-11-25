@@ -869,9 +869,13 @@ function occOff(t){return !!LS.get('occoff',{})[t.id];}
    clothes/hair/skin segmenter in the browser. Written into the brush grid as "hide", so it stays editable;
    cells you painted yourself are left as they are ---------- */
 let SEGP=null;
-function loadSeg(){if(SEGP)return SEGP;const V='0.10.18',B='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+V;
-  SEGP=(async()=>{const mp=await import(B+'/vision_bundle.mjs');const fs=await mp.FilesetResolver.forVisionTasks(B+'/wasm');
-    return mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite'},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});})();
+async function segModel(){const G='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+  try{const r=await fetch(G);if(r.ok)return new Uint8Array(await r.arrayBuffer());}catch(e){}
+  /* some networks (work PCs) block Google storage: same model, served through our Supabase project */
+  const r=await fetch(SB_URL+'/functions/v1/seg-model',{headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY}});if(!r.ok)throw new Error('model download failed ('+r.status+')');return new Uint8Array(await r.arrayBuffer());}
+function loadSeg(){if(SEGP)return SEGP;const B=new URL('vendor/tasks-vision/',location.href).href; // served with the site, so no outside CDN is needed
+  SEGP=(async()=>{const mp=await import(B+'vision_bundle.mjs');const fs=await mp.FilesetResolver.forVisionTasks(B+'wasm');
+    return mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetBuffer:await segModel()},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});})();
   SEGP.catch(()=>{SEGP=null;});return SEGP;}
 async function segHide(t){const seg=await loadSeg(),img=await tplImage(t),[w,h]=fitSize(img.naturalWidth,img.naturalHeight,1600);
   const r=seg.segment(drawScaled(img,w,h));const cm=r.confidenceMasks[4],mw=cm.width,mh=cm.height,f=cm.getAsFloat32Array().slice();if(r.close)r.close();
@@ -880,7 +884,7 @@ async function segHide(t){const seg=await loadSeg(),img=await tplImage(t),[w,h]=
     for(let x=0;x<OCC_W;x++){const k=y*OCC_W+x;if(g[k])continue;const fx=Math.min(mw-1.001,Math.max(0,(x+.5)*mw/OCC_W-.5)),x0=fx|0,tx=fx-x0,j=y0*mw+x0;
       const c=(f[j]*(1-tx)+f[j+1]*tx)*(1-ty)+(f[j+mw]*(1-tx)+f[j+mw+1]*tx)*ty;if(c<.5){g[k]=1;n++;}}}
   if(n){m[t.id]=occEnc(g);LS.set('occ',m);}return n;}
-async function segHideRun(list){const st=$('#seg-st');let k=0,ok=0;try{await loadSeg();}catch(e){toast('Could not load the shirt finder (needs internet).',5000);return;}
+async function segHideRun(list){const st=$('#seg-st');let k=0,ok=0;try{await loadSeg();}catch(e){toast('Could not load the shirt finder: '+((e&&e.message)||e),8000);return;}
   for(const t of list){st.textContent=' '+(++k)+' / '+list.length+'…';try{if(await segHide(t)>=0)ok++;}catch(e){}if(curT()&&curT().id===t.id)scheduleRender();}
   st.textContent=list.length>1?' Done: '+ok+' photos.':'';scheduleRender();scheduleGrid();}
 /* ---------- edge lines: a bendable line along an arm/hair edge; everything on the chosen side of it is hidden (or forced shown).
