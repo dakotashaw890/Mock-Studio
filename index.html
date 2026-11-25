@@ -173,7 +173,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <span>Brush:</span><button class="small primary" data-bm="1">Hide print</button><button class="small" data-bm="2">Show print</button><button class="small" data-bm="0">Eraser</button>
           <label class="row small" style="gap:4px">Size <input type="range" id="brush-size" min="0.5" max="24" step="0.5" value="6" style="width:90px"></label>
           <label class="row small" style="gap:4px" title="Untick to stop trimming the print to the shirt outline on this photo"><input type="checkbox" id="occ-auto" checked> Trim to shirt outline</label>
-          <button class="small" id="ln-tool" title="Draw a line along an arm or hair edge, bend it to the curve, then click the side to hide">Edge line</button><span id="ln-bar" style="display:none;gap:6px;align-items:center"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span><button class="small" id="brush-clear">Clear all</button><button class="small" id="brush-done">Done</button>
+          <button class="small" id="seg-one" title="Hides the print on everything that isn't clothing: background, arms, hair. Adds to your brush strokes, so you can still touch it up.">Hide outside shirt</button><button class="small" id="seg-all">…on all photos</button><span class="muted small" id="seg-st"></span><button class="small" id="ln-tool" title="Draw a line along an arm or hair edge, bend it to the curve, then click the side to hide">Edge line</button><span id="ln-bar" style="display:none;gap:6px;align-items:center"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span><button class="small" id="brush-clear">Clear all</button><button class="small" id="brush-done">Done</button>
         </div>
         <div class="row" style="margin-top:10px;justify-content:space-between">
           <div class="row">
@@ -865,6 +865,24 @@ function occApply(t,pack,out){if(t.scene)return;const off=occOff(t),A=off?null:o
         const sm=G=>(G[k]*(1-tx)+G[k+1]*tx)*(1-ty)+(G[k+LM.w]*(1-tx)+G[k+LM.w+1]*tx)*ty;if(LM.hide)a=Math.max(a,sm(LM.hide));if(LM.show)a*=1-sm(LM.show);}
       if(a>0){if(a>=1){o[i]=data[i];o[i+1]=data[i+1];o[i+2]=data[i+2];}else for(let c=0;c<3;c++)o[i+c]=Math.round(o[i+c]+(data[i+c]-o[i+c])*a);}}}}
 function occOff(t){return !!LS.get('occoff',{})[t.id];}
+/* ---------- hide the print everywhere that isn't clothing (background, skin, hair), using Google's MediaPipe
+   clothes/hair/skin segmenter in the browser. Written into the brush grid as "hide", so it stays editable;
+   cells you painted yourself are left as they are ---------- */
+let SEGP=null;
+function loadSeg(){if(SEGP)return SEGP;const V='0.10.18',B='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+V;
+  SEGP=(async()=>{const mp=await import(B+'/vision_bundle.mjs');const fs=await mp.FilesetResolver.forVisionTasks(B+'/wasm');
+    return mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite'},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});})();
+  SEGP.catch(()=>{SEGP=null;});return SEGP;}
+async function segHide(t){const seg=await loadSeg(),img=await tplImage(t),[w,h]=fitSize(img.naturalWidth,img.naturalHeight,1600);
+  const r=seg.segment(drawScaled(img,w,h));const cm=r.confidenceMasks[4],mw=cm.width,mh=cm.height,f=cm.getAsFloat32Array().slice();if(r.close)r.close();
+  const m=LS.get('occ',{}),g=m[t.id]?occDec(m[t.id]):new Uint8Array(OCC_W*OCC_H);let n=0;
+  for(let y=0;y<OCC_H;y++){const fy=Math.min(mh-1.001,Math.max(0,(y+.5)*mh/OCC_H-.5)),y0=fy|0,ty=fy-y0;
+    for(let x=0;x<OCC_W;x++){const k=y*OCC_W+x;if(g[k])continue;const fx=Math.min(mw-1.001,Math.max(0,(x+.5)*mw/OCC_W-.5)),x0=fx|0,tx=fx-x0,j=y0*mw+x0;
+      const c=(f[j]*(1-tx)+f[j+1]*tx)*(1-ty)+(f[j+mw]*(1-tx)+f[j+mw+1]*tx)*ty;if(c<.5){g[k]=1;n++;}}}
+  if(n){m[t.id]=occEnc(g);LS.set('occ',m);}return n;}
+async function segHideRun(list){const st=$('#seg-st');let k=0,ok=0;try{await loadSeg();}catch(e){toast('Could not load the shirt finder (needs internet).',5000);return;}
+  for(const t of list){st.textContent=' '+(++k)+' / '+list.length+'…';try{if(await segHide(t)>=0)ok++;}catch(e){}if(curT()&&curT().id===t.id)scheduleRender();}
+  st.textContent=list.length>1?' Done: '+ok+' photos.':'';scheduleRender();scheduleGrid();}
 /* ---------- edge lines: a bendable line along an arm/hair edge; everything on the chosen side of it is hidden (or forced shown).
    Stored as points (0-1 of the photo) so it stays editable, and turned into a mask at render time ---------- */
 const occLines=t=>LS.get('occline',{})[t.id]||[];
@@ -1643,6 +1661,8 @@ view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||!LN.tool||editMode||!curT(
 view.addEventListener('pointermove',e=>{if(!BRUSH_ON||!LN.tool)return;e.stopImmediatePropagation();if(!LN.drag)return;const t=curT(),q=lnNorm(e),L=occLines(t),ln=L[LN.sel];if(!ln)return;
   const v=[+Math.max(0,Math.min(1,q.x)).toFixed(4),+Math.max(0,Math.min(1,q.y)).toFixed(4)];if(LN.drag.side)ln.s=v;else ln.p[LN.drag.pt]=v;occLinesSet(t,L);scheduleRender();},true);
 view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!LN.tool)return;e.stopImmediatePropagation();if(LN.drag){LN.drag=null;scheduleGrid();}},true);
+$('#seg-one').onclick=()=>{const t=curT();if(t&&!t.scene)segHideRun([t]);};
+$('#seg-all').onclick=()=>{const L=templates.filter(t=>!t.builtin&&!t.scene);if(!L.length)return;if(!confirm('Hide the print outside the shirt on all '+L.length+' of your photos? Your own brush strokes are kept.'))return;segHideRun(L);};
 document.addEventListener('keydown',e=>{if(!BRUSH_ON||!LN.tool||/INPUT|TEXTAREA|SELECT/.test((e.target||{}).tagName||''))return;const t=curT();if(!t)return;
   if(e.key==='Enter'&&LN.draft){e.preventDefault();lnFinish();}
   else if(e.key==='Escape'){LN.draft=null;LN.side=-1;LN.sel=-1;lnUI();scheduleRender();}
@@ -2161,6 +2181,7 @@ async function cfSaveGen(ref,ibf,o,n,ZA,fname){
   const PS=.9,zt=v=>ZA?{x:ZA.x+(v.x-ZA.x)*ZA.z,y:ZA.y+(v.y-ZA.y)*ZA.z}:v,tq=q=>q.map(v=>zt({x:.5+(v.x-.5)*PS,y:1+(v.y-1)*PS})); // pose images are scaled 90% from the bottom centre, then by the Framing zoom
   const sl={};if(ref.sleeves)for(const k of ['left','right'])if(ref.sleeves[k]&&ref.sleeves[k].quad)sl[k]=tq(ref.sleeves[k].quad);
   const newId=await addTemplate(f,name,'tee',viewOf(ref),{quad:tq(ref.quad),seedSleeves:sl,sex:ref.group,pose:ref.id,setId:o.setId||null,facing:o.angle==='sl'?'right':o.angle==='sr'?'left':null,quiet:true});
+  setTimeout(()=>{const t=templates.find(x=>x.id===newId);if(t)segHide(t).then(()=>{if(curT()&&curT().id===newId)scheduleRender();}).catch(()=>{});},300); // new photos: hide the print outside the shirt from the start
   return {newId,url:URL.createObjectURL(ibf),name};}
 /* slight turn: Z-Image Turbo won't turn the body from a pose guide, so make one straight-on photo, then have the Qwen edit model
    turn that photo left and right. Both turned photos come from the same base, so the person matches exactly. */
