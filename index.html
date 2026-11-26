@@ -2181,10 +2181,10 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women',her
   const extra=/range/.test(key)?`, ${her} hands empty`:'';
   /* turned pairs made in one shot: the angle is in the prompt (no pose skeleton forcing a straight-on stance) */
   const direct=(angle==='sl'||angle==='sr')&&(($('#cf-turnmode')&&$('#cf-turnmode').value)||'direct')==='direct';
-  const ang=direct?`standing at a three-quarter angle with ${her} ${angle==='sl'?'right':'left'} shoulder clearly closer to the camera, body turned about 35 degrees toward the ${angle==='sl'?'right':'left'} side of the photo, the whole front of the shirt still visible and the near short sleeve showing, head upright, face turned toward the camera`:'';
+  const ang=direct?`standing at a three-quarter angle with ${her} ${angle==='sl'?'right':'left'} shoulder clearly closer to the camera, body turned about 45 degrees toward the ${angle==='sl'?'right':'left'} side of the photo, the whole front of the shirt still visible and the near short sleeve showing, head upright, face turned toward the camera`:'';
   const zv=+(($('#cf-zoom')&&$('#cf-zoom').value)||1.18),frame=zv>=1.5?'the waist':zv>=1.3?'the hips':zv>=1.1?'mid-thigh':'the knees';
   /* the shirt goes right after who the person is: lower down, the body and glam wording turned it into a fitted scoop-neck women's top */
-  const ml=m.split('\n'),shirt=`CLOTHES: a plain blank ${col} classic unisex crew-neck t-shirt (Bella+Canvas 3001), nothing printed on it, relaxed straight fit with a little room through the body, a high round ribbed crew neckline close to the base of the neck, regular short sleeves with a wide opening reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans`;
+  const ml=m.split('\n'),shirt=`CLOTHES: a plain blank ${col} classic unisex crew-neck t-shirt (Bella+Canvas 3001), nothing printed on it, ${woman?'a fitted unisex cut that sits close to the body and follows her shape without being tight':'a regular unisex fit that sits close to the chest and shoulders'}, a high round ribbed crew neckline close to the base of the neck, regular short sleeves with a wide opening reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans`;
   return `${ml[0]}
 ${shirt}
 ${ml.slice(1).join('\n')}
@@ -2297,7 +2297,7 @@ async function cfDirect(ref,n,o){const base=cfBase();o.shared=o.shared||{};const
     if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
     return {blob:await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob(),fn:out.filename};};
   /* first photo of the pair: generated angled; up to 3 seeds until body detection sees a real turn */
-  if(!S.first){let best=null;for(let a=0;a<3&&!CF.stop;a++){const g=await gen(o.angle,(o.seed||1)+a*7919),dz=await dzOf(g.blob);const sc=dz===null?0:Math.abs(dz);if(!best||sc>best.sc)best={...g,dz,sc};if(sc>.15)break;}
+  if(!S.first){let best=null;for(let a=0;a<3&&!CF.stop;a++){const g=await gen(o.angle,(o.seed||1)+a*7919),dz=await dzOf(g.blob);const sc=dz===null?0:Math.abs(dz);if(!best||sc>best.sc)best={...g,dz,sc};if(sc>.2)break;}
     S.first=best;const side=best.dz!==null&&best.dz>.05?'sr':'sl'; // label it by the way she actually turned
     S.firstSide=side;return cfSaveGen(ref,best.blob,{...o,angle:side},n,null,best.fn);}
   /* second photo: the other way. Mirroring the first gives the same woman, exactly opposite. Scenes with a flag or writing would read backwards, so those get their own render */
