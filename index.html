@@ -44,6 +44,15 @@ main{max-width:var(--appw,1180px);margin:0 auto;padding:12px 16px 60px}
 .card+.card{margin-top:12px}
 .card h2{font-size:17px;margin-bottom:10px}
 .muted{color:var(--muted)}.small{font-size:13px}
+.bbar{margin-top:8px;border:1px solid var(--line);border-radius:12px;background:var(--soft);padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.bb-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;border-radius:0;padding:7px 12px;font-size:13px;background:transparent}.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.bb-size{display:inline-flex;align-items:center;gap:6px;font-size:13px}.bb-size input{width:110px}
+.bb-sub{display:inline-flex;gap:6px}.bb-done{margin-left:auto;padding:7px 16px}
+.bb-foot{font-size:12.5px;gap:6px}.bb-gap{flex:1}.bb-chk{display:inline-flex;align-items:center;gap:4px;margin-right:6px}
+button.link{border:0;background:none;padding:2px 4px;font-size:12.5px;font-weight:600;color:var(--accent)}button.link:hover{text-decoration:underline}button.link.danger{color:var(--muted)}button.link.danger:hover{color:#ef4444}
 button,.btn{font:600 14px Inter,sans-serif;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 button.pill{border-radius:999px;padding:7px 14px}
@@ -169,11 +178,20 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <div class="hint" id="hint" style="display:none">Drag the 4 corners to the print area. Drag inside to move it.</div>
           <div class="busy" id="busy">Rendering…</div>
         </div>
-        <div class="row small" id="brush-bar" style="display:none;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <span>Brush:</span><button class="small primary" data-bm="1">Hide print</button><button class="small" data-bm="2">Show print</button><button class="small" data-bm="0">Eraser</button>
-          <label class="row small" style="gap:4px">Size <input type="range" id="brush-size" min="0.5" max="24" step="0.5" value="6" style="width:90px"></label>
-          <label class="row small" style="gap:4px" title="Untick to stop trimming the print to the shirt outline on this photo"><input type="checkbox" id="occ-auto" checked> Trim to shirt outline</label>
-          <button class="small" id="seg-one" title="Hides the print on everything that isn't clothing: background, arms, hair. Adds to your brush strokes, so you can still touch it up.">Hide outside shirt</button><button class="small" id="seg-all">…on all photos</button><span class="muted small" id="seg-st"></span><button class="small" id="ln-tool" title="Draw a line along an arm or hair edge, bend it to the curve, then click the side to hide">Edge line</button><span id="ln-bar" style="display:none;gap:6px;align-items:center"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span><button class="small" id="brush-clear">Clear all</button><button class="small" id="brush-done">Done</button>
+        <div id="brush-bar" class="bbar" style="display:none">
+          <div class="bb-row">
+            <div class="seg" title="Paint with a round brush, or draw a bendable line along an edge"><button data-tool="paint" class="on">Brush</button><button data-tool="line" id="ln-tool">Edge line</button></div>
+            <div class="seg"><button data-bm="1" class="on">Hide print</button><button data-bm="2">Show print</button><button data-bm="0">Erase</button></div>
+            <label class="bb-size" id="bb-size">Size <input type="range" id="brush-size" min="0.5" max="24" step="0.5" value="6"></label>
+            <span id="ln-bar" class="bb-sub" style="display:none"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span>
+            <button class="primary bb-done" id="brush-done">Done</button>
+          </div>
+          <div class="bb-row bb-foot">
+            <span class="muted">Auto-hide outside shirt:</span><button class="link" id="seg-one" title="Hides the print on everything that isn't clothing: background, arms, hair. Adds to your brush strokes, so you can still touch it up.">This photo</button><span class="muted">·</span><button class="link" id="seg-all">All photos</button><span class="muted" id="seg-st"></span>
+            <span class="bb-gap"></span>
+            <label class="bb-chk" title="Untick to turn off all hiding on this photo (brush, lines and trim)"><input type="checkbox" id="occ-auto" checked> Hiding on</label>
+            <button class="link danger" id="brush-clear">Clear all</button>
+          </div>
         </div>
         <div class="row" style="margin-top:10px;justify-content:space-between">
           <div class="row">
@@ -1597,7 +1615,9 @@ view.addEventListener('pointerup',endLD);view.addEventListener('pointercancel',e
 let ROT_SIGN=1;
 // hide/show brush
 let BRUSH_ON=false,BRUSH_M=1,BRUSH_G=null,BRUSH_DOWN=false;
-function brushUI(){setTimeout(()=>brushCursor(),0);$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('primary',+b.dataset.bm===BRUSH_M));const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
+function brushTools(){let ln=false;try{ln=LN.tool;}catch(e){}document.querySelectorAll('#brush-bar [data-tool]').forEach(b=>b.classList.toggle('on',(b.dataset.tool==='line')===!!ln));
+  $('#bb-size').style.display=ln?'none':'';const act=$('#btn-edit')&&$('#btn-edit').parentElement.parentElement;if(act)act.style.display=BRUSH_ON?'none':'';}
+function brushUI(){setTimeout(()=>brushCursor(),0);$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('on',+b.dataset.bm===BRUSH_M));brushTools();const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
 function brushSave(){const t=curT();if(!t||!BRUSH_G)return;const m=LS.get('occ',{});if(BRUSH_G.some(v=>v))m[t.id]=occEnc(BRUSH_G);else delete m[t.id];LS.set('occ',m);}
 let BRUSH_LAST=null;
 /* round outline at the real brush size, so you can see exactly what you'll paint. A floating ring, not a CSS cursor:
@@ -1644,7 +1664,7 @@ setTimeout(cropUI,1500);
 let BRUSH_OV=null;
 /* edge-line tool */
 const LN={tool:false,draft:null,sel:-1,side:-1,drag:null,m:1};
-function lnUI(){$('#ln-tool').classList.toggle('primary',LN.tool);$('#ln-bar').style.display=LN.tool&&LN.sel>=0?'inline-flex':'none';if(LN.tool&&BRUSH_RING)BRUSH_RING.style.display='none';view.style.cursor=LN.tool?'crosshair':(BRUSH_ON?'none':'');}
+function lnUI(){brushTools();$('#ln-bar').style.display=LN.tool&&LN.sel>=0?'inline-flex':'none';if(LN.tool&&BRUSH_RING)BRUSH_RING.style.display='none';view.style.cursor=LN.tool?'crosshair':(BRUSH_ON?'none':'');}
 function lnNorm(e){const p=canvasPt(e);return {x:p.x/view.width,y:p.y/view.height,sc:p.sc};}
 function lnHit(t,q){const W=view.width,H=view.height,tol=9*q.sc,L=occLines(t),d2=(a,b)=>Math.hypot((a[0]-b.x)*W,(a[1]-b.y)*H);
   if(LN.sel>=0&&L[LN.sel]){const ln=L[LN.sel];for(let i=0;i<ln.p.length;i++)if(d2(ln.p[i],q)<tol)return {line:LN.sel,pt:i};if(ln.s&&d2(ln.s,q)<tol)return {line:LN.sel,side:true};}
@@ -1674,8 +1694,9 @@ document.addEventListener('keydown',e=>{if(!BRUSH_ON||!LN.tool||/INPUT|TEXTAREA|
   if(e.key==='Enter'&&LN.draft){e.preventDefault();lnFinish();}
   else if(e.key==='Escape'){LN.draft=null;LN.side=-1;LN.sel=-1;lnUI();scheduleRender();}
   else if((e.key==='Delete'||e.key==='Backspace')&&LN.sel>=0){e.preventDefault();$('#ln-del').click();}});
-$('#ln-tool').onclick=()=>{LN.tool=!LN.tool;LN.draft=null;LN.side=-1;if(!LN.tool)LN.sel=-1;LN.m=BRUSH_M===2?2:1;lnUI();scheduleRender();
+function lnToggle(on){if(LN.tool===on)return;LN.tool=on;LN.draft=null;LN.side=-1;if(!LN.tool)LN.sel=-1;LN.m=BRUSH_M===2?2:1;lnUI();scheduleRender();
   if(LN.tool)toast('Edge line: click points along the arm or hair edge, double-click to finish, then click the side to '+(LN.m===2?'show':'hide')+'. Click the line to add a bend point, drag points to shape it.',7000);};
+document.querySelectorAll('#brush-bar [data-tool]').forEach(b=>b.onclick=()=>lnToggle(b.dataset.tool==='line'));
 $('#ln-flip').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;const L=occLines(t),ln=L[LN.sel];if(!ln||!ln.s)return;
   const S=crSample(ln.p);let best=1e9,bi=0;S.forEach((p,i)=>{const d=Math.hypot(p.x-ln.s[0],p.y-ln.s[1]);if(d<best){best=d;bi=i;}});const n=S[bi];ln.s=[+(2*n.x-ln.s[0]).toFixed(4),+(2*n.y-ln.s[1]).toFixed(4)].map(v=>Math.max(0,Math.min(1,v)));occLinesSet(t,L);scheduleRender();scheduleGrid();};
 $('#ln-del').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;const L=occLines(t);L.splice(LN.sel,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();};
