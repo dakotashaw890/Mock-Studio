@@ -471,6 +471,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Strength <input id="cf-lora-str" type="number" min="0" max="1.5" step="0.05" value="0.6" style="width:60px"></label>
       <label class="row small" style="gap:4px" title="Trigger word, if the LoRA's page lists one">Trigger <input id="cf-lora-trig" style="width:100px"></label>
       <label class="row small" style="gap:4px" title="Upscale model file name in ComfyUI\'s models/upscale_models folder. Each finished photo is saved at about 2048 x 2560. Leave empty to skip.">Upscaler <select id="cf-up" style="max-width:220px"><option value="">None</option></select></label>
+      <label class="row small" style="gap:4px" title="Camera-angle LoRA for the turn step (Qwen Image 2.1 Multiple-Angles). When picked, the turn is asked for as an exact 30-degree camera move instead of in words.">Turn LoRA <select id="cf-tlora" style="max-width:220px"><option value="">None</option></select> <input id="cf-tlora-str" type="number" min="0" max="1.5" step="0.05" value="0.9" style="width:56px" title="Strength (0.8 to 1.0 recommended)"></label>
       <button class="small" id="cf-sharpen" title="Runs the upscaler on your existing generated photos that are under 2000 px tall and saves the sharper version in place. Print areas stay where they are.">Sharpen my existing photos</button><span class="muted small" id="cf-sharpen-st"></span>
       </div>
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="all">All poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
@@ -2079,7 +2080,7 @@ try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
 // the pose guide at full strength was boxing the model in and costing quality; start everyone at 0.6 once
 if(!LS.get('cfstr06',0)){LS.set('cfstr06',1);try{localStorage.removeItem('ms_cf_cf-str');}catch(e){}}
 if(!LS.get('cfzoom118',0)){LS.set('cfzoom118',1);try{localStorage.removeItem('ms_cf_cf-zoom');}catch(e){}} // one-time: move everyone to the new mid-thigh default
-for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
+for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up','cf-tlora','cf-tlora-str']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up'||id==='cf-tlora')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -2218,6 +2219,8 @@ async function cfFileLists(){const base=cfBase();const opts=x=>{const v=x&&x[0];
     const L=opts(a.LoraLoaderModelOnly.input.required.lora_name).filter(f=>/z.?image|zit|realis|skin|radiant|physio|detail/i.test(f)),U=opts(b.UpscaleModelLoader.input.required.model_name);
     /* dropdowns (not type-ahead lists, which hid every file that didn't match what was already typed) */
     const fill=(id,list)=>{const d=$('#'+id),cur=d.value||LS.get('cf_'+id,'')||'';d.textContent='';const add=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;d.append(o);};add('','None');for(const f of list)add(f,f.replace(/\.safetensors$/i,''));if(cur&&!list.includes(cur))add(cur,cur+' (not found)');d.value=cur;};fill('cf-lora',L);fill('cf-up',U);CF.ups=U;
+    const all=opts(a.LoraLoaderModelOnly.input.required.lora_name);fill('cf-tlora',all.filter(f=>/multiple.?angles|camera.?angle|qma|mva|anyangle/i.test(f)));
+    if(!$('#cf-tlora').value){const p=all.find(f=>/qwen21.*multiple.?angles/i.test(f));if(p){$('#cf-tlora').value=p;$('#cf-tlora').dispatchEvent(new Event('change'));}}
     if(!$('#cf-up').value.trim()&&U.length){const p=U.find(f=>/z.?image/i.test(f))||U.find(f=>/ultrasharp|realesrgan|nmkd|siax|remacri/i.test(f))||U[0];$('#cf-up').value=p;$('#cf-up').dispatchEvent(new Event('change'));}}catch(e){}}
 async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file){if(!CF.upWarned){CF.upWarned=1;toast('No upscaler picked under Photo quality, so photos stay low-res (about 1000 x 1280).',6000);}return bl;}const base=cfBase();
   try{const fd=new FormData();fd.append('image',new File([bl],'ms-up.png',{type:bl.type||'image/png'}));fd.append('overwrite','true');
@@ -2286,8 +2289,12 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   let seed0=0;for(const ch of (b.fn||ref.id)+o.angle)seed0=(seed0*31+ch.charCodeAt(0))%2147483647;
   const faces=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;if(!lm)return null;const dz=(lm[12].z||0)-(lm[11].z||0);return {dz,sh:Math.hypot(lm[11].x-lm[12].x,lm[11].y-lm[12].y),hy:(lm[23].y+lm[24].y)/2};}catch(e){return null;}}; // dz: negative = turned toward the right of the frame; sh/hy: shoulder width and hip height, to spot a zoomed-in edit
   let ob=null,out=null,best=null;const f0=await faces(src);
-  for(let attempt=0;attempt<5&&!CF.stop;attempt++){const prompt=promptFor([32,32,38,42,45][attempt]); // asks a bit harder each time Qwen doesn't turn
-    const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:colGraph(u.subfolder?u.subfolder+'/'+u.name:u.name,prompt,seed0+attempt*7919),client_id:'mockup-studio'})});
+  const TL=($('#cf-tlora')&&$('#cf-tlora').value)?{file:$('#cf-tlora').value,str:+$('#cf-tlora-str').value||.9}:null;
+  for(let attempt=0;attempt<5&&!CF.stop;attempt++){
+    /* with the camera-angle LoRA: its own short grammar, an exact 30-degree orbit. Which named side turns the body toward the right of the frame is learned from the first result */
+    const mvaSide=LS.get('mvaside','front-right view');
+    const prompt=TL?`<mva> ${mvaSide}, eye-level shot. The person looks at the camera, head upright. Same person, clothes, background and lighting.`:promptFor([32,32,38,42,45][attempt]); // without it: asks a bit harder each time Qwen doesn't turn
+    const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:colGraph(u.subfolder?u.subfolder+'/'+u.name:u.name,prompt,seed0+attempt*7919,TL),client_id:'mockup-studio'})});
     const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the turn job. Check that the Qwen Image 2.1 models are installed.');
     out=null;for(let i=0;i<400&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
       if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error on the turn edit. Check its window for details.');
@@ -2295,6 +2302,7 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
     if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
     ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
     const f=await faces(ob);if(f===null){best=null;break;}
+    if(TL&&f.dz>.2)LS.set('mvaside',LS.get('mvaside','front-right view')==='front-right view'?'front-left view':'front-right view'); // the LoRA's named side turned the other way: use the other name from now on
     const zoomed=f0&&(f.hy>1.02||f.sh>f0.sh*1.18); // hips pushed out of frame or body much bigger: the edit cropped in
     const score=f.dz+(zoomed?.5:0);if(!best||score<best.score)best={score,ob,out};if(f.dz<-.2&&!zoomed)break; // turned clearly, framing kept: done; otherwise try another seed
   }
@@ -2788,7 +2796,7 @@ CF.aliveAt=0;
 async function cfAlive(){if(CF.aliveAt&&Date.now()-CF.aliveAt<30000)return true;
   try{const ac=new AbortController();const to=setTimeout(()=>ac.abort(),2500);const r=await fetch(cfBase()+'/system_stats',{signal:ac.signal});clearTimeout(to);if(r.ok){CF.aliveAt=Date.now();return true;}}catch(e){}return false;}
 async function tplBlob(t){if(!t.builtin&&idb){const r=await idbTx('readonly',st=>st.get(t.id));if(r&&r.blob)return r.blob;}return await (await fetch(tplSrc(t))).blob();}
-function colGraph(img,prompt,seed){return {
+function colGraph(img,prompt,seed,lora){const g={
   "1":{class_type:"LoadImage",inputs:{image:img}},
   "2":{class_type:"UNETLoader",inputs:{unet_name:"qwen_image_2.1_int8_convrot.safetensors",weight_dtype:"default"}},
   "3":{class_type:"QwenImage21Cache",inputs:{device:"auto",dtype:"default",model:["2",0]}},
@@ -2797,7 +2805,9 @@ function colGraph(img,prompt,seed){return {
   "6":{class_type:"TextEncodeQwenImage21",inputs:{prompt,negative_prompt:"",resolution:0,clip:["4",0],"images.image_1":["1",0],vae:["5",0]}},
   "7":{class_type:"KSampler",inputs:{seed,steps:25,cfg:1,sampler_name:"euler",scheduler:"simple",denoise:1,model:["3",0],positive:["6",0],negative:["6",1],latent_image:["6",2]}},
   "8":{class_type:"VAEDecode",inputs:{samples:["7",0],vae:["5",0]}},
-  "9":{class_type:"SaveImage",inputs:{filename_prefix:"mockup-studio/colors/shirt",images:["8",0]}}};}
+  "9":{class_type:"SaveImage",inputs:{filename_prefix:"mockup-studio/colors/shirt",images:["8",0]}}};
+  if(lora){g['10']={class_type:'LoraLoaderModelOnly',inputs:{model:['2',0],lora_name:lora.file,strength_model:lora.str}};g['3'].inputs.model=['10',0];}
+  return g;}
 async function colCheck(a,b){ // the edit must keep everything but the shirt: same framing, small change elsewhere
   if(Math.abs(a.naturalWidth/a.naturalHeight-b.naturalWidth/b.naturalHeight)>.02)return {ok:false,why:'framing changed'};
   const w=256,h=Math.round(256*a.naturalHeight/a.naturalWidth);const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});
