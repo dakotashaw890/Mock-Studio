@@ -1772,8 +1772,12 @@ function quadStats(q){const c={x:q.reduce((a,p)=>a+p.x,0)/4,y:q.reduce((a,p)=>a+
 $('#btn-apply-sim').onclick=async()=>{
   const t=curT();if(!t)return;const s=editSlot,o=quadStats(editOrig),n=quadStats(editQuad);
   const dx=(n.c.x-o.c.x)/o.w,dy=(n.c.y-o.c.y)/o.h,sw=n.w/o.w,sh=n.h/o.h;
-  const others=shown().filter(x=>x.id!==t.id&&(viewOf(t)==='front'?viewOf(x)==='front':viewOf(x)===s)&&areaOf(x,s));
-  if(!await confirmDlg('Apply to '+others.length+' similar photos?','The same move and resize is applied to the '+SLOT_NAMES[s].toLowerCase()+' print area on every similar photo in the current filter. Reset area undoes it per photo.','Apply'))return;
+  /* "similar" = same kind of shot, same sex, same direction: women facing right, women facing left, men facing right, men facing left */
+  const sexOf=x=>(x.group||x.sex||'')==='women'||/woman/i.test(x.name||'')?'women':'men',dirOf=x=>x.facing||x._facing||'front',sx=sexOf(t),dr=dirOf(t);
+  const others=templates.filter(x=>x.id!==t.id&&!x.scene&&(viewOf(t)==='front'?viewOf(x)==='front':viewOf(x)===s)&&sexOf(x)===sx&&dirOf(x)===dr&&areaOf(x,s));
+  const grp=sx+(dr==='front'?' facing the camera':' facing '+dr);
+  if(!others.length){await saveArea(t,s,editQuad);endEdit();toast('Saved. No other photos of '+grp+'.');scheduleGrid();return;}
+  if(!await confirmDlg('Apply to '+others.length+' more photos of '+grp+'?','The same move and resize is applied to the '+SLOT_NAMES[s].toLowerCase()+' print area on every other photo of '+grp+'. Reset area undoes it per photo.','Apply'))return;
   try{await saveArea(t,s,editQuad);
     for(const x of others){const q=areaOf(x,s),st=quadStats(q),nc={x:st.c.x+dx*st.w,y:st.c.y+dy*st.h};
       await saveArea(x,s,q.map(p=>({x:Math.min(1,Math.max(0,nc.x+(p.x-st.c.x)*sw)),y:Math.min(1,Math.max(0,nc.y+(p.y-st.c.y)*sh))})));}
