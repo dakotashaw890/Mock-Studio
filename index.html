@@ -2262,7 +2262,11 @@ async function cfSharpenAll(){const st=$('#cf-sharpen-st');if(!$('#cf-up').value
     }catch(e){}}
   st.textContent=' Done: '+k+' sharpened.';scheduleRender();renderThumbs();}
 async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),W=im.naturalWidth,H=im.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(im,0,0);
-  const b=document.createElement('canvas');b.width=W;b.height=H;const bx=b.getContext('2d');bx.filter='blur('+Math.max(4,Math.round(W/160))+'px)';bx.drawImage(im,0,0);
+  /* dehaze: the realism LoRA leaves a milky film (no true blacks or whites). Stretch the levels so the darkest 0.4% is black and the brightest 0.3% is white */
+  {const d0=x.getImageData(0,0,W,H),p=d0.data,hist=new Uint32Array(256);for(let i=0;i<p.length;i+=16)hist[(p[i]*.3+p[i+1]*.59+p[i+2]*.11)|0]++;const tot=hist.reduce((a2,v)=>a2+v,0);
+    let acc=0,lo=0,hi=255;for(let v=0;v<256;v++){acc+=hist[v];if(acc>tot*.004){lo=v;break;}}acc=0;for(let v=255;v>=0;v--){acc+=hist[v];if(acc>tot*.003){hi=v;break;}}
+    lo=Math.min(lo,40);hi=Math.max(hi,215);if(lo>3||hi<252){const sc=255/(hi-lo);for(let i=0;i<p.length;i+=4)for(let k=0;k<3;k++)p[i+k]=Math.max(0,Math.min(255,Math.round((p[i+k]-lo)*sc)));x.putImageData(d0,0,0);}}
+  const b=document.createElement('canvas');b.width=W;b.height=H;const bx=b.getContext('2d');bx.filter='blur('+Math.max(4,Math.round(W/160))+'px)';bx.drawImage(c,0,0);
   const d=x.getImageData(0,0,W,H),a=d.data,bd=bx.getImageData(0,0,W,H).data;
   /* black-fabric lift: only dark AND neutral (grey/black) areas, so brown hair, tattoo ink and skin stay as they are.
      Multiplicative gain lifts the shirt to charcoal-black and scales its folds up with it, plus extra local contrast. */
@@ -2271,6 +2275,9 @@ async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),
     for(let k=0;k<3;k++){const u=a[i+k]/255,det=Math.max(-.06,Math.min(.08,(u-bd[i+k]/255)*1.8*w));a[i+k]=Math.max(0,Math.min(255,Math.round(255*(u*g+.008*w+det))));}}
   for(let i=0;i<a.length;i+=4){const r=a[i],g2=a[i+1],b=a[i+2],L=(r*.3+g2*.59+b*.11)/255;if(L<.18)continue;const t=Math.min(1,(L-.18)/.12),c=1+.07*t,sat=1+.08*t;
     for(let k=0;k<3;k++){const v=a[i+k]/255,m=L+(v-L)*sat;a[i+k]=Math.max(0,Math.min(255,Math.round(255*(.55+(m-.55)*c))));}} // gentle punch for everything but the black shirt
+  /* clarity: local contrast in the midtones cuts through the haze the realism LoRA leaves (faces, hair, background), without touching the black shirt or the sky */
+  {x.putImageData(d,0,0);const cb=document.createElement('canvas');cb.width=W;cb.height=H;const cx2=cb.getContext('2d');cx2.filter='blur('+Math.max(4,Math.round(W/80))+'px)';cx2.drawImage(c,0,0);const q=cx2.getImageData(0,0,W,H).data;
+    for(let i=0;i<a.length;i+=4){const L=(a[i]*.3+a[i+1]*.59+a[i+2]*.11)/255,w=Math.max(0,1-Math.abs(L-.5)/.45);if(w<=0)continue;for(let k=0;k<3;k++)a[i+k]=Math.max(0,Math.min(255,Math.round(a[i+k]+(a[i+k]-q[i+k])*.42*w)));}}
   {const G=(W>1800?3.2:2.6);for(let i=0;i<a.length;i+=4){const n=(Math.random()+Math.random()+Math.random()-1.5)*G*1.4;for(let k=0;k<3;k++)a[i+k]=Math.max(0,Math.min(255,a[i+k]+n));}} // subtle film grain: breaks up the waxy look
   x.putImageData(d,0,0);return await canvasBlob(c,'image/jpeg',.94);}catch(e){return bl;}}
 /* the Framing crop, as a function: cut the zoomed frame out of a full-size render */
