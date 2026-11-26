@@ -2278,11 +2278,11 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   const fd=new FormData();fd.append('image',new File([src],'ms-turnsrc-'+ref.id+(wantRight?'':'-m')+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the photo.');const u=await up.json();
   // short and about the turn only: the longer version (shirt and hair fixes added on) diluted it and the body stopped turning
-  const prompt=`Rotate the camera about 32 degrees around the person to their right, so we see them from a gentle three-quarter angle: the torso and shoulders are turned toward the right side of the photo, the front of the shirt still clearly visible, the shoulder on the left side of the photo is closer to the camera and its short sleeve is visible from the outside. The head stays upright with a straight, natural neck and the face looks at the camera. Keep the exact same camera distance, zoom and framing as the original photo: the person is shown from mid-thigh to just above the head, nothing cropped tighter. Same person, same face, hair, clothes, background and lighting.`;
+  const promptFor=deg=>`Rotate the camera about ${deg} degrees around the person to their right, so we see them from a gentle three-quarter angle: the torso and shoulders are turned toward the right side of the photo, the front of the shirt still clearly visible, the shoulder on the left side of the photo is closer to the camera and its short sleeve is visible from the outside. The head stays upright with a straight, natural neck and the face looks at the camera. Keep the exact same camera distance, zoom and framing as the original photo: the person is shown from mid-thigh to just above the head, nothing cropped tighter. Same person, same face, hair, clothes, background and lighting.`;
   let seed0=0;for(const ch of (b.fn||ref.id)+o.angle)seed0=(seed0*31+ch.charCodeAt(0))%2147483647;
-  const faces=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;if(!lm)return null;const dz=(lm[12].z||0)-(lm[11].z||0);return dz;}catch(e){return null;}}; // z-depth between the shoulders: negative = turned toward the right of the frame
-  let ob=null,out=null,best=null;
-  for(let attempt=0;attempt<3&&!CF.stop;attempt++){
+  const faces=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;if(!lm)return null;const dz=(lm[12].z||0)-(lm[11].z||0);return {dz,sh:Math.hypot(lm[11].x-lm[12].x,lm[11].y-lm[12].y),hy:(lm[23].y+lm[24].y)/2};}catch(e){return null;}}; // dz: negative = turned toward the right of the frame; sh/hy: shoulder width and hip height, to spot a zoomed-in edit
+  let ob=null,out=null,best=null;const f0=await faces(src);
+  for(let attempt=0;attempt<5&&!CF.stop;attempt++){const prompt=promptFor([32,32,38,42,45][attempt]); // asks a bit harder each time Qwen doesn't turn
     const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:colGraph(u.subfolder?u.subfolder+'/'+u.name:u.name,prompt,seed0+attempt*7919),client_id:'mockup-studio'})});
     const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the turn job. Check that the Qwen Image 2.1 models are installed.');
     out=null;for(let i=0;i<400&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
@@ -2290,7 +2290,9 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
       if(e&&e.outputs&&e.outputs['9']){out=e.outputs['9'].images[0];break;}}
     if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
     ob=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
-    const f=await faces(ob);if(f===null){best=null;break;}if(!best||f<best.dz)best={dz:f,ob,out};if(f<-.2)break; // turned clearly the way we asked: done; otherwise try another seed
+    const f=await faces(ob);if(f===null){best=null;break;}
+    const zoomed=f0&&(f.hy>1.02||f.sh>f0.sh*1.18); // hips pushed out of frame or body much bigger: the edit cropped in
+    const score=f.dz+(zoomed?.5:0);if(!best||score<best.score)best={score,ob,out};if(f.dz<-.2&&!zoomed)break; // turned clearly, framing kept: done; otherwise try another seed
   }
   if(best){ob=best.ob;out=best.out;} // none turned clearly: keep the attempt that turned the most
   {
