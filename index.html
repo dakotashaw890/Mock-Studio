@@ -2305,7 +2305,7 @@ async function cfDirect(ref,n,o){const base=cfBase();o.shared=o.shared||{};const
   /* a light torso-only guide taken from one of your real turned photos (shoulders and hips angled, arms left free) nudges the body round; the prompt does the rest */
   const guide=async angle=>{if(S['g'+angle])return S['g'+angle];const pb=await (await fetch('vendor/poses/tw2~'+angle+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-turnguide-'+angle+'.png',{type:'image/png'}));fd.append('overwrite','true');
     const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)return null;const u=await up.json();return S['g'+angle]=(u.subfolder?u.subfolder+'/'+u.name:u.name);};
-  const gen=async(angle,seed)=>{const gi=await guide(angle),gs=.75;
+  const gen=async(angle,seed)=>{const gi=null,gs=0; // the guide is off: with the camera-angle wording she turns on her own, and the guide's long torso stretched the body and pulled the shirt up into a crop top
     const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,angle),gi,seed,gs,1024,1280,!gi),client_id:'mockup-studio'})});
     const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
     let out=null;for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
