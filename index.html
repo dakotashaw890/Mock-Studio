@@ -2159,7 +2159,7 @@ function cfSetLab_unused(){const l=$('#cf-set-lab');if(l)l.textContent=$('#cf-an
 function cfAngle(){const v='s',d=Math.random()<.5?'l':'r';return v==='q'?'q'+d:v==='s'?'s'+d:v==='mix'?['','s'+d,'q'+d][Math.floor(Math.random()*3)]:'';}
 function cfArms(woman){const v=$('#cf-arms').value;
   if(!woman){if(v==='mix')return ['','','pocket','pocket','pocket','hip'][Math.floor(Math.random()*6)];return v==='hair'?'pocket':v;} // men: hands in pockets or relaxed, never hand-in-hair
-  return v==='mix'?['','hips','hip','pocket','hip','pocket'][Math.floor(Math.random()*6)]:v==='hair'?'':v;}
+  return v==='mix'?['','','hip','pocket','hip','pocket'][Math.floor(Math.random()*6)]:v==='hair'?'':v;}
 const MAN_POSE={'':'arms hanging relaxed and natural at his sides, a relaxed confident stance with his weight on one leg',pocket:'hands tucked into the front pockets of his jeans, a relaxed confident stance with his weight on one leg',
   hip:'one hand resting on his belt at the hip, the other arm relaxed at his side, a confident stance',hips:'both hands resting on his belt at the hips, a strong confident stance'};
 function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
@@ -2181,7 +2181,7 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women',her
   const extra=/range/.test(key)?`, ${her} hands empty`:'';
   /* turned pairs made in one shot: the angle is in the prompt (no pose skeleton forcing a straight-on stance) */
   const direct=(angle==='sl'||angle==='sr')&&(($('#cf-turnmode')&&$('#cf-turnmode').value)||'direct')==='direct';
-  const ang=direct?`standing at a three-quarter angle with ${her} ${angle==='sl'?'right':'left'} shoulder clearly closer to the camera, body turned about 45 degrees toward the ${angle==='sl'?'right':'left'} side of the photo, the whole front of the shirt still visible and the near short sleeve showing, head upright, face turned toward the camera`:'';
+  const ang=direct?`photographed from a 45-degree side angle: ${her} hips and shoulders angled away from the camera toward the ${angle==='sl'?'right':'left'} side of the photo, ${her} ${angle==='sl'?'right':'left'} shoulder and sleeve closest to the lens, the front of the shirt still visible, ${her} head turned back toward the camera`:'';
   const zv=+(($('#cf-zoom')&&$('#cf-zoom').value)||1.18),frame=zv>=1.5?'the waist':zv>=1.3?'the hips':zv>=1.1?'mid-thigh':'the knees';
   /* the shirt goes right after who the person is: lower down, the body and glam wording turned it into a fitted scoop-neck women's top */
   const ml=m.split('\n'),shirt=`CLOTHES: a plain blank ${col} classic unisex crew-neck t-shirt (Bella+Canvas 3001), nothing printed on it, ${woman?'a fitted unisex cut that sits close to the body and follows her shape without being tight':'a regular unisex fit that sits close to the chest and shoulders'}, a high round ribbed crew neckline close to the base of the neck, regular short sleeves with a wide opening reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans`;
@@ -2191,7 +2191,7 @@ ${ml.slice(1).join('\n')}
 POSE: ${ang?ang+', ':'standing facing the camera, '}${pose}${extra}, nothing covering the front of the shirt
 ENVIRONMENT: ${place}, ${light}, rich natural colors and contrast, gentle shadows that shape the face, the light catching the cotton so the shirt shows its fabric texture, folds and the shape of the body underneath, background softly out of focus
 FOV: framed from ${frame} to just above the head, shot on a Canon EOS R5 with an 85mm f/1.8 lens, shallow depth of field, candid lifestyle photo, true-to-life colors, subtle film grain, real photograph, sharp focus on the shirt`;}
-const W_POSE={'':'arms relaxed at her sides, a confident stance with her weight on one hip',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
+const W_POSE={'':'arms hanging loose and relaxed at her sides, a casual easy stance with her weight on her back leg',hips:'one hand resting lightly on her hip, the other hanging loose, a casual easy stance',hip:'one hand resting lightly on her hip, the other arm hanging loose, a casual easy stance',pocket:'one thumb hooked loosely in a front pocket of her jeans, the other arm relaxed, a casual easy stance'};
 
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   if(o.angle&&o.angle[0]==='s'&&viewOf(ref)==='front'&&!o._baseOnly)return (($('#cf-turnmode').value||'direct')==='direct')?cfDirect(ref,n,o):cfTurnOne(ref,str,n,o);
