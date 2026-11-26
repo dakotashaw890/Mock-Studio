@@ -2285,15 +2285,26 @@ async function cfSaveGen(ref,ibf,o,n,ZA,fname){
 /* slight turn: Z-Image Turbo won't turn the body from a pose guide, so make one straight-on photo, then have the Qwen edit model
    turn that photo left and right. Both turned photos come from the same base, so the person matches exactly. */
 /* a turned photo generated in one pass: angle in the prompt, no skeleton, no turn edit. Both photos of a pair share the person, scene and seed so it's the same model */
-async function cfDirect(ref,n,o){const base=cfBase();o.shared=o.shared||{};if(!o.shared.seed)o.shared.seed=o.seed||Math.floor(Math.random()*2**48);
-  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,o.angle),null,o.shared.seed,0,1024,1280,true),client_id:'mockup-studio'})});
-  const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
-  let out=null;for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
-    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error. Check its window for details.');
-    if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
-  if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
-  const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
-  return cfSaveGen(ref,ib,o,n,null,out.filename);}
+async function cfDirect(ref,n,o){const base=cfBase();o.shared=o.shared||{};const S=o.shared;
+  /* shoulder depth from body detection: negative = body turned toward the right of the photo ('sl'), positive = toward the left ('sr') */
+  const dzOf=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;return lm?(lm[12].z||0)-(lm[11].z||0):null;}catch(e){return null;}};
+  const flip=async bl=>{const im=await loadImage(URL.createObjectURL(bl)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(im,0,0);return canvasBlob(c,'image/png');};
+  const gen=async(angle,seed)=>{const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,angle),null,seed,0,1024,1280,true),client_id:'mockup-studio'})});
+    const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
+    let out=null;for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
+      if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error. Check its window for details.');
+      if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
+    if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
+    return {blob:await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob(),fn:out.filename};};
+  /* first photo of the pair: generated angled; up to 3 seeds until body detection sees a real turn */
+  if(!S.first){let best=null;for(let a=0;a<3&&!CF.stop;a++){const g=await gen(o.angle,(o.seed||1)+a*7919),dz=await dzOf(g.blob);const sc=dz===null?0:Math.abs(dz);if(!best||sc>best.sc)best={...g,dz,sc};if(sc>.15)break;}
+    S.first=best;const side=best.dz!==null&&best.dz>.05?'sr':'sl'; // label it by the way she actually turned
+    S.firstSide=side;return cfSaveGen(ref,best.blob,{...o,angle:side},n,null,best.fn);}
+  /* second photo: the other way. Mirroring the first gives the same woman, exactly opposite. Scenes with a flag or writing would read backwards, so those get their own render */
+  const other=S.firstSide==='sl'?'sr':'sl',noMirror=/flag|sign|storefront|coffee|downtown|street|range/i.test(o.scene||'');
+  if(!noMirror){const fb=await flip(S.first.blob);return cfSaveGen(ref,fb,{...o,angle:other},n,null,S.first.fn.replace(/(\.\w+)$/,'_m$1'));}
+  let best=null;for(let a=0;a<3&&!CF.stop;a++){const g=await gen(other,(o.seed||1)+(a+3)*7919),dz=await dzOf(g.blob);const ok=dz!==null&&(other==='sl'?dz<-.1:dz>.1);const sc=dz===null?-9:(other==='sl'?-dz:dz);if(!best||sc>best.sc)best={...g,sc};if(ok)break;}
+  return cfSaveGen(ref,best.blob,{...o,angle:other},n,null,best.fn);}
 async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   if(!o.shared.base)o.shared.base=cfOne(ref,str,n,{...o,angle:'',_baseOnly:true});
   const b=await o.shared.base;if(CF.stop)throw new Error('Stopped.');
