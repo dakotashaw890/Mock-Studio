@@ -2123,7 +2123,8 @@ const VARY={
   lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
   exprM:['a tough, serious expression','an intense stare','a slight confident smirk','a hard, focused look','a calm, stern expression','a serious look, gazing slightly off to the side'],
   // glam that still photographs as real: makeup described the way a makeup artist would, with skin texture showing through it
-  denimW:['faded light-wash ripped skinny jeans with torn knees and worn whiskering','distressed medium-wash denim short shorts with frayed raw hems, small rips and fading','worn medium-wash high-rise jeans with ripped thighs and frayed tears','faded vintage-wash denim cutoff short shorts with frayed hems and a worn, lived-in look','dark-wash skinny jeans with faded thighs, a few rips and frayed edges','light-wash boyfriend jeans with ripped knees, fading and worn edges'],
+  faceW:['an oval face with a straight nose','a heart-shaped face with a small chin and dimples','a round face with full cheeks','a square jaw and wide-set eyes','a soft face with a light dusting of freckles across the nose','strong brows and a defined jawline','a narrow face with high cheekbones and a slightly upturned nose','a wide smile and a small button nose'],
+  denimW:['faded light-wash ripped skinny jeans with torn knees and worn whiskering','classic medium-wash denim cutoff shorts with frayed hems','worn medium-wash high-rise jeans with ripped thighs and frayed tears','light-wash denim shorts with a slightly frayed hem','dark-wash skinny jeans with faded thighs, a few rips and frayed edges','light-wash boyfriend jeans with ripped knees, fading and worn edges'],
   denimM:['worn medium-wash straight jeans with fading and a few frayed tears','faded dark-wash jeans with worn whiskering and frayed edges','rugged light-wash jeans with ripped knees and heavy fading','broken-in medium-wash work jeans with worn, faded thighs'],
   lookW:['strikingly attractive, sexy face, natural brows, soft smoky brown eyeshadow, dark eyeliner and long mascara lashes, a sheer nude lip gloss, real skin showing through','gorgeous face with high cheekbones and natural full lips, bronze shimmer eyeshadow, a thin winged eyeliner and mascara, a soft pink gloss, no heavy contour','sexy, confident face, soft natural brows, warm taupe eyeshadow blended into the crease, smudged eyeliner and full lashes, glossy natural lips, fresh glowing skin','beautiful face with natural full lips, sultry defined eyes with brown smoky liner and long lashes, softly defined brows, a light sun-kissed glow, minimal foundation'],
   exprW:['flirty smile with a confident, playful look in her eyes','sultry closed-lip smile and a confident, smoldering gaze into the camera','sultry half-smile, chin slightly down, eyes on the camera','flirty glint in her eyes and a slight smirk','playful, teasing smile'],
@@ -2141,7 +2142,7 @@ function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=woman&
 BODY: ${pick(VARY.bodyW)}
 SKIN: real unretouched sun-kissed skin with visible pores, a few light freckles, fine natural texture and small imperfections, not airbrushed
 HAIR: ${hair}, kept behind her shoulders and off the shirt
-FACE: ${pick(VARY.lookW)}, ${eyes} eyes
+FACE: ${pick(VARY.faceW)}, ${pick(VARY.lookW)}, ${eyes} eyes
 EXPRESSION: ${pick(VARY.exprW)}
 ${tat?'TATTOOS: '+tat+'\n':''}ACCESSORIES: ${acc}`;}
   const x=menExtras();
@@ -2179,7 +2180,7 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women',her
   const indoor=/^(studio|garage|coffee|loft|gym|indoorrange|musclegarage|moto|boxing)$/.test(key);
   const light=key==='studio'?`soft, bright studio key light from the front lighting ${her} face and the front of the shirt, a light fill so nothing is muddy`
     :indoor?`bright warm window light from the front and slightly to the side lighting ${her} face and the front of the shirt`
-    :`outdoors in the open air, warm late-afternoon sunlight from the front and slightly to the side lighting ${her} face and the front of the shirt, clear sky`;
+    :`outdoors in the open air, warm late-afternoon sunlight from the front and slightly to the side lighting ${her} face and the front of the shirt, clear sky and crisp, clear air`;
   const extra=/range/.test(key)?`, ${her} hands empty`:'';
   /* turned pairs made in one shot: the angle is in the prompt (no pose skeleton forcing a straight-on stance) */
   const direct=(angle==='sl'||angle==='sr')&&(($('#cf-turnmode')&&$('#cf-turnmode').value)||'direct')==='direct';
@@ -2291,7 +2292,11 @@ async function cfDirect(ref,n,o){const base=cfBase();o.shared=o.shared||{};const
   /* shoulder depth from body detection: negative = body turned toward the right of the photo ('sl'), positive = toward the left ('sr') */
   const dzOf=async bl=>{try{const im=await loadImage(URL.createObjectURL(bl));const [w,h]=fitSize(im.naturalWidth,im.naturalHeight,640);const r=await (await loadPose()).run(drawScaled(im,w,h));const lm=r&&r.poseLandmarks;return lm?(lm[12].z||0)-(lm[11].z||0):null;}catch(e){return null;}};
   const flip=async bl=>{const im=await loadImage(URL.createObjectURL(bl)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(im,0,0);return canvasBlob(c,'image/png');};
-  const gen=async(angle,seed)=>{const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,angle),null,seed,0,1024,1280,true),client_id:'mockup-studio'})});
+  /* a light torso-only guide taken from one of your real turned photos (shoulders and hips angled, arms left free) nudges the body round; the prompt does the rest */
+  const guide=async angle=>{if(S['g'+angle])return S['g'+angle];const pb=await (await fetch('vendor/poses/tw2~'+angle+'.png')).blob();const fd=new FormData();fd.append('image',new File([pb],'ms-turnguide-'+angle+'.png',{type:'image/png'}));fd.append('overwrite','true');
+    const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)return null;const u=await up.json();return S['g'+angle]=(u.subfolder?u.subfolder+'/'+u.name:u.name);};
+  const gen=async(angle,seed)=>{const gi=await guide(angle),gs=Math.min(.5,+$('#cf-str').value||.5);
+    const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,angle),gi,seed,gs,1024,1280,!gi),client_id:'mockup-studio'})});
     const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
     let out=null;for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
       if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error. Check its window for details.');
