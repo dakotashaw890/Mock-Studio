@@ -71,7 +71,8 @@ label.file strong{font-size:14px}
 .studio.panes>.split:hover::after,.studio.panes>.split.drag::after{background:var(--accent,#2563eb)}
 .studio:not(.panes)>.split{display:none}
 .studio.panes>div{height:100%;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;border-radius:var(--radius)}}
-.studio.panes #view{max-height:calc(100vh - var(--studio-top,0px) - 330px);min-height:240px}
+/* photo gets at least ~86% of the pane height; on short screens (or browser zoomed in) the photo strip scrolls below instead of squeezing the photo */
+.studio.panes #view{max-height:max(calc(100vh - var(--studio-top,0px) - 330px),calc((100vh - var(--studio-top,0px)) * .86));min-height:240px}
 .studio.panes #pane-left .card{margin-bottom:8px}
 #rtabs{position:sticky;top:0;z-index:5;display:flex;gap:6px;padding:4px 0 8px;margin-bottom:4px;background:var(--bg)}
 #rtabs button{flex:1;justify-content:center}
