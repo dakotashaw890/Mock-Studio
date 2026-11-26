@@ -2103,7 +2103,7 @@ function cfPrompt(text,img,seed,str,W,H){W=W||1024;H=H||1280;const LR=cfLora();i
   '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};if(LR)g['20']={class_type:'LoraLoaderModelOnly',inputs:{model:['1',0],lora_name:LR.file,strength_model:LR.str}};return g;}
 const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
-  ageM:['mid 20s','late 20s','late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s'],
+  ageM:['late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s','late 30s'],
   eth:['white','white','white','white','white','white','Latino','Latino','Latino','Latino','mixed-race','mixed-race','mixed-race','Black','Black','Native American','Pacific Islander'],
   build:['big, muscular, broad-chested','thick, powerful, muscular','muscular, athletic','broad-shouldered, strong','fit, athletic','lean, muscular'],
   bodyW:['fit, curvy hourglass figure, big bust, narrow waist, wide hips, toned arms','athletic curvy figure, full bust, toned arms and wide hips','fit hourglass figure, large natural bust, toned arms','curvy and fit, full bust, strong toned arms'],
@@ -2128,7 +2128,7 @@ function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=woman&
   const eyes=blondeW?pick(VARY.eyesBlonde):eth==='white'?pick(VARY.eyesLight):(/mixed|Latino/.test(eth)&&Math.random()<.25?'hazel':pick(VARY.eyesDark));
   // dreadlocks and braids only come up for Black models
   const hair=pick((woman?VARY.hairW:VARY.hairM).filter(h=>eth==='Black'||!/dreadlock|braid|locs/.test(h))).replace('{c}',c);
-  if(woman){const r=Math.random(),tat=r<.2?'a full black-and-grey floral tattoo sleeve on her right arm only':r<.45?'a small fine-line tattoo on her right forearm only, '+pick(VARY.tatW):'none';
+  if(woman){const r=Math.random(),tat=r<.2?'a full black-and-grey floral tattoo sleeve on her right arm only':r<.45?'a small fine-line tattoo on her right forearm only, '+pick(VARY.tatW):'';
     const acc=Math.random()<.6?pick(['stacked leather and beaded bracelets on one wrist','a black sport watch','a few thin bracelets and small hoop earrings','a turquoise and silver bracelet']):'small stud earrings';
     return `beautiful ${eth==='Latino'?'Latina':eth} woman in her ${age}
 BODY: ${pick(VARY.bodyW)}
@@ -2136,8 +2136,7 @@ SKIN: real unretouched sun-kissed skin with visible pores, a few light freckles,
 HAIR: ${hair}, kept behind her shoulders and off the shirt
 FACE: ${pick(VARY.lookW)}, ${eyes} eyes
 EXPRESSION: ${pick(VARY.exprW)}
-TATTOOS: ${tat}
-ACCESSORIES: ${acc}`;}
+${tat?'TATTOOS: '+tat+'\n':''}ACCESSORIES: ${acc}`;}
   const x=menExtras();
   return `rugged ${eth} man in his ${age}
 BODY: ${pick(VARY.build)} build
@@ -2163,15 +2162,22 @@ function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'w
 /* ---------- the generation prompt ----------
    Rewritten from scratch (Nov 23) in the short, labelled style of Dakota's own Z-Image workflow, which gets better images than the
    long rule-heavy prose this used to be. One line per topic, positive wording only. */
-function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women';
+function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women',her=woman?'her':'his';
   const m=person||randomPerson(woman);
   const col=($('#g-color')&&$('#g-color').value)||'black';
   const pose=woman?(W_POSE[arms||'']||W_POSE['']):(MAN_POSE[arms||'']||MAN_POSE['']);
-  const sc=(settings[scene||$('#g-setting').value]||'').replace(/,? ?background softly out of focus\.?/i,'').replace(/\.$/,'').replace(/late-afternoon golden hour|golden-hour|golden hour( sunlight| sun)?|at sunset|sunset|moody warm light|moody|warm afternoon sun|bright sunny daytime|late-afternoon golden light|golden light|warm late-afternoon light/gi,'late afternoon').replace(/,? ?warm sun (shining )?on(to)? her from the front/gi,'').replace(/,? ?(bright |warm |soft |harsh )*(late-afternoon |afternoon |morning |midday )?(sunlight|sun)\b/gi,'');
+  const key=scene||$('#g-setting').value,raw=settings[key]||'';
+  /* the scene text describes the place; its own lighting words are dropped so the one lighting line below decides the light */
+  const place=raw.replace(/\.\s*No guns are held or shown in hand\.?/i,'').replace(/\.$/,'').replace(/\s+in (late-afternoon )?golden hour|\s+at dusk/gi,'').split(/,\s*/).filter(p=>!/out of focus/i.test(p)&&!/^(soft|bright|warm|golden|overcast|crisp|cool|dramatic|moody|early|late|warm sun|sunny)\b/i.test(p)).join(', ').replace(/^./,c=>c.toLowerCase());
+  const indoor=/^(studio|garage|coffee|loft|gym|indoorrange|musclegarage|moto|boxing)$/.test(key);
+  const light=key==='studio'?`soft, bright studio key light from the front lighting ${her} face and the front of the shirt, a light fill so nothing is muddy`
+    :indoor?`bright warm window light from the front and slightly to the side lighting ${her} face and the front of the shirt`
+    :`outdoors in the open air, warm late-afternoon sunlight from the front and slightly to the side lighting ${her} face and the front of the shirt, clear sky`;
+  const extra=/range/.test(key)?`, ${her} hands empty`:'';
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
-POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
-ENVIRONMENT: ${sc}, outdoors in the open air with open sky overhead and nothing above the person, warm late-afternoon sunlight from the front and slightly to the side lighting her face and the front of the shirt, clear sky, rich natural colors and contrast, no haze, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed, soft light catching the cotton so the shirt shows visible fabric texture, soft highlights on its folds and the shape of the body underneath
+POSE: standing facing the camera, ${pose}${extra}, nothing covering the front of the shirt
+ENVIRONMENT: ${place}, ${light}, rich natural colors and contrast, gentle shadows that shape the face, the light catching the cotton so the shirt shows its fabric texture, folds and the shape of the body underneath, background softly out of focus
 FOV: framed from mid-thigh to just above the head, shot on a Canon EOS R5 with an 85mm f/1.8 lens, shallow depth of field, candid lifestyle photo, true-to-life colors, subtle film grain, real photograph, sharp focus on the shirt`;}
 const W_POSE={'':'arms relaxed at her sides, a confident stance with her weight on one hip',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
