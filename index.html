@@ -50,7 +50,7 @@ main{max-width:var(--appw,1180px);margin:0 auto;padding:12px 16px 60px}
 .seg button{border:0;border-radius:0;padding:7px 12px;font-size:13px;background:transparent}.seg button+button{border-left:1px solid var(--line)}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
 .bb-size{display:inline-flex;align-items:center;gap:6px;font-size:13px}.bb-size input{width:110px}
-.bb-sub{display:inline-flex;gap:6px}.bb-done{margin-left:auto;padding:7px 16px}
+.bb-sub{display:inline-flex;gap:6px}.bb-done{padding:7px 16px}#brush-undo{margin-left:auto;padding:7px 12px}
 .bb-foot{font-size:12.5px;gap:6px}.bb-gap{flex:1}.bb-chk{display:inline-flex;align-items:center;gap:4px;margin-right:6px}
 button.link{border:0;background:none;padding:2px 4px;font-size:12.5px;font-weight:600;color:var(--accent)}button.link:hover{text-decoration:underline}button.link.danger{color:var(--muted)}button.link.danger:hover{color:#ef4444}
 button,.btn{font:600 14px Inter,sans-serif;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
@@ -193,7 +193,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <div class="seg"><button data-bm="1" class="on">Hide print</button><button data-bm="2">Show print</button><button data-bm="0">Erase</button></div>
             <label class="bb-size" id="bb-size">Size <input type="range" id="brush-size" min="0.5" max="24" step="0.5" value="6"></label>
             <span id="ln-bar" class="bb-sub" style="display:none"><button class="small" id="ln-flip">Flip side</button><button class="small" id="ln-del">Delete line</button></span>
-            <button class="primary bb-done" id="brush-done">Done</button>
+            <button class="small" id="brush-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button class="primary bb-done" id="brush-done">Done</button>
           </div>
           <div class="bb-row bb-foot">
             <span class="muted">Auto-hide outside shirt:</span><button class="link" id="seg-one" title="Hides the print on everything that isn't clothing: background, arms, hair. Adds to your brush strokes, so you can still touch it up.">This photo</button><span class="muted">·</span><button class="link" id="seg-all">All photos</button><span class="muted" id="seg-st"></span>
@@ -908,7 +908,7 @@ function loadSeg(){if(SEGP)return SEGP;const B=new URL('vendor/tasks-vision/',lo
     const seg=await mp.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetBuffer:new W.Uint8Array(await segModel())},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
     return {segment(c){const k=W.document.createElement('canvas');k.width=c.width;k.height=c.height;k.getContext('2d').drawImage(c,0,0);return seg.segment(k);}};})();
   SEGP.catch(()=>{SEGP=null;});return SEGP;}
-async function segHide(t){const seg=await loadSeg(),img=await tplImage(t),[w,h]=fitSize(img.naturalWidth,img.naturalHeight,1600);
+async function segHide(t){undoPush(t);const seg=await loadSeg(),img=await tplImage(t),[w,h]=fitSize(img.naturalWidth,img.naturalHeight,1600);
   const r=seg.segment(drawScaled(img,w,h));const cm=r.confidenceMasks[4],mw=cm.width,mh=cm.height,f=cm.getAsFloat32Array().slice();if(r.close)r.close();
   const m=LS.get('occ',{}),g=m[t.id]?occDec(m[t.id]):new Uint8Array(OCC_W*OCC_H);let n=0;
   for(let y=0;y<OCC_H;y++){const fy=Math.min(mh-1.001,Math.max(0,(y+.5)*mh/OCC_H-.5)),y0=fy|0,ty=fy-y0;
@@ -1459,7 +1459,7 @@ view.addEventListener('touchend',()=>{PINCH=null;});
 let rafPending=false;
 function scheduleRender(){ if(rafPending)return; rafPending=true; requestAnimationFrame(async()=>{rafPending=false; await renderView();}); }
 let slotPhoto=null;
-async function renderView(){
+async function renderView(){try{undoUI();}catch(e){}
   const t=curT(); if(!t)return;
   if(Z.id!==t.id){Z.id=t.id;if(Z.s>1){Z.s=1;zoomApply();}}
   let pack; try{pack=await previewPack(t);await ensureFit(t);}catch(e){toast('Couldn\'t load that photo.');return;}
@@ -1625,9 +1625,15 @@ view.addEventListener('pointerup',endLD);view.addEventListener('pointercancel',e
 let ROT_SIGN=1;
 // hide/show brush
 let BRUSH_ON=false,BRUSH_M=1,BRUSH_G=null,BRUSH_DOWN=false;
+/* undo for brush strokes, edge lines, auto-hide and Clear all: a snapshot per photo before each change */
+const UNDO=new Map();
+function undoPush(t){if(!t)return;const st=UNDO.get(t.id)||[];st.push({occ:LS.get('occ',{})[t.id]||null,line:JSON.stringify(LS.get('occline',{})[t.id]||[])});if(st.length>60)st.shift();UNDO.set(t.id,st);undoUI();}
+function undoUI(){const b=$('#brush-undo');if(!b)return;const t=curT();b.disabled=!(t&&(UNDO.get(t.id)||[]).length);}
+function undoDo(){const t=curT();if(!t)return;const st=UNDO.get(t.id)||[];const u=st.pop();if(!u)return;const m=LS.get('occ',{});if(u.occ)m[t.id]=u.occ;else delete m[t.id];LS.set('occ',m);occBr.delete(t.id);
+  LN.sel=-1;LN.side=-1;LN.drag=null;LN.draft=null;occLinesSet(t,JSON.parse(u.line));lnUI();undoUI();scheduleRender();scheduleGrid();}
 function brushTools(){let ln=false;try{ln=LN.tool;}catch(e){}document.querySelectorAll('#brush-bar [data-tool]').forEach(b=>b.classList.toggle('on',(b.dataset.tool==='line')===!!ln));
   $('#bb-size').style.display=ln?'none':'';const act=$('#btn-edit')&&$('#btn-edit').parentElement.parentElement;if(act)act.style.display=BRUSH_ON?'none':'';}
-function brushUI(){setTimeout(()=>brushCursor(),0);$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('on',+b.dataset.bm===BRUSH_M));brushTools();const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
+function brushUI(){undoUI();setTimeout(()=>brushCursor(),0);$('#brush-bar').style.display=BRUSH_ON?'flex':'none';$('#btn-brush').classList.toggle('primary',BRUSH_ON);document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.classList.toggle('on',+b.dataset.bm===BRUSH_M));brushTools();const t=curT();if(t)$('#occ-auto').checked=!occOff(t);}
 function brushSave(){const t=curT();if(!t||!BRUSH_G)return;const m=LS.get('occ',{});if(BRUSH_G.some(v=>v))m[t.id]=occEnc(BRUSH_G);else delete m[t.id];LS.set('occ',m);}
 let BRUSH_LAST=null;
 /* round outline at the real brush size, so you can see exactly what you'll paint. A floating ring, not a CSS cursor:
@@ -1638,19 +1644,27 @@ function brushCursor(e){if(!BRUSH_RING){BRUSH_RING=document.createElement('div')
   view.style.cursor='none';const r=view.getBoundingClientRect(),d=+$('#brush-size').value/OCC_OW*r.width;
   if(e){BRUSH_RING.style.left=e.clientX+'px';BRUSH_RING.style.top=e.clientY+'px';BRUSH_RING.style.display='block';}
   BRUSH_RING.style.width=BRUSH_RING.style.height=d+'px';}
+let BSNAP=null,BSTROKE=null,BRAF=0,BPREV=null;
+function brushSnap(){const W=view.width,H=view.height;BSNAP=document.createElement('canvas');BSNAP.width=W;BSNAP.height=H;BSNAP.getContext('2d').drawImage(view,0,0);
+  BSTROKE=document.createElement('canvas');BSTROKE.width=W;BSTROKE.height=H;BPREV=null;}
+function brushPaint(nx,ny,rn){if(!BSTROKE)return;const W=BSTROKE.width,H=BSTROKE.height,x=BSTROKE.getContext('2d'),r=rn*W,p={x:nx*W,y:ny*H},a=BPREV||p;
+  x.strokeStyle=x.fillStyle=BRUSH_M===1?'#ef4444':BRUSH_M===2?'#22c55e':'#9ca3af';x.lineCap='round';x.lineWidth=r*2;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(p.x,p.y);x.stroke();x.beginPath();x.arc(p.x,p.y,r,0,Math.PI*2);x.fill();BPREV=p;
+  if(!BRAF)BRAF=requestAnimationFrame(()=>{BRAF=0;if(!BSNAP||!BRUSH_DOWN)return;const c=view.getContext('2d');c.save();c.globalAlpha=1;c.drawImage(BSNAP,0,0);c.globalAlpha=.42;c.drawImage(BSTROKE,0,0);c.restore();});}
 function brushDab(cx,cy,rad){for(let y=Math.max(0,Math.floor(cy-rad));y<Math.min(OCC_H,Math.ceil(cy+rad));y++)for(let x=Math.max(0,Math.floor(cx-rad));x<Math.min(OCC_W,Math.ceil(cx+rad));x++)if(Math.hypot(x+.5-cx,y+.5-cy)<=rad)BRUSH_G[y*OCC_W+x]=BRUSH_M;}
 function brushAt(e){const t=curT();if(!t)return;const r=view.getBoundingClientRect(),nx=(e.clientX-r.left)/r.width,ny=(e.clientY-r.top)/r.height,rad=+$('#brush-size').value/2*(OCC_W/OCC_OW);
   const cx=nx*OCC_W,cy=ny*OCC_H,L=BRUSH_LAST||{x:cx,y:cy},d=Math.hypot(cx-L.x,cy-L.y),n=Math.max(1,Math.ceil(d/Math.max(1,rad*.35)));
   for(let k=1;k<=n;k++)brushDab(L.x+(cx-L.x)*k/n,L.y+(cy-L.y)*k/n,rad);BRUSH_LAST={x:cx,y:cy};
-  const m=LS.get('occ',{});occBr.set(t.id,{s:'live',g:BRUSH_G});scheduleRender();}
-view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();if(BRUSH_M===0&&lnErase(e))return;const t=curT();BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
+  occBr.set(t.id,{s:'live',g:BRUSH_G});brushPaint(nx,ny,rad/OCC_W);}
+view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();if(BRUSH_M===0&&lnErase(e))return;const t=curT();undoPush(t);BRUSH_G=new Uint8Array(occBrush(t)||new Uint8Array(OCC_W*OCC_H));BRUSH_DOWN=true;brushSnap();BRUSH_LAST=null;view.setPointerCapture(e.pointerId);brushAt(e);},true);
 view.addEventListener('pointermove',e=>{if(!BRUSH_ON||LN.tool)return;e.stopImmediatePropagation();brushCursor(e);if(BRUSH_DOWN)brushAt(e);},true);
-view.addEventListener('pointerleave',()=>{if(BRUSH_RING)BRUSH_RING.style.display='none';});
-view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!BRUSH_DOWN)return;e.stopImmediatePropagation();BRUSH_DOWN=false;BRUSH_LAST=null;brushSave();occBr.delete((curT()||{}).id);scheduleRender();scheduleGrid();},true);
+view.addEventListener('pointerleave',()=>{if(BRUSH_RING&&!BRUSH_DOWN)BRUSH_RING.style.display='none';});
+view.addEventListener('pointerup',e=>{if(!BRUSH_ON||!BRUSH_DOWN)return;e.stopImmediatePropagation();BRUSH_DOWN=false;BRUSH_LAST=null;BSNAP=BSTROKE=null;brushSave();occBr.delete((curT()||{}).id);scheduleRender();scheduleGrid();},true);
 $('#btn-brush').onclick=()=>{BRUSH_ON=!BRUSH_ON;if(!BRUSH_ON){LN.tool=false;LN.draft=null;LN.sel=-1;LN.side=-1;lnUI();}if(BRUSH_ON){SEL=null;WARP_ON=false;$('#btn-warp').classList.remove('primary');toast('Paint over an arm, hand or hair to hide the print there. “Show print” forces it back. Saves to this photo for every design.',5000);}brushUI();scheduleRender();};
 document.querySelectorAll('#brush-bar [data-bm]').forEach(b=>b.onclick=()=>{BRUSH_M=+b.dataset.bm;if(LN.tool&&BRUSH_M){LN.m=BRUSH_M;if(LN.sel>=0){const t=curT(),L=occLines(t);if(L[LN.sel]){L[LN.sel].m=BRUSH_M;occLinesSet(t,L);scheduleRender();scheduleGrid();}}}brushUI();});
 $('#brush-size').addEventListener('input',()=>brushCursor());
-$('#brush-clear').onclick=()=>{const t=curT();if(!t)return;if(occLines(t).length&&!confirm('Clear all brush strokes and edge lines on this photo?'))return;occLinesSet(t,[]);LN.sel=-1;LN.side=-1;LN.draft=null;lnUI();const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
+$('#brush-clear').onclick=()=>{const t=curT();if(!t)return;undoPush(t);occLinesSet(t,[]);LN.sel=-1;LN.side=-1;LN.draft=null;lnUI();const m=LS.get('occ',{});delete m[t.id];LS.set('occ',m);occBr.delete(t.id);scheduleRender();scheduleGrid();};
+$('#brush-undo').onclick=undoDo;
+document.addEventListener('keydown',e=>{if(!BRUSH_ON||!(e.ctrlKey||e.metaKey)||e.key.toLowerCase()!=='z'||e.shiftKey||/INPUT|TEXTAREA|SELECT/.test((e.target||{}).tagName||''))return;e.preventDefault();undoDo();});
 $('#brush-done').onclick=()=>{LN.tool=false;LN.draft=null;LN.sel=-1;LN.side=-1;BRUSH_ON=false;brushUI();scheduleRender();};
 $('#occ-auto').onchange=e=>{const t=curT();if(!t)return;const m=LS.get('occoff',{});if(e.target.checked)delete m[t.id];else m[t.id]=1;LS.set('occoff',m);scheduleRender();scheduleGrid();};
 let CROP_ON=false,CROP_DRAG=null;
@@ -1680,15 +1694,16 @@ function lnHit(t,q){const W=view.width,H=view.height,tol=9*q.sc,L=occLines(t),d2
   if(LN.sel>=0&&L[LN.sel]){const ln=L[LN.sel];for(let i=0;i<ln.p.length;i++)if(d2(ln.p[i],q)<tol)return {line:LN.sel,pt:i};if(ln.s&&d2(ln.s,q)<tol)return {line:LN.sel,side:true};}
   for(let li=L.length-1;li>=0;li--){const S=crSample(L[li].p);let best=1e9,seg=0;for(const p of S){const d=Math.hypot((p.x-q.x)*W,(p.y-q.y)*H);if(d<best){best=d;seg=p.seg;}}if(best<tol)return {line:li,seg};}
   return null;}
-function lnErase(e){const t=curT(),h=t&&lnHit(t,lnNorm(e));if(!h)return false;const L=occLines(t);L.splice(h.line,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();toast('Line erased.');return true;}
+function lnErase(e){const t=curT(),h=t&&lnHit(t,lnNorm(e));if(!h)return false;undoPush(t);const L=occLines(t);L.splice(h.line,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();toast('Line erased.');return true;}
 function lnFinish(){const t=curT();if(!t||!LN.draft)return;if(LN.draft.length<2){LN.draft=null;scheduleRender();return;}
-  const L=occLines(t);L.push({p:LN.draft.map(p=>[+p[0].toFixed(4),+p[1].toFixed(4)]),s:null,m:LN.m});occLinesSet(t,L);LN.draft=null;LN.sel=L.length-1;LN.side=LN.sel;
+  undoPush(t);const L=occLines(t);L.push({p:LN.draft.map(p=>[+p[0].toFixed(4),+p[1].toFixed(4)]),s:null,m:LN.m});occLinesSet(t,L);LN.draft=null;LN.sel=L.length-1;LN.side=LN.sel;
   toast('Now click the side of the line to '+(LN.m===2?'show':'hide')+' the print on.',4000);lnUI();scheduleRender();}
-view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||!LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT(),q=lnNorm(e),L=occLines(t);
-  if(LN.side>=0&&L[LN.side]){L[LN.side].s=[+q.x.toFixed(4),+q.y.toFixed(4)];occLinesSet(t,L);LN.side=-1;lnUI();scheduleRender();scheduleGrid();return;}
+view.addEventListener('pointerdown',e=>{if(!BRUSH_ON||!LN.tool||editMode||!curT())return;e.stopImmediatePropagation();e.preventDefault();const t=curT(),q=lnNorm(e);let L=occLines(t);
+  if(LN.side>=0&&L[LN.side]){undoPush(t);L=occLines(t);L[LN.side].s=[+q.x.toFixed(4),+q.y.toFixed(4)];occLinesSet(t,L);LN.side=-1;lnUI();scheduleRender();scheduleGrid();return;}
   if(BRUSH_M===0&&!LN.draft&&LN.side<0){lnErase(e);return;}
   if(LN.draft){if(e.detail>=2){lnFinish();return;}LN.draft.push([q.x,q.y]);scheduleRender();return;}
   const h=lnHit(t,q);
+  if(h&&h.line===LN.sel&&(h.pt!=null||h.side||h.seg!=null))undoPush(t);
   if(h&&h.line===LN.sel&&h.pt!=null){LN.drag={pt:h.pt};view.setPointerCapture(e.pointerId);return;}
   if(h&&h.line===LN.sel&&h.side){LN.drag={side:true};view.setPointerCapture(e.pointerId);return;}
   if(h&&h.line===LN.sel&&h.seg!=null){L[LN.sel].p.splice(h.seg+1,0,[q.x,q.y]);occLinesSet(t,L);LN.drag={pt:h.seg+1};view.setPointerCapture(e.pointerId);scheduleRender();return;} // click on the line: add a bend point
@@ -1707,9 +1722,9 @@ document.addEventListener('keydown',e=>{if(!BRUSH_ON||!LN.tool||/INPUT|TEXTAREA|
 function lnToggle(on){if(LN.tool===on)return;LN.tool=on;LN.draft=null;LN.side=-1;if(!LN.tool)LN.sel=-1;LN.m=BRUSH_M===2?2:1;lnUI();scheduleRender();
   if(LN.tool)toast('Edge line: click points along the arm or hair edge, double-click to finish, then click the side to '+(LN.m===2?'show':'hide')+'. Click the line to add a bend point, drag points to shape it.',7000);};
 document.querySelectorAll('#brush-bar [data-tool]').forEach(b=>b.onclick=()=>lnToggle(b.dataset.tool==='line'));
-$('#ln-flip').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;const L=occLines(t),ln=L[LN.sel];if(!ln||!ln.s)return;
+$('#ln-flip').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;undoPush(t);const L=occLines(t),ln=L[LN.sel];if(!ln||!ln.s)return;
   const S=crSample(ln.p);let best=1e9,bi=0;S.forEach((p,i)=>{const d=Math.hypot(p.x-ln.s[0],p.y-ln.s[1]);if(d<best){best=d;bi=i;}});const n=S[bi];ln.s=[+(2*n.x-ln.s[0]).toFixed(4),+(2*n.y-ln.s[1]).toFixed(4)].map(v=>Math.max(0,Math.min(1,v)));occLinesSet(t,L);scheduleRender();scheduleGrid();};
-$('#ln-del').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;const L=occLines(t);L.splice(LN.sel,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();};
+$('#ln-del').onclick=()=>{const t=curT();if(!t||LN.sel<0)return;undoPush(t);const L=occLines(t);L.splice(LN.sel,1);occLinesSet(t,L);LN.sel=-1;LN.side=-1;lnUI();scheduleRender();scheduleGrid();};
 function drawLines(x){const t=curT();if(!t||!BRUSH_ON)return;const W=x.canvas.width,H=x.canvas.height,lw=Math.max(2,W/500),L=occLines(t).slice();
   const draw=(P,sel,draft,m)=>{const S=crSample(P);if(S.length>1){x.beginPath();S.forEach((p,i)=>i?x.lineTo(p.x*W,p.y*H):x.moveTo(p.x*W,p.y*H));x.lineWidth=lw+2;x.strokeStyle='rgba(0,0,0,.6)';x.stroke();x.lineWidth=lw;x.strokeStyle=m===2?'#22c55e':'#facc15';x.stroke();}
     if(sel&&S.length>2){x.save();x.setLineDash([lw*3,lw*3]);x.lineWidth=lw;x.strokeStyle='rgba(250,204,21,.8)';for(const [a,c] of [[S[0],S[2]],[S[S.length-1],S[S.length-3]]]){const dx=(a.x-c.x)*W,dy=(a.y-c.y)*H,n=Math.hypot(dx,dy)||1;x.beginPath();x.moveTo(a.x*W,a.y*H);x.lineTo(a.x*W+dx/n*W*.12,a.y*H+dy/n*W*.12);x.stroke();}x.restore();} // the line keeps going past its ends
