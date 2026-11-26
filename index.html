@@ -2220,7 +2220,6 @@ async function cfFileLists(){const base=cfBase();const opts=x=>{const v=x&&x[0];
     /* dropdowns (not type-ahead lists, which hid every file that didn't match what was already typed) */
     const fill=(id,list)=>{const d=$('#'+id),cur=d.value||LS.get('cf_'+id,'')||'';d.textContent='';const add=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;d.append(o);};add('','None');for(const f of list)add(f,f.replace(/\.safetensors$/i,''));if(cur&&!list.includes(cur))add(cur,cur+' (not found)');d.value=cur;};fill('cf-lora',L);fill('cf-up',U);CF.ups=U;
     const all=opts(a.LoraLoaderModelOnly.input.required.lora_name);fill('cf-tlora',all.filter(f=>/multiple.?angles|camera.?angle|qma|mva|anyangle/i.test(f)));
-    if(!$('#cf-tlora').value){const p=all.find(f=>/qwen21.*multiple.?angles/i.test(f));if(p){$('#cf-tlora').value=p;$('#cf-tlora').dispatchEvent(new Event('change'));}}
     if(!$('#cf-up').value.trim()&&U.length){const p=U.find(f=>/z.?image/i.test(f))||U.find(f=>/ultrasharp|realesrgan|nmkd|siax|remacri/i.test(f))||U[0];$('#cf-up').value=p;$('#cf-up').dispatchEvent(new Event('change'));}}catch(e){}}
 async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file){if(!CF.upWarned){CF.upWarned=1;toast('No upscaler picked under Photo quality, so photos stay low-res (about 1000 x 1280).',6000);}return bl;}const base=cfBase();
   try{const fd=new FormData();fd.append('image',new File([bl],'ms-up.png',{type:bl.type||'image/png'}));fd.append('overwrite','true');
