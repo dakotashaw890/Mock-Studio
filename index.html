@@ -2106,7 +2106,7 @@ const VARY={
   ageM:['mid 20s','late 20s','late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s'],
   eth:['white','white','white','white','white','white','Latino','Latino','Latino','Latino','mixed-race','mixed-race','mixed-race','Black','Black','Native American','Pacific Islander'],
   build:['big, muscular, broad-chested','thick, powerful, muscular','muscular, athletic','broad-shouldered, strong','fit, athletic','lean, muscular'],
-  bodyW:['fit, curvy hourglass figure, big bust, narrow waist, wide hips, toned arms','athletic curvy figure, full bust, toned arms and wide hips','fit hourglass figure, large natural bust, toned arms','curvy and fit, full bust, strong toned arms'],
+  bodyW:['fit, curvy hourglass figure, big bust, narrow waist, wide hips, toned arms, the fitted tee hugging her curves','athletic curvy figure, full bust, toned arms and wide hips, the tee fitting snugly over her figure','fit hourglass figure, large natural bust, slim waist, toned arms, the tee hugging her curves','curvy and fit, full bust, strong toned arms, the tee snug across her chest and waist'],
   hairM:['a short {c} buzz cut','a short {c} crew cut','short, slightly messy {c} hair','a {c} high-and-tight cut','short textured {c} hair pushed back','close-cropped {c} hair','a shaved head','short {c} hair with a natural side part','short {c} dreadlocks'],
   // every style keeps the hair off the shirt: pulled back behind the shoulders, or short enough not to reach the chest
   hairW:['long voluminous {c} hair with soft waves','long glossy {c} waves with a side part','long tousled {c} beach waves','long sleek straight {c} hair with a middle part','shoulder-length {c} hair with soft curls'],
@@ -2118,8 +2118,8 @@ const VARY={
   lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
   exprM:['a tough, serious expression','an intense stare','a slight confident smirk','a hard, focused look','a calm, stern expression','a serious look, gazing slightly off to the side'],
   // glam that still photographs as real: makeup described the way a makeup artist would, with skin texture showing through it
-  lookW:['natural glamorous makeup with defined brows, soft smoky eyes, long lashes and glossy lips','stunning face, high cheekbones, glam makeup with winged liner, long lashes and a nude lip','beautiful model face, bronzed glam makeup, soft smoky eyes and glossy lips','gorgeous face with full lips, soft glam makeup, defined brows and long lashes'],
-  exprW:['big genuine smile','warm, bright smile','flirty smile','confident, happy smile','playful smile'],
+  lookW:['sexy, natural glamorous makeup with defined brows, soft smoky eyes, long lashes and full glossy lips','stunning, alluring face, high cheekbones, glam makeup with winged liner, long lashes and a nude lip','beautiful, sultry model face, bronzed glam makeup, smoky eyes and glossy lips','gorgeous, seductive face with full lips, soft glam makeup, defined brows and long lashes'],
+  exprW:['flirty smile with a confident, playful look in her eyes','warm, inviting smile and a confident gaze into the camera','sultry half-smile','big genuine smile with a flirty glint in her eyes','playful, teasing smile'],
   eyesLight:['green','blue','hazel','blue','green'],blonde:['golden blonde','honey blonde','platinum blonde','sandy blonde','dirty blonde','golden blonde'],eyesBlonde:['bright blue','light blue','blue','green','pale green','grey-blue'],eyesDark:['brown','dark brown','brown','hazel']};
 const pick=a=>a[Math.floor(Math.random()*a.length)], an=w=>(/^[aeiou]/i.test(w)?'an ':'a ')+w;
 function randomPerson(woman){const age=pick(woman?VARY.age:VARY.ageM),eth=woman&&Math.random()<.6?'white':pick(VARY.eth); /* women: weighted toward white */
@@ -2171,7 +2171,7 @@ CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), noth
 POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
 ENVIRONMENT: ${sc}, outdoors in the open air with open sky overhead and nothing above the person, bright soft daylight from a lightly overcast sky lighting the person evenly from the front with no harsh sun, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed, soft light catching the cotton so the shirt shows visible fabric texture, soft highlights on its folds and the shape of the body underneath
 FOV: framed from mid-thigh to just above the head, 85mm lens, shallow depth of field, photorealistic premium apparel catalog photo, natural skin texture, sharp focus on the shirt`;}
-const W_POSE={'':'arms relaxed at her sides with a natural, confident stance',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
+const W_POSE={'':'arms relaxed at her sides, a confident stance with her weight on one hip',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
   if(o.angle&&o.angle[0]==='s'&&viewOf(ref)==='front'&&!o._baseOnly)return cfTurnOne(ref,str,n,o);
