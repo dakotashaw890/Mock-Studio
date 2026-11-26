@@ -74,6 +74,12 @@ label.file strong{font-size:14px}
 /* photo gets at least ~86% of the pane height; on short screens (or browser zoomed in) the photo strip scrolls below instead of squeezing the photo */
 .studio.panes #view{max-height:max(calc(100vh - var(--studio-top,0px) - 330px),min(calc((100vh - var(--studio-top,0px)) * .86),520px));min-height:240px}
 .studio.panes #pane-left .card{margin-bottom:8px}
+/* wide studio pane: model photos become a column beside the photo, so the photo can use the full height */
+.studio.panes #pane-left.wide{display:grid;grid-template-columns:minmax(0,1fr) var(--tcol,262px);gap:8px;overflow:hidden}
+.studio.panes #pane-left.wide>.card{margin:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.studio.panes #pane-left.wide #view{max-height:calc(100vh - var(--studio-top,0px) - 96px)}
+#pane-left.wide #mp-card h2{font-size:15px}#pane-left.wide #mp-card .row{flex-wrap:wrap;gap:6px}#pane-left.wide #mp-card button.pill{padding:5px 10px;font-size:12.5px}
+#pane-left.wide #thumbs{flex-wrap:wrap;overflow-y:auto;overflow-x:hidden;align-content:flex-start;flex:1;min-height:0;padding-right:2px}
 #rtabs{position:sticky;top:0;z-index:5;display:flex;gap:6px;padding:4px 0 8px;margin-bottom:4px;background:var(--bg)}
 #rtabs button{flex:1;justify-content:center}
 #zoombar{position:absolute;right:8px;bottom:8px;display:flex;align-items:center;gap:2px;background:rgba(0,0,0,.55);border-radius:8px;padding:3px;z-index:3}
@@ -210,7 +216,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
           <span class="status" id="tname"></span>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="mp-card">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
           <h2 style="margin:0">Model photos</h2>
           <div class="row" id="kind-filter">
@@ -1935,7 +1941,13 @@ async function renderGrid(){
     await new Promise(r=>setTimeout(r,0));
   }
 }
-function setGrid(on){gridOn=on;$('#v-grid').classList.toggle('on',on);$('#v-strip').classList.toggle('on',!on);$('#grid').style.display=on?'grid':'none';$('#thumbs').style.display=on?'none':'flex';$('#sel-ctl').style.display=on?'flex':'none';if(on)renderGrid();}
+/* put the model photos beside the photo when the studio pane is much wider than it is tall (lots of dead space at the sides) */
+function leftLayout(){const p=$('#pane-left'),m=$('#studio-main');if(!p||!m)return;const panes=m.classList.contains('panes');const r=p.getBoundingClientRect();
+  const wide=panes&&!gridOn&&r.width>560&&(r.width-270)>=.6*(r.height-96); /* only when the photo comes out bigger that way */
+  if(wide){const v=$('#view'),ar=v&&v.height?v.width/v.height:.8,pw=(r.height-110)*ar;p.style.setProperty('--tcol',Math.round(Math.max(262,Math.min(560,r.width-pw-40)))+'px');} // spare width goes to the photo list
+  if(p.classList.contains('wide')!==wide){p.classList.toggle('wide',wide);if(typeof scheduleRender==='function')scheduleRender();}}
+addEventListener('resize',leftLayout);setTimeout(()=>{if(window.ResizeObserver&&$('#pane-left'))new ResizeObserver(()=>leftLayout()).observe($('#pane-left'));leftLayout();},0);
+function setGrid(on){gridOn=on;setTimeout(leftLayout,0);$('#v-grid').classList.toggle('on',on);$('#v-strip').classList.toggle('on',!on);$('#grid').style.display=on?'grid':'none';$('#thumbs').style.display=on?'none':'flex';$('#sel-ctl').style.display=on?'flex':'none';if(on)renderGrid();}
 $('#v-grid').onclick=()=>setGrid(true);$('#v-strip').onclick=()=>setGrid(false);
 $('#sel-all').onclick=()=>{shown().forEach(t=>excluded.delete(t.id));LS.set('excluded',[...excluded]);renderGrid();};
 $('#sel-none').onclick=()=>{shown().forEach(t=>excluded.add(t.id));LS.set('excluded',[...excluded]);renderGrid();};
