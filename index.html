@@ -478,7 +478,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".3" max="1.2" step=".05" value=".6" style="width:110px"> <span id="cf-strv">0.60</span></label>
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
-      <label class="row small" style="gap:4px" title="How close the camera is. Closer makes the model (and the shirt) bigger in the photo so small graphics read better.">Framing <select id="cf-zoom"><option value="1">Standard</option><option value="1.35" selected>Closer (hips up)</option><option value="1.55">Close (waist up)</option></select></label>
+      <label class="row small" style="gap:4px" title="How close the camera is. Closer makes the model (and the shirt) bigger in the photo so small graphics read better.">Framing <select id="cf-zoom"><option value="1">Standard (knees up)</option><option value="1.18" selected>Mid-thigh up</option><option value="1.35">Closer (hips up)</option><option value="1.55">Close (waist up)</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="mix" selected>Mix it up</option></select></label>
       <span class="small muted" title="Each model is one straight-on photo turned about 30° each way by the Qwen edit model, so one photo shows the left sleeve and the other the right">Each model = 2 photos: turned left + turned right</span>
       <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
@@ -2078,6 +2078,7 @@ async function cfCheck(){$('#cf-st').textContent='Connecting…';setTimeout(cfFi
 try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
 // the pose guide at full strength was boxing the model in and costing quality; start everyone at 0.6 once
 if(!LS.get('cfstr06',0)){LS.set('cfstr06',1);try{localStorage.removeItem('ms_cf_cf-str');}catch(e){}}
+if(!LS.get('cfzoom118',0)){LS.set('cfzoom118',1);try{localStorage.removeItem('ms_cf_cf-zoom');}catch(e){}} // one-time: move everyone to the new mid-thigh default
 for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
@@ -2208,7 +2209,7 @@ async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
     const f=await detectFacing(c),want=viewOf(ref); // a left-sleeve photo faces the left edge, a right-sleeve photo the right edge
     if(f&&f!==want){const c2=document.createElement('canvas');c2.width=c.width;c2.height=c.height;const x=c2.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(c,0,0);
       ibf=await canvasBlob(c2,'image/png');}}catch(e){}}
-  if(o._baseOnly)return {blob:ibf,za:ZA,fn:out.filename};
+  if(o._baseOnly)return {blob:ibf,full:ZA?ib:null,za:ZA,fn:out.filename}; // full: the uncropped render, so the turn edit gets room around the person
   return cfSaveGen(ref,ibf,o,n,ZA,out.filename);}
 // optional upscale of each finished photo: 4x model, then scaled back to 2x (about 2048 x 2560), saved as a high-quality JPEG
 // suggest the files ComfyUI actually has (LoRAs for Z-Image, upscale models)
@@ -2257,6 +2258,9 @@ async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),
     for(let k=0;k<3;k++){const v=a[i+k]/255,m=L+(v-L)*sat;a[i+k]=Math.max(0,Math.min(255,Math.round(255*(.55+(m-.55)*c))));}} // gentle punch for everything but the black shirt
   {const G=(W>1800?3.2:2.6);for(let i=0;i<a.length;i+=4){const n=(Math.random()+Math.random()+Math.random()-1.5)*G*1.4;for(let k=0;k<3;k++)a[i+k]=Math.max(0,Math.min(255,a[i+k]+n));}} // subtle film grain: breaks up the waxy look
   x.putImageData(d,0,0);return await canvasBlob(c,'image/jpeg',.94);}catch(e){return bl;}}
+/* the Framing crop, as a function: cut the zoomed frame out of a full-size render */
+async function zaCrop(bl,ZA){const im=await loadImage(URL.createObjectURL(bl)),W=im.naturalWidth,H=im.naturalHeight,cw=W/ZA.z,ch=H/ZA.z,sx=Math.max(0,Math.min(W-cw,ZA.x*W*(1-1/ZA.z))),sy=Math.max(0,Math.min(H-ch,ZA.y*H*(1-1/ZA.z)));
+  const c=document.createElement('canvas');c.width=Math.round(cw);c.height=Math.round(ch);const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,sx,sy,cw,ch,0,0,c.width,c.height);return canvasBlob(c,'image/png');}
 async function cfSaveGen(ref,ibf,o,n,ZA,fname){
   ibf=await cfUpscale(ibf);ibf=await cfLift(ibf);if(ibf.type==='image/jpeg')fname=fname.replace(/\.png$/i,'.jpg');
   const name=o.setName?o.setName+' · '+(viewOf(ref)==='front'?(o.angle&&o.angle[0]==='s'?'turned '+(o.angle==='sl'?'right':'left'):'front'):viewOf(ref)+' side'):(ref.group==='women'?'Gen woman':'Gen man')+' · '+ref.id.toUpperCase()+' pose'+(n>1?' '+n:'');
@@ -2274,7 +2278,7 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   // Qwen turned every photo the same way whatever the wording, so it is always asked for the turn it does reliably (toward the right of the frame).
   // For a left-facing photo the base is mirrored first and the result mirrored back: the person ends up facing left, with tattoos and background the right way round.
   const flip=async bl=>{const im=await loadImage(URL.createObjectURL(bl)),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(im,0,0);return canvasBlob(c,'image/png');};
-  const wantRight=o.angle==='sl',src=wantRight?b.blob:await flip(b.blob);
+  const wantRight=o.angle==='sl',src0=b.full||b.blob,src=wantRight?src0:await flip(src0); // turn the whole uncropped photo, crop afterwards: the edit tends to zoom in a little, and the margin absorbs it
   const fd=new FormData();fd.append('image',new File([src],'ms-turnsrc-'+ref.id+(wantRight?'':'-m')+'.png',{type:'image/png'}));fd.append('overwrite','true');
   const up=await fetch(base+'/upload/image',{method:'POST',body:fd});if(!up.ok)throw new Error('ComfyUI refused the photo.');const u=await up.json();
   // short and about the turn only: the longer version (shirt and hair fixes added on) diluted it and the body stopped turning
@@ -2298,6 +2302,7 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   {
   }
   if(!wantRight)ob=await flip(ob);
+  if(b.full&&b.za){try{ob=await zaCrop(ob,b.za);}catch(e){}}
   // keep the base photo's size so the print areas line up
   try{const im=await loadImage(URL.createObjectURL(ob)),bi=await loadImage(URL.createObjectURL(b.blob));if(im.naturalWidth!==bi.naturalWidth){const c=drawScaled(im,bi.naturalWidth,bi.naturalHeight);ob=await canvasBlob(c,'image/png');}}catch(e){}
   return cfSaveGen(ref,ob,o,n,b.za,out.filename);}
