@@ -480,6 +480,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".3" max="1.2" step=".05" value=".6" style="width:110px"> <span id="cf-strv">0.60</span></label>
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px" title="How close the camera is. Closer makes the model (and the shirt) bigger in the photo so small graphics read better.">Framing <select id="cf-zoom"><option value="1">Standard (knees up)</option><option value="1.18" selected>Mid-thigh up</option><option value="1.35">Closer (hips up)</option><option value="1.55">Close (waist up)</option></select></label>
+      <label class="row small" style="gap:4px" title="In one shot: each photo of the pair is generated already angled, no pose skeleton and no turn edit (sharper, keeps framing). Turn edit: the old way, one straight photo turned both ways by Qwen.">Pairs <select id="cf-turnmode"><option value="direct" selected>In one shot</option><option value="edit">Turn edit (old)</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="mix" selected>Mix it up</option></select></label>
       <span class="small muted" title="Each model is one straight-on photo turned about 30° each way by the Qwen edit model, so one photo shows the left sleeve and the other the right">Each model = 2 photos: turned left + turned right</span>
       <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
@@ -2080,7 +2081,7 @@ try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
 // the pose guide at full strength was boxing the model in and costing quality; start everyone at 0.6 once
 if(!LS.get('cfstr06',0)){LS.set('cfstr06',1);try{localStorage.removeItem('ms_cf_cf-str');}catch(e){}}
 if(!LS.get('cfzoom118',0)){LS.set('cfzoom118',1);try{localStorage.removeItem('ms_cf_cf-zoom');}catch(e){}} // one-time: move everyone to the new mid-thigh default
-for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up','cf-tlora','cf-tlora-str']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up'||id==='cf-tlora')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
+for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up','cf-tlora','cf-tlora-str','cf-turnmode']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up'||id==='cf-tlora')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
 const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
@@ -2089,7 +2090,7 @@ function cfSaveUrl(){let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(
 $('#cf-url').addEventListener('input',cfSaveUrl);
 $('#cf-url').onchange=()=>{$('#cf-url').value=cfSaveUrl();CF.ok=false;cfCheck();};
 function cfLora(){const f=($('#cf-lora').value||'').trim();return f?{file:f,str:+$('#cf-lora-str').value||.6,trig:($('#cf-lora-trig').value||'').trim()}:null;}
-function cfPrompt(text,img,seed,str,W,H){W=W||1024;H=H||1280;const LR=cfLora();if(LR&&LR.trig)text=LR.trig+', '+text;const g={
+function cfPrompt(text,img,seed,str,W,H,noCtl){W=W||1024;H=H||1280;const LR=cfLora();if(LR&&LR.trig)text=LR.trig+', '+text;const g={
   '1':{class_type:'UNETLoader',inputs:{unet_name:'z_image_turbo_bf16.safetensors',weight_dtype:'default'}},
   '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen_3_4b.safetensors',type:'lumina2',device:'default'}},
   '3':{class_type:'VAELoader',inputs:{vae_name:'ae.safetensors'}},
@@ -2102,7 +2103,9 @@ function cfPrompt(text,img,seed,str,W,H){W=W||1024;H=H||1280;const LR=cfLora();i
   '10':{class_type:'EmptySD3LatentImage',inputs:{width:W,height:H,batch_size:1}},
   '11':{class_type:'KSampler',inputs:{model:['7',0],positive:['8',0],negative:['9',0],latent_image:['10',0],seed,steps:8,cfg:1,sampler_name:'res_multistep',scheduler:'simple',denoise:1}},
   '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
-  '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};if(LR)g['20']={class_type:'LoraLoaderModelOnly',inputs:{model:['1',0],lora_name:LR.file,strength_model:LR.str}};return g;}
+  '13':{class_type:'SaveImage',inputs:{images:['12',0],filename_prefix:'mockup-studio/model'}}};if(LR)g['20']={class_type:'LoraLoaderModelOnly',inputs:{model:['1',0],lora_name:LR.file,strength_model:LR.str}};
+  if(noCtl){delete g['4'];delete g['5'];delete g['6'];g['7'].inputs.model=[LR?'20':'1',0];} // no pose skeleton: the prompt alone sets the stance
+  return g;}
 const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
   ageM:['late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s','late 30s'],
@@ -2176,15 +2179,19 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women',her
     :indoor?`bright warm window light from the front and slightly to the side lighting ${her} face and the front of the shirt`
     :`outdoors in the open air, warm late-afternoon sunlight from the front and slightly to the side lighting ${her} face and the front of the shirt, clear sky`;
   const extra=/range/.test(key)?`, ${her} hands empty`:'';
+  /* turned pairs made in one shot: the angle is in the prompt (no pose skeleton forcing a straight-on stance) */
+  const direct=(angle==='sl'||angle==='sr')&&(($('#cf-turnmode')&&$('#cf-turnmode').value)||'direct')==='direct';
+  const ang=direct?`standing at a gentle three-quarter angle with ${her} ${angle==='sl'?'right':'left'} shoulder toward the camera, body turned about 30 degrees toward the ${angle==='sl'?'right':'left'} side of the photo, the whole front of the shirt still visible and the near short sleeve showing, head upright, face turned toward the camera`:'';
+  const zv=+(($('#cf-zoom')&&$('#cf-zoom').value)||1.18),frame=zv>=1.5?'the waist':zv>=1.3?'the hips':zv>=1.1?'mid-thigh':'the knees';
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
-POSE: standing facing the camera, ${pose}${extra}, nothing covering the front of the shirt
+POSE: ${ang?ang+', ':'standing facing the camera, '}${pose}${extra}, nothing covering the front of the shirt
 ENVIRONMENT: ${place}, ${light}, rich natural colors and contrast, gentle shadows that shape the face, the light catching the cotton so the shirt shows its fabric texture, folds and the shape of the body underneath, background softly out of focus
-FOV: framed from mid-thigh to just above the head, shot on a Canon EOS R5 with an 85mm f/1.8 lens, shallow depth of field, candid lifestyle photo, true-to-life colors, subtle film grain, real photograph, sharp focus on the shirt`;}
+FOV: framed from ${frame} to just above the head, shot on a Canon EOS R5 with an 85mm f/1.8 lens, shallow depth of field, candid lifestyle photo, true-to-life colors, subtle film grain, real photograph, sharp focus on the shirt`;}
 const W_POSE={'':'arms relaxed at her sides, a confident stance with her weight on one hip',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
-  if(o.angle&&o.angle[0]==='s'&&viewOf(ref)==='front'&&!o._baseOnly)return cfTurnOne(ref,str,n,o);
+  if(o.angle&&o.angle[0]==='s'&&viewOf(ref)==='front'&&!o._baseOnly)return (($('#cf-turnmode').value||'direct')==='direct')?cfDirect(ref,n,o):cfTurnOne(ref,str,n,o);
   let pid=ref.id+(viewOf(ref)==='front'&&o.angle?'~'+o.angle:viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');
   let pr=await fetch('vendor/poses/'+pid+'.png');if(!pr.ok&&o.angle){o.angle='';pid=ref.id+(viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');pr=await fetch('vendor/poses/'+pid+'.png');}
   let pb=await pr.blob();const ZM=+(o.zoom||$('#cf-zoom').value||1);let ZA=null;
@@ -2274,6 +2281,16 @@ async function cfSaveGen(ref,ibf,o,n,ZA,fname){
   return {newId,url:URL.createObjectURL(ibf),name};}
 /* slight turn: Z-Image Turbo won't turn the body from a pose guide, so make one straight-on photo, then have the Qwen edit model
    turn that photo left and right. Both turned photos come from the same base, so the person matches exactly. */
+/* a turned photo generated in one pass: angle in the prompt, no skeleton, no turn edit. Both photos of a pair share the person, scene and seed so it's the same model */
+async function cfDirect(ref,n,o){const base=cfBase();o.shared=o.shared||{};if(!o.shared.seed)o.shared.seed=o.seed||Math.floor(Math.random()*2**48);
+  const r=await fetch(base+'/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:cfPrompt(cfText(ref,o.person,o.scene,o.arms,o.angle),null,o.shared.seed,0,1024,1280,true),client_id:'mockup-studio'})});
+  const j=await r.json();if(!r.ok||j.error)throw new Error((j.error&&j.error.message)||'ComfyUI rejected the job.');
+  let out=null;for(let i=0;i<600&&!CF.stop;i++){await new Promise(z=>setTimeout(z,1500));const h=await (await fetch(base+'/history/'+j.prompt_id)).json();const e=h[j.prompt_id];
+    if(e&&e.status&&e.status.status_str==='error')throw new Error('ComfyUI hit an error. Check its window for details.');
+    if(e&&e.outputs&&e.outputs['13']){out=e.outputs['13'].images[0];break;}}
+  if(!out)throw new Error(CF.stop?'Stopped.':'Timed out waiting for ComfyUI.');
+  const ib=await (await fetch(base+'/view?'+new URLSearchParams({filename:out.filename,subfolder:out.subfolder||'',type:out.type||'output'}))).blob();
+  return cfSaveGen(ref,ib,o,n,null,out.filename);}
 async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   if(!o.shared.base)o.shared.base=cfOne(ref,str,n,{...o,angle:'',_baseOnly:true});
   const b=await o.shared.base;if(CF.stop)throw new Error('Stopped.');
