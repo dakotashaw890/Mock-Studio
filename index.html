@@ -2171,7 +2171,7 @@ function cfText(ref,person,scene,arms,angle){const woman=ref.group==='women';
   return `${m}
 CLOTHES: a plain blank ${col} crew-neck unisex t-shirt (Bella+Canvas 3001), nothing printed on it, short sleeves reaching just above the elbow, worn untucked with the hem hanging loose over the waistband and the full bottom hem visible, slim-fit dark blue jeans
 POSE: standing facing the camera, ${pose}, nothing covering the front of the shirt
-ENVIRONMENT: ${sc}, outdoors in the open air with open sky overhead and nothing above the person, bright soft daylight from a lightly overcast sky lighting the person evenly from the front with no harsh sun, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed, soft light catching the cotton so the shirt shows visible fabric texture, soft highlights on its folds and the shape of the body underneath
+ENVIRONMENT: ${sc}, outdoors in the open air with open sky overhead and nothing above the person, warm late-afternoon sunlight from the front and slightly to the side lighting her face and the front of the shirt, clear sky, rich natural colors and contrast, no haze, gentle natural shadows that shape the face, warm natural tones, the bright background softly out of focus, well exposed, soft light catching the cotton so the shirt shows visible fabric texture, soft highlights on its folds and the shape of the body underneath
 FOV: framed from mid-thigh to just above the head, shot on a Canon EOS R5 with an 85mm f/1.8 lens, shallow depth of field, candid lifestyle photo, true-to-life colors, subtle film grain, real photograph, sharp focus on the shirt`;}
 const W_POSE={'':'arms relaxed at her sides, a confident stance with her weight on one hip',hips:'both hands resting on her hips',hip:'one hand resting on her hip, the other arm relaxed',pocket:'thumbs hooked in the front pockets of her jeans'};
 
@@ -2245,8 +2245,10 @@ async function cfLift(bl){try{const im=await loadImage(URL.createObjectURL(bl)),
   /* black-fabric lift: only dark AND neutral (grey/black) areas, so brown hair, tattoo ink and skin stay as they are.
      Multiplicative gain lifts the shirt to charcoal-black and scales its folds up with it, plus extra local contrast. */
   for(let i=0;i<a.length;i+=4){const bl2=(bd[i]*.3+bd[i+1]*.59+bd[i+2]*.11)/255,w0=Math.pow(Math.max(0,1-bl2/.35),2);if(w0<=0)continue;
-    const ch=(Math.max(bd[i],bd[i+1],bd[i+2])-Math.min(bd[i],bd[i+1],bd[i+2]))/255,w=w0*Math.max(0,Math.min(1,(.07-ch)/.04));if(w<=0)continue;const g=1+1.2*w;
-    for(let k=0;k<3;k++){const u=a[i+k]/255,det=Math.max(-.06,Math.min(.08,(u-bd[i+k]/255)*1.8*w));a[i+k]=Math.max(0,Math.min(255,Math.round(255*(u*g+.02*w+det))));}}
+    const ch=(Math.max(bd[i],bd[i+1],bd[i+2])-Math.min(bd[i],bd[i+1],bd[i+2]))/255,w=w0*Math.max(0,Math.min(1,(.07-ch)/.04));if(w<=0)continue;const g=1+.6*w;
+    for(let k=0;k<3;k++){const u=a[i+k]/255,det=Math.max(-.06,Math.min(.08,(u-bd[i+k]/255)*1.8*w));a[i+k]=Math.max(0,Math.min(255,Math.round(255*(u*g+.008*w+det))));}}
+  for(let i=0;i<a.length;i+=4){const r=a[i],g2=a[i+1],b=a[i+2],L=(r*.3+g2*.59+b*.11)/255;if(L<.18)continue;const t=Math.min(1,(L-.18)/.12),c=1+.07*t,sat=1+.08*t;
+    for(let k=0;k<3;k++){const v=a[i+k]/255,m=L+(v-L)*sat;a[i+k]=Math.max(0,Math.min(255,Math.round(255*(.55+(m-.55)*c))));}} // gentle punch for everything but the black shirt
   {const G=(W>1800?3.2:2.6);for(let i=0;i<a.length;i+=4){const n=(Math.random()+Math.random()+Math.random()-1.5)*G*1.4;for(let k=0;k<3;k++)a[i+k]=Math.max(0,Math.min(255,a[i+k]+n));}} // subtle film grain: breaks up the waxy look
   x.putImageData(d,0,0);return await canvasBlob(c,'image/jpeg',.94);}catch(e){return bl;}}
 async function cfSaveGen(ref,ibf,o,n,ZA,fname){
