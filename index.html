@@ -590,7 +590,7 @@ const SHIRT_COLORS=[['Black',''],['White','#f3f3f0'],['Athletic Heather','#b4b3b
 let SHIRT=null;
 function shirtHex(){if(!SHIRT)SHIRT=LS.get('shirt',{hex:''});return SHIRT.hex||'';}
 function setShirt(hex,name){SHIRT={hex:hex||'',name:name||''};LS.set('shirt',SHIRT);colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();
-  const t=curT();if(hex&&t&&!hasColor(t.id,hex)&&!t.scene)cfAlive().then(ok=>{if(ok)colEnqueue(setMates(t),[{hex,name:name||hex}]);else if(!CQ.list.length&&!CQ.run){CQ.paused=true;colUI();}});}
+  const t=curT();if(hex&&t&&!hasColor(t.id,hex)&&!t.scene)cfAlive().then(ok=>{if(ok)colEnqueue(setMates(t),[{hex,name:name||hex}],true);else if(!CQ.list.length&&!CQ.run){CQ.paused=true;colUI();}});}
 function allColors(){const out=SHIRT_COLORS.map(c=>[...c]);for(const c of LS.get('pfcolors',[])){const hx=normHex(c.hex);if(hx===null)continue;
     const ex=out.find(o=>o[1]===hx||o[0].toLowerCase()===String(c.name).toLowerCase());if(!ex)out.push([c.name,hx]);}return out;}
 const colName=n=>String(n).toLowerCase().replace(/gr[ae]y/g,'grey').replace(/[^a-z]/g,'');
@@ -2900,8 +2900,11 @@ async function cfColorOne(t,hex,name){const base=cfBase();const src=await tplBlo
   await colPut(t.id,hex,await canvasBlob(c,'image/jpeg',.92),true);}
 // colours never sent to ComfyUI: they only ever show as the recolor preview
 const NO_GEN=['natural','pink','mustard'];
-function colEnqueue(ts,cols){CQ.paused=false;CQ.halted='';CQ.dropped=0;CQ.streak=0;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex||NO_GEN.includes(colName(c.name||''))||NO_GEN.some(n=>SHIRT_COLORS.some(sc=>colName(sc[0])===n&&sc[1]===c.hex)))continue;const k=colKey(t.id,c.hex);
-    if(hasColor(t.id,c.hex)||CQ.cur===k||CQ.list.some(j=>j.k===k))continue;CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}colUI();colWork();}
+/* front: jobs you asked for on the photo you're looking at go to the head of the line (in the order asked) instead of waiting behind earlier ones */
+function colEnqueue(ts,cols,front){CQ.paused=false;const head=[];CQ.halted='';CQ.dropped=0;CQ.streak=0;for(const t of ts)if(t&&!t.scene)for(const c of cols){if(!c.hex||NO_GEN.includes(colName(c.name||''))||NO_GEN.some(n=>SHIRT_COLORS.some(sc=>colName(sc[0])===n&&sc[1]===c.hex)))continue;const k=colKey(t.id,c.hex);
+    if(hasColor(t.id,c.hex)||CQ.cur===k)continue;const at=CQ.list.findIndex(j=>j.k===k);
+    if(front){if(at>=0)CQ.list.splice(at,1);head.push({k,id:t.id,hex:c.hex,name:c.name});}else if(at<0)CQ.list.push({k,id:t.id,hex:c.hex,name:c.name});}
+  if(head.length)CQ.list.unshift(...head);colUI();colWork();}
 async function colWork(){if(CQ.run)return;CQ.run=true;CQ.cancel=false;
   try{while(CQ.list.length&&!CQ.cancel){if(!(await cfAlive())){CQ.paused=true;CQ.dropped=CQ.list.length;CQ.list=[];CQ.halted='ComfyUI closed';break;}
       const j=CQ.list.shift();const t=templates.find(x=>x.id===j.id);if(!t)continue;CQ.cur=j.k;colUI();
@@ -2916,7 +2919,7 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
     :CQ.paused?'ComfyUI isn\'t reachable from this computer, so colors show the quick preview.'
     :(CQ.done||CQ.fail)?`${CQ.done} AI color photo${CQ.done===1?'':'s'} made`+(CQ.fail?`, ${CQ.fail} ${CQ.fail===1?'was':'were'} skipped (${CQ.err})`:'')+'.':'';}
 $('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
-  colEnqueue(setMates(t),coreColors());toast('Making '+coreColors().length+' colors for this model in the background.');};
+  colEnqueue(setMates(t),coreColors(),true);toast('Making '+coreColors().length+' colors for this model next.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
 window.__pose=()=>loadPose();window.__sel=()=>JSON.stringify(SEL);window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={cfLift,cfPrompt,get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
