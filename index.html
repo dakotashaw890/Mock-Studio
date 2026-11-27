@@ -245,8 +245,13 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
         <h2>Shirt color</h2>
         <div class="swrow" id="shirt-sw"></div>
         <div class="row small" style="gap:8px;align-items:center;margin-top:6px"><span id="shirt-name" class="muted"></span><label class="row small" style="gap:4px;margin-left:auto">Custom <input type="color" id="shirt-custom" value="#3355aa" style="width:34px;height:24px;padding:0;border:0"></label></div>
-        <div class="row small" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button class="small" id="shirt-make" title="Uses ComfyUI on your PC to repaint this model's shirt (front and both sides) in your core colors. Real photos look better than the recolor preview.">Make AI colors for this model</button><button class="small" id="shirt-stop" style="display:none">Cancel</button><span id="shirt-gen" class="muted"></span></div>
-        <p class="small muted" style="margin:4px 0 0">Green dot = AI color made in ComfyUI (best). No dot = quick preview tinted in your browser (rough, instant). ▲ = a color on your loaded Printify listing.</p>
+        <div class="row small" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button class="small" id="shirt-make" title="Pick which colors ComfyUI on your PC repaints this model's shirt in (this photo and its pair). Real photos look better than the recolor preview.">Make AI colors for this model</button><button class="small" id="shirt-stop" style="display:none">Cancel</button><span id="shirt-gen" class="muted"></span></div>
+        <div id="shirt-pick" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--line,#333);border-radius:10px">
+          <div class="small" style="margin-bottom:6px">Which colors should ComfyUI make for this model and its pair? <span class="muted">About 30 seconds per color per photo.</span></div>
+          <div id="shirt-pick-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px"></div>
+          <div class="row small" style="gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><button class="small" id="shirt-pick-core">Core colors</button><button class="small" id="shirt-pick-none">None</button><span style="flex:1"></span><button class="small" id="shirt-pick-close">Close</button><button class="small primary" id="shirt-pick-go">Make colors</button></div>
+        </div>
+        <p class="small muted" style="margin:4px 0 0">Clicking a swatch only previews it. Green dot = AI color made in ComfyUI (best). No dot = quick preview tinted in your browser (rough, instant). ▲ = a color on your loaded Printify listing.</p>
       </div>
       <div class="card">
         <h2>1. Your designs</h2>
@@ -590,13 +595,13 @@ const SHIRT_COLORS=[['Black',''],['White','#f3f3f0'],['Athletic Heather','#b4b3b
 let SHIRT=null;
 function shirtHex(){if(!SHIRT)SHIRT=LS.get('shirt',{hex:''});return SHIRT.hex||'';}
 function setShirt(hex,name){SHIRT={hex:hex||'',name:name||''};LS.set('shirt',SHIRT);colorPacks.clear();smallPacks.clear();shirtUI();scheduleRender();scheduleGrid();
-  const t=curT();if(hex&&t&&!hasColor(t.id,hex)&&!t.scene)cfAlive().then(ok=>{if(ok)colEnqueue(setMates(t),[{hex,name:name||hex}],true);else if(!CQ.list.length&&!CQ.run){CQ.paused=true;colUI();}});}
+  /* a swatch only previews: AI colors are made only from the "Make AI colors" button */}
 function allColors(){const out=SHIRT_COLORS.map(c=>[...c]);for(const c of LS.get('pfcolors',[])){const hx=normHex(c.hex);if(hx===null)continue;
     const ex=out.find(o=>o[1]===hx||o[0].toLowerCase()===String(c.name).toLowerCase());if(!ex)out.push([c.name,hx]);}return out;}
 const colName=n=>String(n).toLowerCase().replace(/gr[ae]y/g,'grey').replace(/[^a-z]/g,'');
 function canonHex(name,hex){const k=colName(name),m=SHIRT_COLORS.find(c=>colName(c[0])===k);return m?m[1]:normHex(hex);}
 function normHex(h){if(!h||!/^#?[0-9a-f]{6}$/i.test(h))return null;h='#'+h.replace('#','').toLowerCase();const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return (.299*r+.587*g+.114*b)/255<.09?'':h;}
-function shirtUI(){const box=$('#shirt-sw');if(!box)return;const cur=shirtHex();box.textContent='';const t=curT(),sells=new Set(LS.get('pfcolors',[]).map(c=>canonHex(c.name,c.hex)));
+function shirtUI(){const box=$('#shirt-sw');if(!box)return;{const pk=$('#shirt-pick'),t0=curT();if(pk&&pk.style.display!=='none'&&(!t0||pk.dataset.tid!==t0.id))pk.style.display='none';}const cur=shirtHex();box.textContent='';const t=curT(),sells=new Set(LS.get('pfcolors',[]).map(c=>canonHex(c.name,c.hex)));
   for(const [n,hex] of allColors()){const b=document.createElement('button');const real=!hex||(t&&hasColor(t.id,hex));
     b.className='sw'+(cur===hex?' on':'')+(real?' real':'')+(sells.has(hex)?' sells':'');b.title=n+(hex&&real?' (AI color)':hex?' (quick preview)':'')+(sells.has(hex)?' · on your listing':'');b.style.background=hex||'#161616';b.onclick=()=>setShirt(hex,n);box.append(b);}
   const nm=(allColors().find(c=>c[1]===cur)||[cur?'Custom '+cur:'Black (original photo)'])[0];
@@ -1523,7 +1528,7 @@ function setDrawn(t,s,on){const m=LS.get('drawn',{}),o={...(m[t.id]||{})};if(on)
 function setApproved(t,on){if(on)freezeAreas(t);const m=LS.get('approved',{});if(on)m[t.id]=Date.now();else delete m[t.id];LS.set('approved',m);renderThumbs();approveUI();}
 function approveUI(){const t=curT(),b=$('#btn-approve');if(!b||!t)return;const on=isApproved(t);b.textContent=on?'✓ Approved — click to unapprove':'Approve this photo';b.classList.toggle('primary',!on);
   $('#appr-hint').textContent=on?'Every design uses this photo’s setup.':'Check the logo and sleeve spots look right on this photo, then approve. Set up once; every design reuses it.';}
-function renderThumbs(){setTimeout(approveUI,0);setTimeout(()=>{try{cropUI();}catch(e){}},0);requestAnimationFrame(fineUI);
+function renderThumbs(){setTimeout(approveUI,0);setTimeout(()=>{try{shirtUI();}catch(e){}},0);setTimeout(()=>{try{cropUI();}catch(e){}},0);requestAnimationFrame(fineUI);
   if(typeof updateDlCount==='function')try{updateDlCount();}catch(e){}
   const box=$('#thumbs');box.textContent='';
   for(const t of shown()){
@@ -2918,8 +2923,25 @@ function colUI(){const el=$('#shirt-gen');if(!el)return;setTimeout(()=>{const m=
     :CQ.halted?`Shirt colors stopped (${CQ.halted})`+(CQ.dropped?`; ${CQ.dropped} not made. Use “Make AI colors for this model” to finish one later.`:'.')
     :CQ.paused?'ComfyUI isn\'t reachable from this computer, so colors show the quick preview.'
     :(CQ.done||CQ.fail)?`${CQ.done} AI color photo${CQ.done===1?'':'s'} made`+(CQ.fail?`, ${CQ.fail} ${CQ.fail===1?'was':'were'} skipped (${CQ.err})`:'')+'.':'';}
-$('#shirt-make').onclick=async()=>{const t=curT();if(!t)return;if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
-  colEnqueue(setMates(t),coreColors(),true);toast('Making '+coreColors().length+' colors for this model next.');};
+/* the button opens a picker: you choose the colors; nothing is sent until "Make colors" */
+function pickList(){const t=curT(),box=$('#shirt-pick-list');box.textContent='';if(!t)return;const mates=setMates(t).filter(x=>x&&!x.scene),core=new Set(coreColors().map(c=>c.hex));
+  const skip=c=>!c[1]||NO_GEN.includes(colName(c[0]));
+  for(const c of allColors()){if(skip(c))continue;const made=mates.length&&mates.every(m=>hasColor(m.id,c[1])),queued=mates.some(m=>CQ.cur===colKey(m.id,c[1])||CQ.list.some(j=>j.k===colKey(m.id,c[1])));
+    const l=document.createElement('label');l.className='row small';l.style.gap='6px';
+    const cb=document.createElement('input');cb.type='checkbox';cb.dataset.hex=c[1];cb.dataset.name=c[0];cb.disabled=made;cb.checked=!made&&!queued&&core.has(c[1]);
+    const dot=document.createElement('span');dot.style.cssText=`width:14px;height:14px;border-radius:50%;background:${c[1]};border:1px solid #666;flex:none`;
+    const tx=document.createElement('span');tx.textContent=c[0]+(made?' (made)':queued?' (in line)':'');if(made)tx.className='muted';
+    l.append(cb,dot,tx);box.appendChild(l);}
+  pickCount();}
+function pickCount(){const n=[...document.querySelectorAll('#shirt-pick-list input:checked:not(:disabled)')].length;const b=$('#shirt-pick-go');b.textContent=n?`Make ${n} color${n===1?'':'s'}`:'Make colors';b.disabled=!n;}
+$('#shirt-pick-list').addEventListener('change',pickCount);
+$('#shirt-make').onclick=()=>{const p=$('#shirt-pick');if(p.style.display!=='none'){p.style.display='none';return;}if(!curT())return;p.dataset.tid=curT().id;pickList();p.style.display='';};
+$('#shirt-pick-close').onclick=()=>{$('#shirt-pick').style.display='none';};
+$('#shirt-pick-core').onclick=()=>{const core=new Set(coreColors().map(c=>c.hex));document.querySelectorAll('#shirt-pick-list input:not(:disabled)').forEach(cb=>cb.checked=core.has(cb.dataset.hex));pickCount();};
+$('#shirt-pick-none').onclick=()=>{document.querySelectorAll('#shirt-pick-list input:not(:disabled)').forEach(cb=>cb.checked=false);pickCount();};
+$('#shirt-pick-go').onclick=async()=>{const t=curT();if(!t)return;const cols=[...document.querySelectorAll('#shirt-pick-list input:checked:not(:disabled)')].map(cb=>({hex:cb.dataset.hex,name:cb.dataset.name}));if(!cols.length)return;
+  if(!(await cfAlive())){toast('Can\'t reach ComfyUI. Open it on your PC and connect it in the Generate tab.',4500);return;}
+  colEnqueue(setMates(t),cols,true);$('#shirt-pick').style.display='none';toast('Making '+cols.length+' color'+(cols.length===1?'':'s')+' for this model next.');};
 $('#shirt-stop').onclick=()=>{CQ.cancel=true;CQ.list=[];colUI();};$('#cf-colstop').onclick=()=>$('#shirt-stop').onclick();
 window.__pose=()=>loadPose();window.__sel=()=>JSON.stringify(SEL);window.__box=()=>{const B=curBox();return B;};window.__dots=()=>{const B=curBox();return B?warpDots(B):[];};window.__ms={cfLift,cfPrompt,get PL(){return PL;},bindSlot,ovOf,ovSet,ovAll,isApproved,layersOf,occAuto,set slotX(v){slot=v;},cfText,armSeeds,canvasSampler,designs,get slot(){return slot;},maskImage,colPut,canonHex,addTemplate,sideMaskTest:sideMask,colorUrls,colKey,CQ,setShirt,shirtSrc,coreColors,shirtUI,renameTemplate,deleteTemplate,LS,curT,get templates(){return templates;},setCur(id){curId=id;}};
 
