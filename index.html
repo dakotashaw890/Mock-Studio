@@ -2120,7 +2120,7 @@ const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
   ageM:['late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s','late 30s'],
   eth:['white','white','white','white','white','white','Latino','Latino','Latino','Latino','mixed-race','mixed-race','mixed-race','Black','Black','Native American','Pacific Islander'],
-  build:['big, muscular, broad-chested','thick, powerful, muscular','muscular, athletic','broad-shouldered, strong','fit, athletic','lean, muscular'],
+  build:['fit, athletic','lean, athletic','fit, everyday','broad-shouldered but trim','slim, fit','average, healthy'] /* regular guys, not bodybuilders: the old list made every man huge */,
   bodyW:['fit, curvy hourglass figure, big bust, narrow waist, wide hips, toned arms','athletic curvy figure, full bust, toned arms and wide hips','fit hourglass figure, large natural bust, toned arms','curvy and fit, full bust, strong toned arms'],
   hairM:['a short {c} buzz cut','a short {c} crew cut','short, slightly messy {c} hair','a {c} high-and-tight cut','short textured {c} hair pushed back','close-cropped {c} hair','a shaved head','short {c} hair with a natural side part','short {c} dreadlocks'],
   // every style keeps the hair off the shirt: pulled back behind the shoulders, or short enough not to reach the chest
@@ -2130,8 +2130,8 @@ const VARY={
   tatM:['a bald eagle with an American flag and roses','a compass with a pocket watch and wisps of smoke','a lion head with clouds and roses','a skull with a helmet, dog tags and an American flag','a wolf head with pine trees and mountains'],
   tatW:['a peony and rose bouquet with delicate stems and leaves','a small crescent moon and stars with a thin vine','a butterfly with wildflowers','a sunflower with a few small leaves','a snake winding through roses'],
   capM:['a worn black trucker cap with a small American flag patch','a faded olive-green baseball cap','a black baseball cap','a tan trucker cap'],
-  lookM:['a rugged, chiseled face and strong jawline','a tough, weathered look and square jaw','sharp, rugged features and a strong brow','a hard, chiseled jaw and an intense gaze'],
-  exprM:['a tough, serious expression','an intense stare','a slight confident smirk','a hard, focused look','a calm, stern expression','a serious look, gazing slightly off to the side'],
+  lookM:['a handsome, rugged face and strong jawline','a friendly, weathered face and square jaw','handsome features and warm eyes','a strong jaw and kind eyes'],
+  exprM:['a relaxed, easy smile','a friendly, confident half-smile','a warm grin','a slight confident smirk','a calm, approachable look','a relaxed smile, gazing slightly off to the side'],
   // glam that still photographs as real: makeup described the way a makeup artist would, with skin texture showing through it
   faceW:['an oval face with a straight nose','a heart-shaped face with a small chin and dimples','a round face with full cheeks','a square jaw and wide-set eyes','a soft face with a light dusting of freckles across the nose','strong brows and a defined jawline','a narrow face with high cheekbones and a slightly upturned nose','a wide smile and a small button nose'],
   denimW:['faded light-wash ripped skinny jeans with torn knees and worn whiskering','classic medium-wash denim cutoff shorts with frayed hems','worn medium-wash high-rise jeans with ripped thighs and frayed tears','light-wash denim shorts with a slightly frayed hem','dark-wash skinny jeans with faded thighs, a few rips and frayed edges','light-wash boyfriend jeans with ripped knees, fading and worn edges'],
@@ -2157,7 +2157,7 @@ EXPRESSION: ${pick(VARY.exprW)}
 ${tat?'TATTOOS: '+tat+'\n':''}ACCESSORIES: ${acc}`;}
   const x=menExtras();
   return `rugged ${eth} man in his ${age}
-BODY: ${pick(VARY.build)} build
+BODY: ${pick(VARY.build)} build, natural everyday muscle, not a bodybuilder
 HAIR: ${hair}, ${pick(VARY.faceM).replace(/^with /,'')}
 FACE: ${pick(VARY.lookM)}, ${eyes} eyes
 SKIN: weathered real skin with visible pores, natural texture and small imperfections, not airbrushed
