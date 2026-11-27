@@ -2120,7 +2120,7 @@ const VARY={
   age:['early 20s','early 20s','mid 20s','mid 20s','late 20s','late 20s','early 30s','mid 30s'],
   ageM:['late 20s','early 30s','early 30s','early 30s','mid 30s','mid 30s','mid 30s','late 30s','late 30s'],
   eth:['white','white','white','white','white','white','Latino','Latino','Latino','Latino','mixed-race','mixed-race','mixed-race','Black','Black','Native American','Pacific Islander'],
-  build:['fit, athletic','lean, athletic','fit, everyday','broad-shouldered but trim','slim, fit','average, healthy'] /* regular guys, not bodybuilders: the old list made every man huge */,
+  build:['strong, athletic','fit, muscular','broad-shouldered, strong','solid, athletic','strong, fit','athletic, muscular'] /* strong and fit, not bodybuilders: the old list made every man huge */,
   bodyW:['fit, curvy hourglass figure, big bust, narrow waist, wide hips, toned arms','athletic curvy figure, full bust, toned arms and wide hips','fit hourglass figure, large natural bust, toned arms','curvy and fit, full bust, strong toned arms'],
   hairM:['a short {c} buzz cut','a short {c} crew cut','short, slightly messy {c} hair','a {c} high-and-tight cut','short textured {c} hair pushed back','close-cropped {c} hair','a shaved head','short {c} hair with a natural side part','short {c} dreadlocks'],
   // every style keeps the hair off the shirt: pulled back behind the shoulders, or short enough not to reach the chest
@@ -2157,7 +2157,7 @@ EXPRESSION: ${pick(VARY.exprW)}
 ${tat?'TATTOOS: '+tat+'\n':''}ACCESSORIES: ${acc}`;}
   const x=menExtras();
   return `rugged ${eth} man in his ${age}
-BODY: ${pick(VARY.build)} build, natural everyday muscle, not a bodybuilder
+BODY: ${pick(VARY.build)} build, strong natural muscle from real work and training, not a bodybuilder
 HAIR: ${hair}, ${pick(VARY.faceM).replace(/^with /,'')}
 FACE: ${pick(VARY.lookM)}, ${eyes} eyes
 SKIN: weathered real skin with visible pores, natural texture and small imperfections, not airbrushed
