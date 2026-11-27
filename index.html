@@ -384,7 +384,7 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 <!-- TEMPLATES -->
 <section class="tab" id="tab-templates">
   <div class="card">
-    <h2>Your model photos</h2>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h2 style="margin:0">Your model photos</h2><button class="primary" id="tl-upload">+ Upload model photos</button></div>
     <div class="tlist" id="tlist"></div>
     <p class="muted small" id="tlist-empty">None yet.</p>
     <p class="small" style="margin:12px 0 0"><button id="btn-restore">Show hidden built-in models</button></p>
@@ -2932,6 +2932,7 @@ $('#mp-up-go').onclick=async()=>{const fs=[...$('#mp-up-file').files];if(!fs.len
   if(last){curId=last;renderThumbs();scheduleRender();}
   toast((fs.length-bad)+' photo'+(fs.length-bad===1?'':'s')+' added'+(bad?`, ${bad} couldn't be read`:'')+'. Check the print area on each one.',4500);};
 $('#btn-restore').onclick=()=>restoreHidden();
+$('#tl-upload').onclick=()=>{go('studio');$('#mp-up').style.display='';setTimeout(()=>{$('#mp-up').scrollIntoView({block:'nearest'});$('#mp-up-file').click();},60);};
 
 /* ---------- prompt builder ---------- */
 const settings={
