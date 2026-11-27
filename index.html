@@ -228,6 +228,16 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
             <button class="pill" data-kind="women">Women</button>
             <button class="pill" data-kind="sleeves">Sleeves</button>
             <button class="pill" data-kind="mine">My photos</button>
+            <button class="pill" id="mp-up-open" title="Add your own model photos">+ Upload</button>
+          </div>
+        </div>
+        <div id="mp-up" style="display:none;margin:0 0 10px;padding:10px;border:1px solid var(--line,#333);border-radius:10px">
+          <div class="small" style="margin-bottom:8px">Upload model photos <span class="muted">(plain blank shirt, chest visible, JPG/PNG/WebP; you can pick several)</span></div>
+          <label class="file" style="margin-bottom:8px"><input type="file" id="mp-up-file" accept="image/png,image/jpeg,image/webp" multiple><strong id="mp-up-label">Choose photos</strong></label>
+          <div class="row small" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="mp-up-sex"><option value="women">Woman</option><option value="men">Man</option></select>
+            <select id="mp-up-facing"><option value="">Facing the camera</option><option value="right">Turned right</option><option value="left">Turned left</option></select>
+            <span style="flex:1"></span><button class="small" id="mp-up-close">Close</button><button class="small primary" id="mp-up-go" disabled>Upload</button>
           </div>
         </div>
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
@@ -1354,7 +1364,7 @@ function defaultQuad(kind){
   return [{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
 }
 const curT=()=>templates.find(t=>t.id===curId)||null;
-function shown(){return templates.filter(t=>kindFilter==='all'||(kindFilter==='mine'?!t.builtin:kindFilter==='sleeves'?viewOf(t)!=='front':kindFilter==='hoodie'?t.kind==='hoodie':t.group===kindFilter));}
+function shown(){return templates.filter(t=>kindFilter==='all'||(kindFilter==='mine'?!t.builtin:kindFilter==='sleeves'?viewOf(t)!=='front':kindFilter==='hoodie'?t.kind==='hoodie':(t.group===kindFilter||t.sex===kindFilter)));}
 function setStoreStatus(msg){$('#store-status').textContent=msg;}
 let builtins=[];
 async function initStore(){
@@ -2992,6 +3002,17 @@ pfRefreshAuth();
 
 /* ---------- templates tab ---------- */
 let tplFile=null;
+/* upload model photos right from the studio's model list */
+$('#mp-up-open').onclick=()=>{const p=$('#mp-up');p.style.display=p.style.display==='none'?'':'none';};
+$('#mp-up-close').onclick=()=>{$('#mp-up').style.display='none';};
+$('#mp-up-file').onchange=e=>{const n=e.target.files.length;$('#mp-up-label').textContent=n?(n===1?e.target.files[0].name:n+' photos chosen'):'Choose photos';$('#mp-up-go').disabled=!n;};
+$('#mp-up-go').onclick=async()=>{const fs=[...$('#mp-up-file').files];if(!fs.length)return;const b=$('#mp-up-go');b.disabled=true;
+  const sex=$('#mp-up-sex').value,facing=$('#mp-up-facing').value||null;let last=null,bad=0;
+  for(let i=0;i<fs.length;i++){b.textContent=`Adding ${i+1} of ${fs.length}…`;
+    try{last=await addTemplate(fs[i],fs[i].name.replace(/\.[^.]+$/,'').slice(0,60),'tee','front',{sex,facing,quiet:true});}catch(e){bad++;}}
+  b.textContent='Upload';$('#mp-up-file').value='';$('#mp-up-label').textContent='Choose photos';$('#mp-up').style.display='none';
+  if(last){curId=last;renderThumbs();scheduleRender();}
+  toast((fs.length-bad)+' photo'+(fs.length-bad===1?'':'s')+' added'+(bad?`, ${bad} couldn't be read`:'')+'. Check the print area on each one.',4500);};
 $('#tpl-file').onchange=e=>{tplFile=e.target.files[0]||null;$('#tpl-file-label').textContent=tplFile?tplFile.name:'Choose photo';$('#tpl-add').disabled=!tplFile;if(tplFile&&!$('#tpl-name').value)$('#tpl-name').value=tplFile.name.replace(/\.[^.]+$/,'').slice(0,60);};
 $('#btn-restore').onclick=()=>restoreHidden();
 $('#tpl-add').onclick=async()=>{
@@ -3071,7 +3092,7 @@ function go(tab){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t
   if(tab==='studio'){scheduleRender();requestAnimationFrame(sizePanes);}}
 $$('nav button').forEach(b=>b.onclick=()=>{if(editMode&&b.dataset.tab!=='studio')cancelEdit();go(b.dataset.tab);});
 $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-$$('#kind-filter button').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();if(gridOn)renderGrid();});
+$$('#kind-filter button[data-kind]').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button[data-kind]').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();if(gridOn)renderGrid();});
 window.addEventListener('resize',()=>{if(editMode)scheduleRender();});
 
 setSlot('front');buildPrompt();renderAll();initStore();
