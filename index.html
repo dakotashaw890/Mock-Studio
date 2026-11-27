@@ -708,7 +708,10 @@ function composite(pack,quadN,ctx,arcIn,outIn,areaIn,sm){curArc=arcIn||0;
     for(let v=.05;v<3;v+=.01){let ok=true;for(let r=0;r<3;r++){const [x,y]=apply(M,uH,v+r*.012);const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=w||yi>=h||L[yi*w+xi]<=fThr){ok=false;break;}}if(ok){vH=v;break;}}
     if(vH!==null&&vH>.2){const jf=(sn+1)*256,j0=Math.floor(jf),alH=iP[j0]+(iP[Math.min(512,j0+1)]-iP[j0])*(jf-j0);
       v0=vH+(curArc||0)*Math.cos(alH)-P.hem*inV-fh;}
+    else v0-=(P.hem-HEM_IN)*inV; // hem not found: still let "Distance above sleeve hem" move it from where it sits
   }
+  /* turned photos' camera-facing sleeve sits by its measured box, so the hem rule is skipped; the slider still moves it up and down */
+  else if(sm&&typeof P.hem==='number'){const inV=((topW+botW)/2/3.1)/((lH+rH)/2);v0-=(P.hem-HEM_IN)*inV;}
   // sleeve (sm): the print wraps around the arm, modelled as a cylinder. sm.front: photo taken from the front.
   // sm.turn: angle (deg) of the arm's outer side from the camera-facing point; + = toward the back (side photos) / outer edge (front photos).
   const ex=Math.abs((P.yaw||0))/60*.5*fw;
