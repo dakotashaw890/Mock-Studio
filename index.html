@@ -171,10 +171,10 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 <section class="tab on" id="tab-studio">
   <div id="studio-empty" class="card empty" style="display:none">
     <h2>Add a blank model photo to start</h2>
-        <p class="muted">You need at least one photo of a model in a plain shirt or hoodie. Generate one with the prompts in “Make blank models,” then add it here.</p>
+        <p class="muted">Generate models in “Make blank models,” or bring back the built-in ones from “Model photos.”</p>
     <div class="row" style="justify-content:center">
-      <button class="primary" data-go="templates">Add model photo</button>
-      <button data-go="blanks">Get AI prompts</button>
+      <button class="primary" data-go="blanks">Make blank models</button>
+      <button data-go="templates">Model photos</button>
     </div>
   </div>
   <div id="studio-main" class="studio" style="display:none">
@@ -384,33 +384,11 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 <!-- TEMPLATES -->
 <section class="tab" id="tab-templates">
   <div class="card">
-    <h2>Add a blank model photo</h2>
-    <div class="grid2">
-      <label class="file">
-        <input type="file" id="tpl-file" accept="image/png,image/jpeg,image/webp">
-        <strong id="tpl-file-label">Choose photo</strong>
-        <span class="small muted">Model facing camera, plain shirt, chest visible</span>
-      </label>
-      <div style="display:grid;gap:8px;align-content:start">
-        <input type="text" id="tpl-name" placeholder="Name, e.g. Man – heather gray tee" maxlength="60">
-        <select id="tpl-kind"><option value="tee">T-shirt</option><option value="hoodie">Hoodie</option></select>
-        <select id="tpl-view"><option value="front">Front view (model)</option><option value="left">Side view – left sleeve</option><option value="right">Side view – right sleeve</option><option value="flat">Flat lay</option><option value="hanger">On a hanger</option><option value="folded">Folded</option></select>
-        <button class="primary" id="tpl-add" disabled>Add and set print area</button>
-      </div>
-    </div>
-    <p class="status" id="store-status" style="margin:10px 0 0">Photos you add here are saved in this browser only. Clearing your browser data removes them.</p>
-  </div>
-  <div class="card">
-    <h2>Check sleeve fit on all photos</h2>
-    <p class="small muted" style="margin:0 0 10px">Every photo's sleeves are fitted automatically: the studio finds the arm's edge, its angle and the hem, then sizes the print area from the body. This renders your sleeve design on every photo at once so you can spot anything off. Click a tile to adjust that one.</p>
-    <div class="row"><button class="primary" id="btn-qa">Check all photos</button><span class="status" id="qa-sum"></span></div>
-    <div class="grid" id="qa-grid" style="margin-top:12px"></div>
-  </div>
-  <div class="card">
     <h2>Your model photos</h2>
     <div class="tlist" id="tlist"></div>
     <p class="muted small" id="tlist-empty">None yet.</p>
     <p class="small" style="margin:12px 0 0"><button id="btn-restore">Show hidden built-in models</button></p>
+    <p class="status" id="store-status" style="margin:10px 0 0">Photos you add are saved in this browser and synced to your account when you're logged in.</p>
   </div>
 </section>
 
@@ -456,29 +434,15 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
 
 <!-- BLANKS -->
 <section class="tab" id="tab-blanks">
-  <div class="card">
-    <h2>Generate blank model photos</h2>
-    <p class="small muted" style="margin:0 0 10px">AI is good at people in plain clothing. The problems start when it tries to draw your graphic. So ask it for a blank garment only, then let this studio add your exact design.</p>
-    <div class="grid2">
-      <select id="g-kind"><option value="tee">T-shirt</option><option value="hoodie">Hoodie</option></select>
-      <select id="g-model">
-        <option>a man in his 30s</option><option>a woman in her 30s</option><option>a man in his 50s</option><option>a woman in her 20s</option><option>a man in his 20s</option><option>a woman in her 40s</option>
-        <option value="flat">No model: flat lay</option><option value="hanger">No model: on a hanger</option><option value="folded">No model: folded</option>
-      </select>
-      <select id="g-color">
-        <option>black</option><option>white</option><option>heather gray</option><option>navy</option><option>military green</option><option>sand</option><option>maroon</option><option>charcoal</option>
-      </select>
-      <select id="g-setting">
-        <option value="studio">Plain studio backdrop</option><option value="garage">Workshop / garage</option><option value="outdoor">Wooded trail</option><option value="street">City sidewalk</option><option value="porch">Front porch</option>
-        <option value="coffee">Coffee shop</option><option value="beach">Beach boardwalk</option><option value="downtown">Downtown, evening</option><option value="park">City park</option><option value="loft">Industrial loft</option><option value="rooftop">Rooftop terrace</option><option value="gym">Gym</option><option value="range">Outdoor gun range</option><option value="indoorrange">Indoor gun range</option><option value="musclegarage">Muscle-car garage</option><option value="moto">Motorcycle shop</option><option value="boxing">Boxing gym</option><option value="lake">Lake dock</option><option value="fishing">Fishing boat</option><option value="truck">Pickup on a backroad</option><option value="cabin">Log cabin</option><option value="mountain">Mountain overlook</option><option value="desert">Desert off-road</option><option value="bonfire">Backyard bonfire</option><option value="bbq">Backyard BBQ</option><option value="hunting">Autumn forest edge</option><option value="ranch">Ranch</option><option value="campus">College campus</option>
-      </select>
-    </div>
-    <div class="prompt" id="g-out"></div>
-    <button class="primary" id="g-copy">Copy prompt</button>
-  </div>
   <div class="card" id="cf-card">
     <h2>Generate models with ComfyUI on this computer</h2>
-    <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends the prompt above to ComfyUI on your PC. Each pose comes from a calibrated built-in photo, so new models arrive with their print areas already set. Nothing leaves your computer.</p>
+    <p class="small muted" style="margin:0 0 8px">Pick poses and the studio sends a prompt to ComfyUI on your PC. Each pair comes out turned both ways with print areas already set. Nothing leaves your computer.</p>
+    <div class="row small" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><label class="row small" style="gap:4px">Shirt color <select id="g-color">
+        <option>black</option><option>white</option><option>heather gray</option><option>navy</option><option>military green</option><option>sand</option><option>maroon</option><option>charcoal</option>
+      </select></label><label class="row small" style="gap:4px">Setting <select id="g-setting">
+        <option value="studio">Plain studio backdrop</option><option value="garage">Workshop / garage</option><option value="outdoor">Wooded trail</option><option value="street">City sidewalk</option><option value="porch">Front porch</option>
+        <option value="coffee">Coffee shop</option><option value="beach">Beach boardwalk</option><option value="downtown">Downtown, evening</option><option value="park">City park</option><option value="loft">Industrial loft</option><option value="rooftop">Rooftop terrace</option><option value="gym">Gym</option><option value="range">Outdoor gun range</option><option value="indoorrange">Indoor gun range</option><option value="musclegarage">Muscle-car garage</option><option value="moto">Motorcycle shop</option><option value="boxing">Boxing gym</option><option value="lake">Lake dock</option><option value="fishing">Fishing boat</option><option value="truck">Pickup on a backroad</option><option value="cabin">Log cabin</option><option value="mountain">Mountain overlook</option><option value="desert">Desert off-road</option><option value="bonfire">Backyard bonfire</option><option value="bbq">Backyard BBQ</option><option value="hunting">Autumn forest edge</option><option value="ranch">Ranch</option><option value="campus">College campus</option>
+      </select></label></div>
     <div class="row small" style="gap:8px;align-items:center;margin-bottom:8px"><span id="cf-st" class="status">Not connected</span><button class="small" id="cf-check">Connect</button>
       <label class="row small" style="gap:4px;margin-left:auto">Address <input id="cf-url" autocomplete="off" value="http://127.0.0.1:8188" style="width:260px" title="On the computer running ComfyUI: http://127.0.0.1:8188. From another computer: your Tailscale address, e.g. https://your-pc.tailnet-name.ts.net"></label></div>
       <div class="row small" id="cf-quality" style="gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0;padding:8px 10px;border:1px solid #333;border-radius:8px"><b>Photo quality</b>
@@ -486,36 +450,20 @@ ul.tips{margin:6px 0 0;padding-left:18px}ul.tips li{margin:4px 0}
       <label class="row small" style="gap:4px">Strength <input id="cf-lora-str" type="number" min="0" max="1.5" step="0.05" value="0.6" style="width:60px"></label>
       <label class="row small" style="gap:4px" title="Trigger word, if the LoRA's page lists one">Trigger <input id="cf-lora-trig" style="width:100px"></label>
       <label class="row small" style="gap:4px" title="Upscale model file name in ComfyUI\'s models/upscale_models folder. Each finished photo is saved at about 2048 x 2560. Leave empty to skip.">Upscaler <select id="cf-up" style="max-width:220px"><option value="">None</option></select></label>
-      <label class="row small" style="gap:4px" title="Camera-angle LoRA for the turn step (Qwen Image 2.1 Multiple-Angles). When picked, the turn is asked for as an exact 30-degree camera move instead of in words.">Turn LoRA <select id="cf-tlora" style="max-width:220px"><option value="">None</option></select> <input id="cf-tlora-str" type="number" min="0" max="1.5" step="0.05" value="0.9" style="width:56px" title="Strength (0.8 to 1.0 recommended)"></label>
       <button class="small" id="cf-sharpen" title="Runs the upscaler on your existing generated photos that are under 2000 px tall and saves the sharper version in place. Print areas stay where they are.">Sharpen my existing photos</button><span class="muted small" id="cf-sharpen-st"></span>
       </div>
     <div class="row small" style="gap:6px;margin-bottom:6px"><button class="small" data-pf="all">All poses</button><button class="small" data-pf="men">Men</button><button class="small" data-pf="women">Women</button><button class="small" id="cf-none">Clear</button><span class="muted" id="cf-n" style="margin-left:auto"></span></div>
     <div class="grid" id="cf-poses" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));max-height:300px;overflow:auto"></div>
     <div class="row small" style="gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <label class="row small" style="gap:4px">Pose strength <input type="range" id="cf-str" min=".3" max="1.2" step=".05" value=".6" style="width:110px"> <span id="cf-strv">0.60</span></label>
       <label class="row small" style="gap:4px">Background <select id="cf-bg"><option value="random" selected>Random rugged scene per set</option><option value="any">Random rugged, including studio</option><option value="same">Use the Setting above</option></select></label>
       <label class="row small" style="gap:4px" title="How close the camera is. Closer makes the model (and the shirt) bigger in the photo so small graphics read better.">Framing <select id="cf-zoom"><option value="1">Standard (knees up)</option><option value="1.18" selected>Mid-thigh up</option><option value="1.35">Closer (hips up)</option><option value="1.55">Close (waist up)</option></select></label>
-      <label class="row small" style="gap:4px" title="In one shot: each photo of the pair is generated already angled, no pose skeleton and no turn edit (sharper, keeps framing). Turn edit: the old way, one straight photo turned both ways by Qwen.">Pairs <select id="cf-turnmode"><option value="direct" selected>In one shot</option><option value="edit">Turn edit (old)</option></select></label>
       <label class="row small" style="gap:4px">Arms <select id="cf-arms"><option value="">As photographed</option><option value="hips">Hands on hips</option><option value="hip">One hand on hip</option><option value="pocket">Hands in pockets</option><option value="mix" selected>Mix it up</option></select></label>
-      <span class="small muted" title="Each model is one straight-on photo turned about 30° each way by the Qwen edit model, so one photo shows the left sleeve and the other the right">Each model = 2 photos: turned left + turned right</span>
       <label class="row small" style="gap:4px" title="After the photos are made, ComfyUI repaints the shirt in your core colors (your Printify listing's colors if you've loaded one). About 30 seconds per color per photo, in the background."><input type="checkbox" id="cf-colors"> Also make AI shirt colors in ComfyUI (about 30 s per color per photo)</label>
       <div class="row small" style="gap:8px;display:none"><span id="cf-colq" class="muted"></span><button class="small" id="cf-colstop">Stop colors</button></div>
       <label class="row small" style="gap:4px">Photos per pose <select id="cf-per"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <button class="primary" id="cf-go" disabled>Generate</button><button class="small" id="cf-stop" style="display:none">Stop</button></div>
     <div class="small muted" id="cf-log" style="margin-top:8px"></div>
     <div class="grid" id="cf-out" style="margin-top:8px"></div>
-  </div>
-  <div class="card">
-    <h2>What makes a good blank</h2>
-    <ul class="tips small">
-      <li>Facing the camera straight on, with nothing in front of the chest: no crossed arms, long hair, or straps.</li>
-      <li>No logos, text, tags, or graphics on the garment. If any show up, regenerate.</li>
-      <li>Soft, even light. Hard shadows across the chest will show through the print.</li>
-      <li>Natural folds are good. Deep creases right across the print area look odd.</li>
-      <li>Generate one photo per shirt color you sell, so each listing matches the real product.</li>
-      <li>Check hands, fingers and the neckline before using an image.</li>
-      <li>Check that your image generator allows commercial use of its output.</li>
-    </ul>
   </div>
 </section>
 </main>
@@ -2000,36 +1948,6 @@ $('#sel-all').onclick=()=>{shown().forEach(t=>excluded.delete(t.id));LS.set('exc
 $('#sel-none').onclick=()=>{shown().forEach(t=>excluded.add(t.id));LS.set('excluded',[...excluded]);renderGrid();};
 
 
-/* ---------- check all photos (sleeve fit QA) ---------- */
-$('#btn-qa').onclick=async()=>{
-  const box=$('#qa-grid');box.textContent='';
-  if(!designs.left&&!designs.right){$('#qa-sum').textContent='Add a left or right sleeve design in the Studio first.';return;}
-  $('#btn-qa').disabled=true;$('#qa-sum').textContent='Rendering…';
-  let n=0,ok=0,chk=[];
-  try{
-    for(const t of templates){
-      await ensureFit(t);
-      const slots=viewOf(t)==='front'?['right','left']:[viewOf(t)];
-      for(const s of slots){
-        if(!designs[s])continue;const q=areaOf(t,s);const st=t.fit&&t.fit[s];
-        if(!q&&!st)continue;
-        const d=document.createElement('div');d.className='gtile qtile';const c=document.createElement('canvas');const sp=document.createElement('span');
-        sp.textContent=t.name+(viewOf(t)==='front'?' · '+SLOT_NAMES[s].toLowerCase():'');
-        const b=document.createElement('span');b.className='qb';
-        const lab=!q?[st==='low'?'Check this':'No sleeve found',st==='low'?'#d97706':'#6b7280']:st==='manual'?['Your edit','#2563eb']:st==='ok'?['Auto-fit ✓','#16a34a']:['Check this','#d97706'];
-        b.textContent=lab[0];b.style.background=lab[1];d.append(c,b,sp);box.append(d);n++;
-        if(lab[0]==='Auto-fit ✓'||lab[0]==='Your edit')ok++;else chk.push(t.name);
-        d.onclick=()=>{curId=t.id;slotPhoto=t.id;go('studio');if(viewOf(t)==='front')setSlot(s);renderThumbs();scheduleRender();setTimeout(startEdit,80);};
-        if(q){const p=await viewPack(t);const full=document.createElement('canvas');full.width=p.w;full.height=p.h;renderTo(p,t,full.getContext('2d'));
-          const pts=q.map(v=>[v.x*p.w,v.y*p.h]);const xs=pts.map(v=>v[0]),ys=pts.map(v=>v[1]);const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
-          const side=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*2.2;c.width=320;c.height=400;const x=c.getContext('2d');x.imageSmoothingQuality='high';
-          x.drawImage(full,cx-side/2,cy-side*.6,side,side*1.25,0,0,320,400);}
-        await new Promise(r=>setTimeout(r,0));
-      }
-    }
-    $('#qa-sum').textContent=n+' sleeves · '+ok+' fitted'+(chk.length?' · '+chk.length+' to check':' · all good');
-  }finally{$('#btn-qa').disabled=false;}
-};
 
 /* ---------- design library (saved in the user's account) ---------- */
 const libSaved=new Set();
@@ -2096,9 +2014,9 @@ try{localStorage.removeItem('ms_cf_cf-vary');}catch(e){}
 // the pose guide at full strength was boxing the model in and costing quality; start everyone at 0.6 once
 if(!LS.get('cfstr06',0)){LS.set('cfstr06',1);try{localStorage.removeItem('ms_cf_cf-str');}catch(e){}}
 if(!LS.get('cfzoom118',0)){LS.set('cfzoom118',1);try{localStorage.removeItem('ms_cf_cf-zoom');}catch(e){}} // one-time: move everyone to the new mid-thigh default
-for(const id of ['cf-str','cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up','cf-tlora','cf-tlora-str','cf-turnmode']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up'||id==='cf-tlora')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
+for(const id of ['cf-per','cf-arms','cf-bg','cf-colors','cf-zoom','cf-lora','cf-lora-str','cf-lora-trig','cf-up']){const el=$('#'+id),k=id==='cf-colors'?'cf_colors_v2':'cf_'+id,v=LS.get(k,null);if(v!==null){if(el.type==='checkbox')el.checked=v;else{if(el.tagName==='SELECT'&&v&&(id==='cf-lora'||id==='cf-up'||id==='cf-tlora')&&![...el.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=String(v).replace(/\.safetensors$/i,'');el.append(o);}el.value=v;if(el.tagName==='SELECT'&&el.selectedIndex<0)el.value=el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;}}
   el.addEventListener('change',()=>LS.set(k,el.type==='checkbox'?el.checked:el.value));}
-const cfStrUI=()=>{$('#cf-strv').textContent=(+$('#cf-str').value).toFixed(2);};$('#cf-str').addEventListener('input',cfStrUI);cfStrUI();
+
 $('#cf-check').onclick=()=>{$('#cf-url').value=cfSaveUrl();cfCheck();};
 {const u=LS.get('cfurl','');if(u)$('#cf-url').value=u;}
 function cfSaveUrl(){let v=$('#cf-url').value.trim();if(v&&!/^https?:\/\//.test(v))v='https://'+v;v=v.replace(/\/+$/,'');try{localStorage.setItem('ms_cfurl',JSON.stringify(v));}catch(e){}return v;}
@@ -2186,7 +2104,7 @@ function cfArms(woman){const v=$('#cf-arms').value;
   return v==='mix'?['','','hip','pocket','hip','pocket'][Math.floor(Math.random()*6)]:v==='hair'?'':v;}
 const MAN_POSE={'':'arms hanging relaxed and natural at his sides, a relaxed confident stance with his weight on one leg',pocket:'hands tucked into the front pockets of his jeans, a relaxed confident stance with his weight on one leg',
   hip:'one hand resting on his belt at the hip, the other arm relaxed at his side, a confident stance',hips:'both hands resting on his belt at the hips, a strong confident stance'};
-function cfPerson(ref){const cur=$('#g-model').value,want=ref.group==='women'?'woman':'man';
+function cfPerson(ref){const want=ref.group==='women'?'woman':'man';
   return randomPerson(want==='woman');}
 /* ---------- the generation prompt ----------
    Rewritten from scratch (Nov 23) in the short, labelled style of Dakota's own Z-Image workflow, which gets better images than the
@@ -2220,7 +2138,7 @@ FOV: ${direct?'85mm lens at chest height, ':''}framed from ${frame} to just abov
 const W_POSE={'':'arms hanging loose and relaxed at her sides, a casual easy stance with her weight on her back leg',hips:'one hand resting lightly on her hip, the other hanging loose, a casual easy stance',hip:'one hand resting lightly on her hip, the other arm hanging loose, a casual easy stance',pocket:'one thumb hooked loosely in a front pocket of her jeans, the other arm relaxed, a casual easy stance'};
 
 async function cfOne(ref,str,n,o){o=o||{};const base=cfBase();
-  if(o.angle&&o.angle[0]==='s'&&viewOf(ref)==='front'&&!o._baseOnly)return (($('#cf-turnmode').value||'direct')==='direct')?cfDirect(ref,n,o):cfTurnOne(ref,str,n,o);
+  if(o.angle&&o.angle[0]==='s'&&viewOf(ref)==='front'&&!o._baseOnly)return cfDirect(ref,n,o);
   let pid=ref.id+(viewOf(ref)==='front'&&o.angle?'~'+o.angle:viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');
   let pr=await fetch('vendor/poses/'+pid+'.png');if(!pr.ok&&o.angle){o.angle='';pid=ref.id+(viewOf(ref)==='front'&&o.arms?'~'+o.arms:'');pr=await fetch('vendor/poses/'+pid+'.png');}
   let pb=await pr.blob();const ZM=+(o.zoom||$('#cf-zoom').value||1);let ZA=null;
@@ -2255,7 +2173,7 @@ async function cfFileLists(){const base=cfBase();const opts=x=>{const v=x&&x[0];
     const L=opts(a.LoraLoaderModelOnly.input.required.lora_name).filter(f=>/z.?image|zit|realis|skin|radiant|physio|detail/i.test(f)),U=opts(b.UpscaleModelLoader.input.required.model_name);
     /* dropdowns (not type-ahead lists, which hid every file that didn't match what was already typed) */
     const fill=(id,list)=>{const d=$('#'+id),cur=d.value||LS.get('cf_'+id,'')||'';d.textContent='';const add=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;d.append(o);};add('','None');for(const f of list)add(f,f.replace(/\.safetensors$/i,''));if(cur&&!list.includes(cur))add(cur,cur+' (not found)');d.value=cur;};fill('cf-lora',L);fill('cf-up',U);CF.ups=U;
-    const all=opts(a.LoraLoaderModelOnly.input.required.lora_name);fill('cf-tlora',all.filter(f=>/multiple.?angles|camera.?angle|camera_angles|qma|mva|anyangle/i.test(f)));
+    const all=opts(a.LoraLoaderModelOnly.input.required.lora_name);
     if(!$('#cf-up').value.trim()&&U.length){const p=U.find(f=>/z.?image/i.test(f))||U.find(f=>/ultrasharp|realesrgan|nmkd|siax|remacri/i.test(f))||U[0];$('#cf-up').value=p;$('#cf-up').dispatchEvent(new Event('change'));}}catch(e){}}
 async function cfUpscale(bl){const file=($('#cf-up').value||'').trim();if(!file){if(!CF.upWarned){CF.upWarned=1;toast('No upscaler picked under Photo quality, so photos stay low-res (about 1000 x 1280).',6000);}return bl;}const base=cfBase();
   try{const fd=new FormData();fd.append('image',new File([bl],'ms-up.png',{type:bl.type||'image/png'}));fd.append('overwrite','true');
@@ -2385,7 +2303,7 @@ async function cfTurnOne(ref,str,n,o){const base=cfBase();o.shared=o.shared||{};
   try{const im=await loadImage(URL.createObjectURL(ob)),bi=await loadImage(URL.createObjectURL(b.blob));if(im.naturalWidth!==bi.naturalWidth){const c=drawScaled(im,bi.naturalWidth,bi.naturalHeight);ob=await canvasBlob(c,'image/png');}}catch(e){}
   return cfSaveGen(ref,ob,o,n,b.za,out.filename);}
 $('#cf-go').onclick=async()=>{if(CF.busy)return;CF.busy=true;CF.stop=false;$('#cf-go').disabled=true;$('#cf-stop').style.display='';
-  const per=+$('#cf-per').value,str=+$('#cf-str').value;
+  const per=+$('#cf-per').value,str=.6;
   // every model is a pair: one straight-on photo, turned ~30° each way by Qwen (turned right shows the right sleeve, turned left the left sleeve)
   const jobs=[];// [ref, opts]
   const bases=[...new Set([...CF.sel].map(id=>id.replace(/[lr]$/,'')))].filter(b0=>GEN_POSES.includes(b0));
@@ -3001,7 +2919,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 pfRefreshAuth();
 
 /* ---------- templates tab ---------- */
-let tplFile=null;
+
 /* upload model photos right from the studio's model list */
 $('#mp-up-open').onclick=()=>{const p=$('#mp-up');p.style.display=p.style.display==='none'?'':'none';};
 $('#mp-up-close').onclick=()=>{$('#mp-up').style.display='none';};
@@ -3013,16 +2931,7 @@ $('#mp-up-go').onclick=async()=>{const fs=[...$('#mp-up-file').files];if(!fs.len
   b.textContent='Upload';$('#mp-up-file').value='';$('#mp-up-label').textContent='Choose photos';$('#mp-up').style.display='none';
   if(last){curId=last;renderThumbs();scheduleRender();}
   toast((fs.length-bad)+' photo'+(fs.length-bad===1?'':'s')+' added'+(bad?`, ${bad} couldn't be read`:'')+'. Check the print area on each one.',4500);};
-$('#tpl-file').onchange=e=>{tplFile=e.target.files[0]||null;$('#tpl-file-label').textContent=tplFile?tplFile.name:'Choose photo';$('#tpl-add').disabled=!tplFile;if(tplFile&&!$('#tpl-name').value)$('#tpl-name').value=tplFile.name.replace(/\.[^.]+$/,'').slice(0,60);};
 $('#btn-restore').onclick=()=>restoreHidden();
-$('#tpl-add').onclick=async()=>{
-  if(!tplFile)return;const btn=$('#tpl-add');btn.disabled=true;btn.textContent='Adding…';
-  try{await addTemplate(tplFile,$('#tpl-name').value.trim(),$('#tpl-kind').value,$('#tpl-view').value);
-    tplFile=null;$('#tpl-file').value='';$('#tpl-file-label').textContent='Choose photo';$('#tpl-name').value='';
-    go('studio');toast('Drag the corners onto the chest, then Save area.',4000);
-  }catch(e){toast('Couldn\'t add that photo.');}
-  finally{btn.textContent='Add and set print area';btn.disabled=!tplFile;}
-};
 
 /* ---------- prompt builder ---------- */
 const settings={
@@ -3061,31 +2970,6 @@ const settings={
   ranch:'At a rustic ranch with a wooden fence and open fields behind, warm afternoon sun, background softly out of focus.',
   campus:'On a college campus walkway with brick buildings and trees behind, soft daylight, background softly out of focus.'
 };
-function buildPrompt(mo,sc){
-  const k=$('#g-kind').value,m=mo||$('#g-model').value,c=$('#g-color').value,s=settings[sc||$('#g-setting').value];
-  const garment=k==='hoodie'
-    ?`a plain blank ${c} pullover hoodie with a front kangaroo pocket, hood down, drawstrings hanging evenly`
-    :`a plain blank ${c} crew-neck cotton t-shirt, regular fit`;
-  const SC={flat:`Overhead flat-lay product photo of ${garment}, laid perfectly flat and symmetrical, sleeves spread out to the sides, front facing up. The garment has no logos, text, tags, prints or graphics anywhere.
-
-Shot straight down from directly above, no perspective tilt. Smooth fabric with only light natural texture, no wrinkles across the chest. ${s.replace(/^[^.]*\./,'').trim()} Neutral surface around the shirt with a few simple props near the edges, nothing touching the shirt. Even soft light, true-to-life fabric color, high resolution, 4:5 portrait.`,
-    hanger:`Photorealistic product photo of ${garment} on a simple wooden hanger, hanging straight on a wall hook, front facing the camera directly. The garment has no logos, text, tags, prints or graphics anywhere.
-
-Camera level with the chest, no tilt. Fabric hangs smoothly with gentle natural folds. Plain wall behind, soft daylight, true-to-life fabric color, high resolution, 4:5 portrait.`,
-    folded:`Photorealistic product photo of ${garment}, neatly folded into a square retail fold with the chest panel on top facing up, on a clean table. The garment has no logos, text, tags, prints or graphics anywhere.
-
-Shot from above at a slight angle, the folded chest panel flat and fully visible. Soft daylight, true-to-life fabric color, high resolution, 4:5 portrait.`};
-  if(SC[m]){if(mo)return SC[m];$('#g-out').textContent=SC[m];return;}
-  const p=`Realistic lifestyle photo for an apparel brand: ${m} wearing ${garment}. The garment has no logos, text, tags, prints or graphics anywhere.
-
-Standing straight and facing the camera directly, shoulders square, arms relaxed at the sides. Nothing covers the chest: no crossed arms, hair behind the shoulders, no bag straps or jewelry over the shirt. Natural, gentle fabric folds, no deep creases across the chest.
-
-${s} Framed from mid-thigh to just above the head, sharp focus on the ${k==='hoodie'?'hoodie':'shirt'}, true-to-life fabric color, high resolution, 4:5 portrait.`;
-  if(mo)return p;
-  $('#g-out').textContent=p;
-}
-['#g-kind','#g-model','#g-color','#g-setting'].forEach(s=>$(s).onchange=buildPrompt);
-$('#g-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#g-out').textContent);toast('Prompt copied.');}catch(e){toast('Copy blocked here. Press and hold the text to copy it.');}};
 
 /* ---------- nav ---------- */
 function go(tab){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+tab));if(tab==='blanks'){cfRenderPoses();if(!CF.ok)cfCheck();}
@@ -3095,7 +2979,7 @@ $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
 $$('#kind-filter button[data-kind]').forEach(b=>b.onclick=()=>{kindFilter=b.dataset.kind;$$('#kind-filter button[data-kind]').forEach(x=>x.classList.toggle('on',x===b));const s=shown();if(s.length&&!s.some(t=>t.id===curId)){if(editMode)cancelEdit();curId=s[0].id;scheduleRender();}renderThumbs();if(gridOn)renderGrid();});
 window.addEventListener('resize',()=>{if(editMode)scheduleRender();});
 
-setSlot('front');buildPrompt();renderAll();initStore();
+setSlot('front');renderAll();initStore();
 })();
 </script>
 </body>
